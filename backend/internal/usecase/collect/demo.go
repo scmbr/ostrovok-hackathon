@@ -9,36 +9,34 @@ import (
 )
 
 // DemoSize — сколько отелей попадает в демо (PROJECT_CONTEXT.md: 40–60).
-const DemoSize = 50
+const DemoSize = 60
 
-// alwaysDemoDistrict — район, где отелей мало, а нужен вид на море: берём все.
-const alwaysDemoDistrict = "barceloneta"
-
-// SelectDemoIDs выбирает до n отелей: все из alwaysDemoDistrict, остальное место
-// делится поровну между районами по кругу. Внутри района раньше идут отели со зданием
-// и известной высотой, затем просто со зданием, затем остальные; при равенстве — по id.
+// SelectDemoIDs выбирает до n отелей: сначала все береговые (вид на море — ключевая
+// характеристика), остальное место делится поровну между районами по кругу. Внутри группы
+// раньше идут отели со зданием и известной высотой, затем просто со зданием, затем остальные;
+// при равенстве — по id.
 func SelectDemoIDs(cands []domain.DemoCandidate, n int) []int64 {
+	var coastal []domain.DemoCandidate
 	byDistrict := map[string][]domain.DemoCandidate{}
 	for _, c := range cands {
-		byDistrict[c.District] = append(byDistrict[c.District], c)
+		if c.Coastal {
+			coastal = append(coastal, c)
+		} else {
+			byDistrict[c.District] = append(byDistrict[c.District], c)
+		}
 	}
+	sortByRank(coastal)
 	for _, list := range byDistrict {
-		sort.Slice(list, func(i, j int) bool {
-			if ri, rj := rank(list[i]), rank(list[j]); ri != rj {
-				return ri < rj
-			}
-			return list[i].ID < list[j].ID
-		})
+		sortByRank(list)
 	}
 
 	var ids []int64
-	for _, c := range byDistrict[alwaysDemoDistrict] {
+	for _, c := range coastal {
 		if len(ids) == n {
 			break
 		}
 		ids = append(ids, c.ID)
 	}
-	delete(byDistrict, alwaysDemoDistrict)
 
 	names := make([]string, 0, len(byDistrict))
 	for name := range byDistrict {
@@ -61,6 +59,15 @@ func SelectDemoIDs(cands []domain.DemoCandidate, n int) []int64 {
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	return ids
+}
+
+func sortByRank(list []domain.DemoCandidate) {
+	sort.Slice(list, func(i, j int) bool {
+		if ri, rj := rank(list[i]), rank(list[j]); ri != rj {
+			return ri < rj
+		}
+		return list[i].ID < list[j].ID
+	})
 }
 
 func rank(c domain.DemoCandidate) int {
