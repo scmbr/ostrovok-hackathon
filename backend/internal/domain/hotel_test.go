@@ -37,6 +37,10 @@ func TestDistrictOf(t *testing.T) {
 		want string
 	}{
 		{"barceloneta", orb.Point{2.19, 41.380}, "barceloneta"},
+		{"barceloneta port (south of old bbox)", orb.Point{2.190, 41.3686}, "barceloneta"},
+		{"vila olimpica beats barceloneta on overlap", orb.Point{2.1965, 41.3875}, "vila_olimpica"},
+		{"diagonal mar", orb.Point{2.215, 41.405}, "diagonal_mar"},
+		{"poblenou", orb.Point{2.200, 41.400}, "poblenou"},
 		{"gothic", orb.Point{2.176, 41.383}, "gothic"},
 		{"eixample", orb.Point{2.165, 41.395}, "eixample"},
 		{"overlap goes to gothic", orb.Point{2.172, 41.3875}, "gothic"},

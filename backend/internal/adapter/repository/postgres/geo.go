@@ -34,28 +34,58 @@ SET geom = EXCLUDED.geom, levels = EXCLUDED.levels,
 	})
 }
 
-// UpsertHotels сохраняет отели. Здание — то, чей way совпадает с отелем-way,
-// иначе первое здание, содержащее точку отеля. Мок карточки не затирается.
+// UpsertHotels сохраняет отели. Здания привязывает LinkHotels. Мок карточки не затирается.
 func (s *GeoStore) UpsertHotels(ctx context.Context, hotels []domain.Hotel) error {
 	const q = `
-WITH pt AS (SELECT ST_SetSRID(ST_MakePoint($3, $4), 4326) AS g)
-INSERT INTO hotels (osm_id, name, geom, district, building_id)
-SELECT $1, $2, pt.g, $5,
-       COALESCE(
-         (SELECT id FROM buildings WHERE $6::bigint IS NOT NULL AND osm_id = $6),
-         (SELECT id FROM buildings WHERE ST_Contains(geom, pt.g) ORDER BY id LIMIT 1))
-FROM pt
+INSERT INTO hotels (osm_id, name, geom, district)
+VALUES ($1, $2, ST_SetSRID(ST_MakePoint($3, $4), 4326), $5)
 ON CONFLICT (osm_id) DO UPDATE
-SET name = EXCLUDED.name, geom = EXCLUDED.geom,
-    district = EXCLUDED.district, building_id = EXCLUDED.building_id`
+SET name = EXCLUDED.name, geom = EXCLUDED.geom, district = EXCLUDED.district`
 	return s.batch(ctx, len(hotels), func(b *pgx.Batch, i int) {
 		h := hotels[i]
-		var wayID *int64
-		if h.OSMType == "way" {
-			wayID = &h.OSMID
-		}
-		b.Queue(q, h.StoreID(), h.Name, h.Point[0], h.Point[1], h.District, wayID)
+		b.Queue(q, h.StoreID(), h.Name, h.Point[0], h.Point[1], h.District)
 	})
+}
+
+// UpsertCatastroBuildings вставляет или обновляет здания кадастра по catastro_ref.
+// Контуры приходят в EPSG:25831 и переводятся в 4326 в PostGIS.
+func (s *GeoStore) UpsertCatastroBuildings(ctx context.Context, buildings []domain.Building) error {
+	const q = `
+INSERT INTO buildings (catastro_ref, geom, levels, height_m, height_source)
+VALUES ($1, ST_Multi(ST_Transform(ST_GeomFromText($2, 25831), 4326)), $3, $4, $5)
+ON CONFLICT (catastro_ref) WHERE catastro_ref IS NOT NULL DO UPDATE
+SET geom = EXCLUDED.geom, levels = EXCLUDED.levels,
+    height_m = EXCLUDED.height_m, height_source = EXCLUDED.height_source`
+	return s.batch(ctx, len(buildings), func(b *pgx.Batch, i int) {
+		bl := buildings[i]
+		b.Queue(q, bl.CatastroRef, wkt.MarshalString(bl.Geom), bl.Levels, bl.HeightM, bl.HeightSource)
+	})
+}
+
+// LinkHotels привязывает отели к зданиям. osm_building_id — здание OSM: way отеля или первое
+// здание, содержащее точку. building_id — здание кадастра, содержащее точку, иначе ближайшее
+// в пределах catastroSnapM, иначе osm_building_id. Можно вызывать после любой из загрузок.
+func (s *GeoStore) LinkHotels(ctx context.Context) error {
+	const catastroSnapM = 15
+	_, err := s.pool.Exec(ctx, `
+UPDATE hotels h SET
+  osm_building_id = o.id,
+  building_id = COALESCE(c.id, o.id)
+FROM hotels h2
+LEFT JOIN LATERAL (
+  SELECT b.id FROM buildings b
+  WHERE b.osm_id IS NOT NULL
+    AND (b.osm_id = -h2.osm_id OR ST_Contains(b.geom, h2.geom))
+  ORDER BY (b.osm_id = -h2.osm_id) DESC, b.id LIMIT 1
+) o ON true
+LEFT JOIN LATERAL (
+  SELECT b.id FROM buildings b
+  WHERE b.catastro_ref IS NOT NULL
+    AND (ST_Contains(b.geom, h2.geom) OR ST_DWithin(b.geom::geography, h2.geom::geography, $1))
+  ORDER BY ST_Contains(b.geom, h2.geom) DESC, b.geom <-> h2.geom LIMIT 1
+) c ON true
+WHERE h.id = h2.id`, catastroSnapM)
+	return err
 }
 
 // ReplaceSea заменяет береговую линию целиком: у неё нет собственного ключа.
@@ -120,8 +150,9 @@ WHERE NOT EXISTS (SELECT 1 FROM room_categories WHERE hotel_id = $1)`, hotelID, 
 func (s *GeoStore) ListDemoCandidates(ctx context.Context) ([]domain.DemoCandidate, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT h.id, COALESCE(h.district, ''), h.building_id IS NOT NULL,
-       COALESCE(b.height_source <> $1, false)
-FROM hotels h LEFT JOIN buildings b ON b.id = h.building_id`, domain.HeightDefault)
+       COALESCE(b.height_source <> $1, false),
+       EXISTS (SELECT 1 FROM sea WHERE ST_DWithin(sea.geom::geography, h.geom::geography, $2))
+FROM hotels h LEFT JOIN buildings b ON b.id = h.building_id`, domain.HeightDefault, domain.CoastalRadiusM)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +160,7 @@ FROM hotels h LEFT JOIN buildings b ON b.id = h.building_id`, domain.HeightDefau
 	var out []domain.DemoCandidate
 	for rows.Next() {
 		var c domain.DemoCandidate
-		if err := rows.Scan(&c.ID, &c.District, &c.HasBuilding, &c.KnownHeight); err != nil {
+		if err := rows.Scan(&c.ID, &c.District, &c.HasBuilding, &c.KnownHeight, &c.Coastal); err != nil {
 			return nil, err
 		}
 		out = append(out, c)
@@ -152,9 +183,22 @@ func (s *GeoStore) Stats(ctx context.Context) (domain.Stats, error) {
 		return st, err
 	}
 	err := s.pool.QueryRow(ctx, `
-SELECT count(h.building_id), count(*) FILTER (WHERE b.height_source <> $1)
-FROM hotels h LEFT JOIN buildings b ON b.id = h.building_id`, domain.HeightDefault).
-		Scan(&st.HotelsWithBuilding, &st.HotelsWithKnownHeight)
+SELECT count(h.building_id),
+       count(*) FILTER (WHERE b.height_source <> $1),
+       count(*) FILTER (WHERE b.height_source = $2),
+       count(h.osm_building_id),
+       count(*) FILTER (WHERE b.height_source = $2 AND o.height_source IN ($3, $4)
+                        AND round(b.height_m / $5) <> round(o.height_m / $5)),
+       count(*) FILTER (WHERE coastal),
+       count(*) FILTER (WHERE coastal AND h.demo)
+FROM (SELECT h.*, EXISTS (SELECT 1 FROM sea WHERE ST_DWithin(sea.geom::geography, h.geom::geography, $6)) AS coastal
+      FROM hotels h) h
+LEFT JOIN buildings b ON b.id = h.building_id
+LEFT JOIN buildings o ON o.id = h.osm_building_id`,
+		domain.HeightDefault, domain.HeightCatastro, domain.HeightOSMHeight, domain.HeightOSMLevels,
+		domain.MetersPerLevel, domain.CoastalRadiusM).
+		Scan(&st.HotelsWithBuilding, &st.HotelsWithKnownHeight, &st.HotelsWithCatastro,
+			&st.HotelsWithOSMBuilding, &st.HotelsHeightDiffers, &st.CoastalHotels, &st.CoastalDemoHotels)
 	if err != nil {
 		return st, err
 	}

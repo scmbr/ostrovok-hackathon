@@ -21,6 +21,8 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/serve
 FROM alpine:3.20.3
 RUN addgroup -S app && adduser -S -G app -u 10001 app
 COPY --from=backend /out/server /usr/local/bin/server
+COPY data/demo/seed.sql.gz /app/seed.sql.gz
+ENV SEED_FILE=/app/seed.sql.gz
 USER app
 EXPOSE 8080
 ENTRYPOINT ["server"]

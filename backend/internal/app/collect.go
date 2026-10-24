@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/repository/postgres"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/source/catastro"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/source/overpass"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/collect"
@@ -15,6 +16,7 @@ import (
 
 const collectUsage = `команды:
   osm          выгрузить отели, здания и берег из OSM (Overpass) в БД
+  catastro     загрузить здания кадастра с этажностью из data/raw/catastro и привязать отели
   mock-cards   сгенерировать мок базовых карточек отелей
   select-demo  отметить демо-подмножество отелей (флаг hotels.demo)
   stats        показать сводку по собранным данным`
@@ -25,7 +27,7 @@ func RunCollect(args []string) error {
 		return fmt.Errorf("укажите команду\n%s", collectUsage)
 	}
 	cmd := args[0]
-	if cmd != "osm" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
+	if cmd != "osm" && cmd != "catastro" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
 		return fmt.Errorf("неизвестная команда %q\n%s", cmd, collectUsage)
 	}
 
@@ -43,11 +45,19 @@ func RunCollect(args []string) error {
 	}
 
 	store := postgres.NewGeoStore(pool)
-	c := &collect.Collector{Src: overpass.NewClient(cfg.RawDataDir), Store: store}
+	c := &collect.Collector{
+		Src:      overpass.NewClient(cfg.RawDataDir),
+		Catastro: catastro.NewSource(cfg.RawDataDir),
+		Store:    store,
+	}
 
 	switch cmd {
 	case "osm":
 		if err := c.CollectOSM(ctx); err != nil {
+			return err
+		}
+	case "catastro":
+		if err := c.CollectCatastro(ctx); err != nil {
 			return err
 		}
 	case "mock-cards":
@@ -83,6 +93,9 @@ func printStats(s domain.Stats) {
 	}
 	fmt.Printf("С привязкой к зданию: %d\n", s.HotelsWithBuilding)
 	fmt.Printf("Со зданием, где высота известна (не default): %d\n", s.HotelsWithKnownHeight)
+	fmt.Printf("Со зданием кадастра и этажностью: %d\n", s.HotelsWithCatastro)
+	fmt.Printf("Со зданием OSM: %d; этажность в двух источниках расходится: %d\n", s.HotelsWithOSMBuilding, s.HotelsHeightDiffers)
+	fmt.Printf("Береговых (до %d м от берега): %d, из них в демо: %d\n", domain.CoastalRadiusM, s.CoastalHotels, s.CoastalDemoHotels)
 	fmt.Println("Здания по источнику высоты:")
 	for _, k := range sortedKeys(s.BuildingsBySource) {
 		fmt.Printf("  %-12s %d\n", k, s.BuildingsBySource[k])

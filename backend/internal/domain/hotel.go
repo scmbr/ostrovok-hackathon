@@ -4,6 +4,7 @@ import "github.com/paulmach/orb"
 
 // Источники высоты здания (buildings.height_source).
 const (
+	HeightCatastro  = "catastro"
 	HeightOSMHeight = "osm_height"
 	HeightOSMLevels = "osm_levels"
 	HeightDefault   = "default"
@@ -28,9 +29,10 @@ func ResolveHeight(levels *int, heightM *float64) (outLevels *int, outHeightM fl
 	}
 }
 
-// Building — здание из OSM.
+// Building — здание из OSM или кадастра. У здания OSM заполнен OSMID, у кадастрового — CatastroRef.
 type Building struct {
 	OSMID        int64
+	CatastroRef  string
 	Geom         orb.MultiPolygon
 	Levels       *int
 	HeightM      float64
@@ -78,13 +80,23 @@ type DemoCandidate struct {
 	District    string
 	HasBuilding bool
 	KnownHeight bool // у здания высота не default
+	Coastal     bool // не дальше CoastalRadiusM от берега
 }
+
+// CoastalRadiusM — расстояние до берега, в пределах которого отель считается береговым.
+// На 300 м в OSM набирается 14 отелей, на 400 м — 22 (цель этапа 2 — не меньше 20).
+const CoastalRadiusM = 400
 
 // Stats — сводка собранных данных для проверки критерия готовности.
 type Stats struct {
 	HotelsByDistrict      map[string]int
 	HotelsWithBuilding    int
 	HotelsWithKnownHeight int
+	CoastalHotels         int
+	CoastalDemoHotels     int
+	HotelsWithCatastro    int // основное здание — кадастровое с этажностью
+	HotelsWithOSMBuilding int
+	HotelsHeightDiffers   int // у обоих зданий известна высота, и этажность расходится
 	BuildingsBySource     map[string]int
 	SeaSegments           int
 	DemoHotels            int
