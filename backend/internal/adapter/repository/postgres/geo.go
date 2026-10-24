@@ -62,6 +62,39 @@ SET geom = EXCLUDED.geom, levels = EXCLUDED.levels,
 	})
 }
 
+// ReplaceBuildingParts заменяет части зданий кадастра целиком; части привязываются к зданиям по catastro_ref.
+func (s *GeoStore) ReplaceBuildingParts(ctx context.Context, buildings []domain.Building) error {
+	const q = `
+INSERT INTO building_parts (building_id, geom, floors, height_m)
+SELECT b.id, ST_Multi(ST_Transform(ST_GeomFromText($2, 25831), 4326)), $3, $4
+FROM buildings b WHERE b.catastro_ref = $1`
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
+	if _, err := tx.Exec(ctx, `DELETE FROM building_parts`); err != nil {
+		return err
+	}
+	b := &pgx.Batch{}
+	for _, bl := range buildings {
+		for _, p := range bl.Parts {
+			b.Queue(q, bl.CatastroRef, wkt.MarshalString(p.Geom), p.Floors, p.HeightM)
+		}
+	}
+	br := tx.SendBatch(ctx, b)
+	for i := 0; i < b.Len(); i++ {
+		if _, err := br.Exec(); err != nil {
+			_ = br.Close()
+			return fmt.Errorf("часть здания %d из %d: %w", i+1, b.Len(), err)
+		}
+	}
+	if err := br.Close(); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // MarkShadowedBuildings помечает здания OSM, продублированные кадастром: больше половины их площади
 // перекрыто кадастровым зданием. Для препятствий на лучах берутся только непомеченные.
 func (s *GeoStore) MarkShadowedBuildings(ctx context.Context) error {

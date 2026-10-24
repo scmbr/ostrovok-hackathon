@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/paulmach/orb"
+
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 )
 
@@ -26,72 +28,107 @@ func NewSource(rawDataDir string) *Source {
 }
 
 // Buildings возвращает здания, чей габарит пересекает bbox, с этажностью = максимум по частям.
+// Если этажность частей различается, части возвращаются в Parts (башня на подиуме).
 // Здания без этажности пропускаются: у них остаётся высота OSM. Контуры — в EPSG:25831.
 func (s *Source) Buildings(ctx context.Context, bbox domain.BBox) ([]domain.Building, error) {
-	floors, err := s.maxFloors(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("части зданий: %w", err)
-	}
-	log.Printf("кадастр: этажность у %d зданий", len(floors))
-
 	loE, loN := toUTM31N(bbox.West, bbox.South)
 	hiE, hiN := toUTM31N(bbox.East, bbox.North)
 
+	// Проход 1: контуры зданий в рамке.
 	rc, err := s.open("building.gml")
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
-
-	var out []domain.Building
-	var seen, inBox int
-	err = scan(rc, "Building", true, func(f feature) error {
+	byRef := map[string]orb.MultiPolygon{}
+	var order []string
+	var seen int
+	err = scan(rc, "Building", true, nil, func(f feature) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		seen++
-		if f.env[2] < loE || f.env[0] > hiE || f.env[3] < loN || f.env[1] > hiN {
+		if f.env[2] < loE || f.env[0] > hiE || f.env[3] < loN || f.env[1] > hiN || len(f.geom) == 0 {
 			return nil
 		}
-		inBox++
-		n := floors[f.ref]
-		if n == 0 || len(f.geom) == 0 {
-			return nil
-		}
-		levels := n
-		out = append(out, domain.Building{
-			CatastroRef:  f.ref,
-			Geom:         f.geom,
-			Levels:       &levels,
-			HeightM:      float64(n) * domain.MetersPerLevel,
-			HeightSource: domain.HeightCatastro,
-		})
+		byRef[f.ref] = f.geom
+		order = append(order, f.ref)
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("здания: %w", err)
 	}
-	log.Printf("кадастр: зданий в файле %d, в рамке %d, с этажностью %d", seen, inBox, len(out))
+	log.Printf("кадастр: зданий в файле %d, в рамке %d", seen, len(order))
+
+	// Проход 2: части этих зданий — этажность и контуры.
+	parts, err := s.parts(ctx, func(ref string) bool { _, ok := byRef[ref]; return ok })
+	if err != nil {
+		return nil, fmt.Errorf("части зданий: %w", err)
+	}
+
+	var out []domain.Building
+	var withParts, partRows int
+	for _, ref := range order {
+		ps := parts[ref]
+		maxFloors := 0
+		distinct := map[int]bool{}
+		for _, p := range ps {
+			maxFloors = max(maxFloors, p.floors)
+			if p.floors > 0 {
+				distinct[p.floors] = true
+			}
+		}
+		if maxFloors == 0 {
+			continue
+		}
+		levels := maxFloors
+		b := domain.Building{
+			CatastroRef:  ref,
+			Geom:         byRef[ref],
+			Levels:       &levels,
+			HeightM:      float64(maxFloors) * domain.MetersPerLevel,
+			HeightSource: domain.HeightCatastro,
+		}
+		if len(distinct) > 1 {
+			for _, p := range ps {
+				if p.floors > 0 && len(p.geom) > 0 {
+					b.Parts = append(b.Parts, domain.BuildingPart{
+						Geom: p.geom, Floors: p.floors, HeightM: float64(p.floors) * domain.MetersPerLevel,
+					})
+				}
+			}
+			if len(b.Parts) > 0 {
+				withParts++
+				partRows += len(b.Parts)
+			}
+		}
+		out = append(out, b)
+	}
+	log.Printf("кадастр: с этажностью %d, из них с частями разной этажности %d (частей %d)", len(out), withParts, partRows)
 	return out, nil
 }
 
-func (s *Source) maxFloors(ctx context.Context) (map[string]int, error) {
+type partInfo struct {
+	floors int
+	geom   orb.MultiPolygon
+}
+
+// parts собирает части зданий, прошедших keep, по кадастровой ссылке.
+func (s *Source) parts(ctx context.Context, keep func(ref string) bool) (map[string][]partInfo, error) {
 	rc, err := s.open("buildingpart.gml")
 	if err != nil {
 		return nil, err
 	}
 	defer rc.Close()
-	floors := map[string]int{}
-	err = scan(rc, "BuildingPart", false, func(f feature) error {
+	out := map[string][]partInfo{}
+	err = scan(rc, "BuildingPart", true, keep, func(f feature) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if f.floors > floors[f.ref] {
-			floors[f.ref] = f.floors
-		}
+		out[f.ref] = append(out[f.ref], partInfo{floors: f.floors, geom: f.geom})
 		return nil
 	})
-	return floors, err
+	return out, err
 }
 
 // open ищет файл с заданным окончанием имени в каталоге (рекурсивно), затем в zip-архивах.

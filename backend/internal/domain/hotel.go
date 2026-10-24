@@ -37,6 +37,16 @@ type Building struct {
 	Levels       *int
 	HeightM      float64
 	HeightSource string
+	// Parts — части здания кадастра с разной этажностью (только если этажность частей различается;
+	// иначе высота одна на весь контур и части не нужны). Пусто у зданий OSM.
+	Parts []BuildingPart
+}
+
+// BuildingPart — часть здания кадастра со своей этажностью (башня на подиуме и т. п.).
+type BuildingPart struct {
+	Geom    orb.MultiPolygon
+	Floors  int
+	HeightM float64
 }
 
 // Hotel — отель из OSM. Для way-отелей BuildingOSMID совпадает с id самого way.

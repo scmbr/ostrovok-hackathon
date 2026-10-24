@@ -38,6 +38,8 @@ type Store interface {
 	UpsertHotels(ctx context.Context, hotels []domain.Hotel) error
 	// LinkHotels (пере)привязывает отели к зданиям OSM и кадастра.
 	LinkHotels(ctx context.Context) error
+	// ReplaceBuildingParts заменяет части зданий кадастра с разной этажностью.
+	ReplaceBuildingParts(ctx context.Context, buildings []domain.Building) error
 	// MarkShadowedBuildings помечает здания OSM, дублирующие здания кадастра.
 	MarkShadowedBuildings(ctx context.Context) error
 	ReplaceSea(ctx context.Context, lines []orb.LineString) error
@@ -101,6 +103,9 @@ func (c *Collector) CollectCatastro(ctx context.Context) error {
 	log.Printf("зданий кадастра получено: %d", len(buildings))
 	if err := c.Store.UpsertCatastroBuildings(ctx, buildings); err != nil {
 		return fmt.Errorf("сохранение зданий кадастра: %w", err)
+	}
+	if err := c.Store.ReplaceBuildingParts(ctx, buildings); err != nil {
+		return fmt.Errorf("сохранение частей зданий: %w", err)
 	}
 	if err := c.Store.MarkShadowedBuildings(ctx); err != nil {
 		return fmt.Errorf("пометка дубликатов зданий: %w", err)

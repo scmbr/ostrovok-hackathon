@@ -45,7 +45,7 @@ const partXML = `<?xml version="1.0" encoding="ISO-8859-1"?>
 
 func TestScanBuilding(t *testing.T) {
 	var got []feature
-	if err := scan(strings.NewReader(buildingXML), "Building", true, func(f feature) error {
+	if err := scan(strings.NewReader(buildingXML), "Building", true, nil, func(f feature) error {
 		got = append(got, f)
 		return nil
 	}); err != nil {
@@ -71,7 +71,7 @@ func TestScanBuilding(t *testing.T) {
 
 func TestScanPartsMaxFloors(t *testing.T) {
 	floors := map[string]int{}
-	if err := scan(strings.NewReader(partXML), "BuildingPart", false, func(f feature) error {
+	if err := scan(strings.NewReader(partXML), "BuildingPart", false, nil, func(f feature) error {
 		floors[f.ref] = max(floors[f.ref], f.floors)
 		return nil
 	}); err != nil {
@@ -112,5 +112,38 @@ func TestToUTM31N(t *testing.T) {
 	e, n := toUTM31N(2.17, 41.387)
 	if math.Abs(e-430700) > 1000 || math.Abs(n-4581300) > 1500 {
 		t.Errorf("(%v, %v) далеко от ожидаемых (430700, 4581300)", e, n)
+	}
+}
+
+const partWithGeometryXML = `<?xml version="1.0" encoding="ISO-8859-1"?>
+<gml:FeatureCollection xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:bu-ext2d="x" xmlns:bu-core2d="y">
+  <gml:featureMember><bu-ext2d:BuildingPart gml:id="ES.SDGC.BU.0004701DF3800C_part1">
+    <bu-ext2d:geometry><bu-core2d:BuildingGeometry><bu-core2d:geometry><gml:Surface><gml:patches><gml:PolygonPatch>
+      <gml:exterior><gml:LinearRing><gml:posList srsDimension="2" count="5"> 0 0 10 0 10 10 0 10 0 0 </gml:posList></gml:LinearRing></gml:exterior>
+    </gml:PolygonPatch></gml:patches></gml:Surface></bu-core2d:geometry></bu-core2d:BuildingGeometry></bu-ext2d:geometry>
+    <bu-ext2d:numberOfFloorsAboveGround>6</bu-ext2d:numberOfFloorsAboveGround>
+  </bu-ext2d:BuildingPart></gml:featureMember>
+  <gml:featureMember><bu-ext2d:BuildingPart gml:id="ES.SDGC.BU.9999999AA1111B_part1">
+    <bu-ext2d:geometry><bu-core2d:BuildingGeometry><bu-core2d:geometry><gml:Surface><gml:patches><gml:PolygonPatch>
+      <gml:exterior><gml:LinearRing><gml:posList srsDimension="2" count="5"> 0 0 5 0 5 5 0 5 0 0 </gml:posList></gml:LinearRing></gml:exterior>
+    </gml:PolygonPatch></gml:patches></gml:Surface></bu-core2d:geometry></bu-core2d:BuildingGeometry></bu-ext2d:geometry>
+    <bu-ext2d:numberOfFloorsAboveGround>2</bu-ext2d:numberOfFloorsAboveGround>
+  </bu-ext2d:BuildingPart></gml:featureMember>
+</gml:FeatureCollection>`
+
+func TestScanPartGeometryAndKeep(t *testing.T) {
+	var got []feature
+	keep := func(ref string) bool { return ref == "0004701DF3800C" }
+	if err := scan(strings.NewReader(partWithGeometryXML), "BuildingPart", true, keep, func(f feature) error {
+		got = append(got, f)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("частей %d, want 1: вторая отброшена keep", len(got))
+	}
+	if got[0].floors != 6 || len(got[0].geom) != 1 || len(got[0].geom[0][0]) != 5 {
+		t.Errorf("часть: этажей %d, геометрия %v", got[0].floors, got[0].geom)
 	}
 }
