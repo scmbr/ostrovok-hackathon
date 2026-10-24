@@ -2,7 +2,10 @@ module github.com/ostrovok-hackathon-2026/tima-mechty/backend
 
 go 1.23
 
-require github.com/jackc/pgx/v5 v5.7.2
+require (
+	github.com/jackc/pgx/v5 v5.7.2
+	github.com/paulmach/orb v0.11.1
+)
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
