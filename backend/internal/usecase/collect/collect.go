@@ -22,6 +22,7 @@ type OSMSource interface {
 	Hotels(ctx context.Context, districts []domain.District) ([]domain.Hotel, error)
 	Buildings(ctx context.Context, bbox domain.BBox) ([]domain.Building, error)
 	Coastline(ctx context.Context, bbox domain.BBox) ([]orb.LineString, error)
+	Roads(ctx context.Context, bbox domain.BBox) ([]domain.Road, error)
 }
 
 // CatastroSource — выгрузка зданий кадастра с этажностью.
@@ -38,6 +39,8 @@ type Store interface {
 	// LinkHotels (пере)привязывает отели к зданиям OSM и кадастра.
 	LinkHotels(ctx context.Context) error
 	ReplaceSea(ctx context.Context, lines []orb.LineString) error
+	// ReplaceRoads заменяет дороги; сохраняются только лежащие не дальше domain.RoadsRadiusM от отелей.
+	ReplaceRoads(ctx context.Context, roads []domain.Road) error
 	ListHotels(ctx context.Context) ([]domain.HotelKey, error)
 	SaveMockCard(ctx context.Context, hotelID int64, card domain.Card) error
 	ListDemoCandidates(ctx context.Context) ([]domain.DemoCandidate, error)
@@ -112,4 +115,17 @@ func (c *Collector) GenerateMockCards(ctx context.Context) (int, error) {
 		}
 	}
 	return len(hotels), nil
+}
+
+// CollectRoads выгружает дороги OSM и оставляет те, что лежат вокруг отелей (отели должны быть уже загружены).
+func (c *Collector) CollectRoads(ctx context.Context) error {
+	roads, err := c.Src.Roads(ctx, domain.CoverageBBox().Pad(bufferDeg))
+	if err != nil {
+		return fmt.Errorf("дороги: %w", err)
+	}
+	log.Printf("дорог получено: %d", len(roads))
+	if err := c.Store.ReplaceRoads(ctx, roads); err != nil {
+		return fmt.Errorf("сохранение дорог: %w", err)
+	}
+	return nil
 }

@@ -182,6 +182,35 @@ func (c *Client) Coastline(ctx context.Context, bbox domain.BBox) ([]orb.LineStr
 	return lines, nil
 }
 
+// roadHighways — типы дорог, вдоль которых бывают фасады отелей; тропинки, лестницы и служебные проезды не берём.
+const roadHighways = "motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|pedestrian|" +
+	"motorway_link|trunk_link|primary_link|secondary_link|tertiary_link"
+
+// Roads возвращает дороги (highway из roadHighways) внутри bbox.
+func (c *Client) Roads(ctx context.Context, bbox domain.BBox) ([]domain.Road, error) {
+	ql := fmt.Sprintf(`[out:json][timeout:180];way["highway"~"^(%s)$"]%s;out geom tags;`, roadHighways, bboxQL(bbox))
+	body, err := c.query(ctx, "roads", ql)
+	if err != nil {
+		return nil, err
+	}
+	els, err := decode(body)
+	if err != nil {
+		return nil, err
+	}
+	var roads []domain.Road
+	for _, e := range els {
+		if len(e.Geometry) < 2 {
+			continue
+		}
+		ls := make(orb.LineString, len(e.Geometry))
+		for i, g := range e.Geometry {
+			ls[i] = orb.Point{g.Lon, g.Lat}
+		}
+		roads = append(roads, domain.Road{OSMID: e.ID, Highway: e.Tags["highway"], Name: e.Tags["name"], Geom: ls})
+	}
+	return roads, nil
+}
+
 // parseLevels разбирает building:levels ("5", "5.0"); нечисловое и неположительное — nil.
 func parseLevels(s string) *int {
 	f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
