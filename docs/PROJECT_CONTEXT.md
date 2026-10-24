@@ -252,4 +252,5 @@ Feature-Sliced Design:
 - [24.10] БД: Postgres 16 + PostGIS (есть опыт). Пространственные выборки — в SQL, логика — в Go.
 - [24.10] Репозиторий разделён на `backend/` (Go-модуль) и `frontend/` (React + Vite); один контейнер приложения, фронтенд встраивается через embed.
 - [24.10] Архитектура: Clean Architecture в backend, FSD во frontend. Коммиты — Conventional Commits, PR — на русском.
-- Этап 1: не начат.
+- [24.10] Этап 1, задача 1 (каркас и Docker) выполнена: `docker compose up --build` поднимает app + PostGIS, `/health` → 200, процесс под uid 10001, миграция `0001_init.sql` (вся схема раздела 6) применяется на старте, режим без LLM логируется. Healthcheck БД идёт по TCP (`pg_isready -h 127.0.0.1`), иначе проходит на временном сервере initdb; `retries: 60`, т. к. первая инициализация PostGIS под amd64 занимает больше минуты.
+- Этап 1: остались выгрузка отелей и зданий, мок карточек, проверка кадастра и карты шума, `data/demo/seed.sql.gz`, `docs/data.md`.
