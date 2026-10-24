@@ -1,0 +1,178 @@
+package postgres
+
+import (
+	"context"
+	"encoding/json"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/paulmach/orb"
+
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
+)
+
+// SeaViewStore — пространственные выборки для sea_view и запись фактов.
+type SeaViewStore struct {
+	pool *pgxpool.Pool
+}
+
+func NewSeaViewStore(pool *pgxpool.Pool) *SeaViewStore { return &SeaViewStore{pool: pool} }
+
+// SeaViewTargets возвращает отели с фасадами. Этажность — из основного здания; если её нет
+// (высота OSM по умолчанию), берётся высота / 3 м.
+func (s *SeaViewStore) SeaViewTargets(ctx context.Context) ([]domain.SeaViewTarget, error) {
+	rows, err := s.pool.Query(ctx, `
+SELECT h.id, b.id,
+       COALESCE(b.levels, GREATEST(1, ceil(COALESCE(b.height_m, 15) / $1::float8)::int)),
+       f.id, ST_X(m.pt), ST_Y(m.pt), f.azimuth_deg
+FROM hotels h
+JOIN buildings b ON b.id = h.building_id
+JOIN facades f ON f.hotel_id = h.id
+CROSS JOIN LATERAL (SELECT ST_LineInterpolatePoint(f.geom, 0.5) AS pt) m
+ORDER BY h.id, f.id`, domain.FloorHeightM)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.SeaViewTarget
+	for rows.Next() {
+		var hotelID, buildingID, facadeID int64
+		var levels int
+		var lon, lat, az float64
+		if err := rows.Scan(&hotelID, &buildingID, &levels, &facadeID, &lon, &lat, &az); err != nil {
+			return nil, err
+		}
+		if len(out) == 0 || out[len(out)-1].HotelID != hotelID {
+			out = append(out, domain.SeaViewTarget{HotelID: hotelID, BuildingID: buildingID, Levels: levels})
+		}
+		t := &out[len(out)-1]
+		t.Facades = append(t.Facades, domain.StoredFacade{ID: facadeID, Mid: orb.Point{lon, lat}, AzimuthDeg: az})
+	}
+	return out, rows.Err()
+}
+
+// SeaRays: для каждого луча — расстояние до ближайшего пересечения береговой линии, где луч идёт
+// с суши в воду (вода справа от направления линии OSM), и здания на пути до берега.
+// Здания, продублированные кадастром (shadowed), пропускаются; здание самого отеля учитывается.
+func (s *SeaViewStore) SeaRays(ctx context.Context, rays []domain.RayQuery) ([]domain.SeaRay, error) {
+	lon := make([]float64, len(rays))
+	lat := make([]float64, len(rays))
+	az := make([]float64, len(rays))
+	for i, r := range rays {
+		lon[i], lat[i], az[i] = r.Origin[0], r.Origin[1], r.AzimuthDeg
+	}
+	rows, err := s.pool.Query(ctx, `
+WITH q AS (
+  SELECT (x.ord - 1)::int AS i,
+         ST_Transform(ST_SetSRID(ST_MakePoint(x.lon, x.lat), 4326), 25831) AS o,
+         radians(x.az) AS a
+  FROM unnest($1::float8[], $2::float8[], $3::float8[]) WITH ORDINALITY AS x(lon, lat, az, ord)
+),
+r AS (
+  SELECT i, o, a,
+         ST_MakeLine(o, ST_Translate(o, sin(a) * $4::float8, cos(a) * $4::float8)) AS line
+  FROM q
+),
+cc AS (
+  SELECT r.i, r.o, r.a, cp.sg, cp.pt, 2.0 / NULLIF(ST_Length(cp.sg), 0) AS dl
+  FROM r
+  JOIN sea s ON s.geom && ST_Transform(ST_Expand(r.line, 1), 4326)
+  CROSS JOIN LATERAL (
+    SELECT t.sg, (ST_Dump(ST_CollectionExtract(ST_Intersection(r.line, t.sg), 1))).geom AS pt
+    FROM (SELECT ST_Transform(s.geom, 25831) AS sg) t
+  ) cp
+),
+c AS (
+  SELECT z.i, min(ST_Distance(z.o, z.pt)) AS d
+  FROM (SELECT cc.*, ST_LineLocatePoint(sg, pt) AS f FROM cc) z
+  CROSS JOIN LATERAL (
+    SELECT ST_LineInterpolatePoint(z.sg, GREATEST(z.f - z.dl, 0)) AS pa,
+           ST_LineInterpolatePoint(z.sg, LEAST(z.f + z.dl, 1)) AS pb
+  ) dir
+  WHERE (ST_X(dir.pb) - ST_X(dir.pa)) * cos(z.a) - (ST_Y(dir.pb) - ST_Y(dir.pa)) * sin(z.a) < 0
+  GROUP BY z.i
+)
+SELECT r.i, c.d, ob.bid, ob.d, ob.h, ob.hs
+FROM r
+LEFT JOIN c ON c.i = r.i
+LEFT JOIN LATERAL (
+  SELECT b.id AS bid, COALESCE(b.height_m, $5::float8) AS h, b.height_source AS hs,
+         ST_Distance(r.o, ST_Intersection(r.line, ST_MakeValid(ST_Transform(b.geom, 25831)))) AS d
+  FROM buildings b
+  WHERE c.d IS NOT NULL AND NOT b.shadowed
+    AND ST_Intersects(ST_Transform(b.geom, 25831), r.line)
+) ob ON ob.d < c.d
+ORDER BY r.i, ob.d`, lon, lat, az, domain.SeaRayMaxM, domain.DefaultHeightM)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.SeaRay, len(rays))
+	for i, r := range rays {
+		out[i].AzimuthDeg = r.AzimuthDeg
+	}
+	for rows.Next() {
+		var i int
+		var water, dist, height *float64
+		var bid *int64
+		var source *string
+		if err := rows.Scan(&i, &water, &bid, &dist, &height, &source); err != nil {
+			return nil, err
+		}
+		if water != nil {
+			out[i].HasWater, out[i].WaterDistM = true, *water
+		}
+		if bid != nil && dist != nil && height != nil && source != nil {
+			out[i].Obstacles = append(out[i].Obstacles, domain.Obstacle{
+				BuildingID: *bid, DistM: *dist, HeightM: *height, HeightSource: *source,
+			})
+		}
+	}
+	return out, rows.Err()
+}
+
+// SaveFacts заменяет активные факты sea_view отеля и его фасадов: прежние получают superseded.
+func (s *SeaViewStore) SaveFacts(ctx context.Context, hotelID int64, facts []domain.Fact) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
+	if _, err := tx.Exec(ctx, `
+UPDATE facts SET status = $2
+WHERE status = $3 AND characteristic_key = $4
+  AND ((entity_type = $5 AND entity_id = ($1::bigint)::text)
+    OR (entity_type = $6 AND entity_id IN (SELECT id::text FROM facades WHERE hotel_id = $1::bigint)))`,
+		hotelID, domain.FactSuperseded, domain.FactActive, domain.SeaViewKey, domain.EntityHotel, domain.EntityFacade); err != nil {
+		return err
+	}
+	b := &pgx.Batch{}
+	for _, f := range facts {
+		value, err := json.Marshal(f.Value)
+		if err != nil {
+			return err
+		}
+		evidence, err := json.Marshal(f.Evidence)
+		if err != nil {
+			return err
+		}
+		b.Queue(`
+INSERT INTO facts (entity_type, entity_id, characteristic_key, value, source, method,
+                   confidence, observed_at, valid_until, evidence, status)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+			f.EntityType, f.EntityID, f.Key, value, f.Source, f.Method,
+			f.Confidence, f.ObservedAt, f.ValidUntil, evidence, domain.FactActive)
+	}
+	br := tx.SendBatch(ctx, b)
+	for i := 0; i < b.Len(); i++ {
+		if _, err := br.Exec(); err != nil {
+			_ = br.Close()
+			return err
+		}
+	}
+	if err := br.Close(); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}

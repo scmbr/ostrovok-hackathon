@@ -158,6 +158,13 @@ func (s *FacadeStore) ReplaceFacades(ctx context.Context, hotelID int64, facades
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
+	// Факты о старых фасадах повисли бы на несуществующих id.
+	if _, err := tx.Exec(ctx, `
+UPDATE facts SET status = $2
+WHERE entity_type = $3 AND status = $4 AND entity_id IN (SELECT id::text FROM facades WHERE hotel_id = $1)`,
+		hotelID, domain.FactSuperseded, domain.EntityFacade, domain.FactActive); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM facades WHERE hotel_id = $1`, hotelID); err != nil {
 		return err
 	}

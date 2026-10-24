@@ -19,6 +19,7 @@ const collectUsage = `команды:
   osm          выгрузить отели, здания и берег из OSM (Overpass) в БД
   roads        выгрузить дороги OSM вокруг отелей (после osm)
   facades      рассчитать фасады отелей: стороны здания без глухих стен, выход на улицу или во двор
+  sea-view     рассчитать вид на море по фасадам и этажам (факты sea_view, после facades)
   catastro     загрузить здания кадастра с этажностью из data/raw/catastro и привязать отели
   mock-cards   сгенерировать мок базовых карточек отелей
   select-demo  отметить демо-подмножество отелей (флаг hotels.demo)
@@ -30,7 +31,7 @@ func RunCollect(args []string) error {
 		return fmt.Errorf("укажите команду\n%s", collectUsage)
 	}
 	cmd := args[0]
-	if cmd != "osm" && cmd != "catastro" && cmd != "roads" && cmd != "facades" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
+	if cmd != "osm" && cmd != "catastro" && cmd != "roads" && cmd != "facades" && cmd != "sea-view" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
 		return fmt.Errorf("неизвестная команда %q\n%s", cmd, collectUsage)
 	}
 
@@ -73,6 +74,12 @@ func RunCollect(args []string) error {
 			return err
 		}
 		fmt.Printf("фасады рассчитаны у отелей: %d\n", n)
+	case "sea-view":
+		n, err := (&compute.SeaView{Store: postgres.NewSeaViewStore(pool)}).Run(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("sea_view рассчитан у отелей: %d\n", n)
 	case "mock-cards":
 		n, err := c.GenerateMockCards(ctx)
 		if err != nil {
@@ -116,6 +123,21 @@ func printStats(s domain.Stats) {
 	fmt.Printf("Отрезков береговой линии: %d\n", s.SeaSegments)
 	fmt.Printf("Демо-отелей: %d\n", s.DemoHotels)
 	printFacadeStats(s)
+	printSeaViewStats(s)
+}
+
+func printSeaViewStats(s domain.Stats) {
+	if s.SeaViewHotels == 0 {
+		fmt.Println("sea_view не рассчитан (collect sea-view)")
+		return
+	}
+	fmt.Printf("sea_view: фактов по фасадам %d, по отелям %d\n", s.SeaViewFacadeFacts, s.SeaViewHotels)
+	fmt.Printf("  с видом на море: %d отелей (минимальный этаж: 1–2: %d, 3–4: %d, 5 и выше: %d); без вида: %d\n",
+		s.SeaViewWithView, s.SeaViewFloors12, s.SeaViewFloors34, s.SeaViewFloors5Plus, s.SeaViewHotels-s.SeaViewWithView)
+	fmt.Printf("  береговых отелей (до %d м) без вида: %d\n", domain.CoastalRadiusM, len(s.CoastalNoSeaView))
+	for _, name := range s.CoastalNoSeaView {
+		fmt.Printf("    %s\n", name)
+	}
 }
 
 func printFacadeStats(s domain.Stats) {

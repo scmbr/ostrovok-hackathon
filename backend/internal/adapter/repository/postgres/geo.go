@@ -62,6 +62,18 @@ SET geom = EXCLUDED.geom, levels = EXCLUDED.levels,
 	})
 }
 
+// MarkShadowedBuildings помечает здания OSM, продублированные кадастром: больше половины их площади
+// перекрыто кадастровым зданием. Для препятствий на лучах берутся только непомеченные.
+func (s *GeoStore) MarkShadowedBuildings(ctx context.Context) error {
+	_, err := s.pool.Exec(ctx, `
+UPDATE buildings o SET shadowed = EXISTS (
+  SELECT 1 FROM buildings c
+  WHERE c.catastro_ref IS NOT NULL AND c.geom && o.geom AND ST_Intersects(c.geom, o.geom)
+    AND ST_Area(ST_Intersection(ST_MakeValid(c.geom), ST_MakeValid(o.geom))) > 0.5 * ST_Area(o.geom))
+WHERE o.osm_id IS NOT NULL`)
+	return err
+}
+
 // LinkHotels привязывает отели к зданиям. osm_building_id — здание OSM: way отеля или первое
 // здание, содержащее точку. building_id — здание кадастра, содержащее точку, иначе ближайшее
 // в пределах catastroSnapM, иначе osm_building_id. Можно вызывать после любой из загрузок.
@@ -246,7 +258,46 @@ LEFT JOIN buildings o ON o.id = h.osm_building_id`,
 	if err := s.facadeStats(ctx, &st); err != nil {
 		return st, err
 	}
+	if err := s.seaViewStats(ctx, &st); err != nil {
+		return st, err
+	}
 	return st, nil
+}
+
+func (s *GeoStore) seaViewStats(ctx context.Context, st *domain.Stats) error {
+	err := s.pool.QueryRow(ctx, `
+SELECT count(*) FILTER (WHERE entity_type = $2),
+       count(*) FILTER (WHERE entity_type = $3),
+       count(*) FILTER (WHERE entity_type = $3 AND value->>'min_floor' IS NOT NULL),
+       count(*) FILTER (WHERE entity_type = $3 AND (value->>'min_floor')::int BETWEEN 1 AND 2),
+       count(*) FILTER (WHERE entity_type = $3 AND (value->>'min_floor')::int BETWEEN 3 AND 4),
+       count(*) FILTER (WHERE entity_type = $3 AND (value->>'min_floor')::int >= 5)
+FROM facts WHERE characteristic_key = $1 AND status = $4`,
+		domain.SeaViewKey, domain.EntityFacade, domain.EntityHotel, domain.FactActive).
+		Scan(&st.SeaViewFacadeFacts, &st.SeaViewHotels, &st.SeaViewWithView,
+			&st.SeaViewFloors12, &st.SeaViewFloors34, &st.SeaViewFloors5Plus)
+	if err != nil || st.SeaViewHotels == 0 {
+		return err
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT h.name
+FROM hotels h
+JOIN facts f ON f.entity_type = $2 AND f.entity_id = h.id::text AND f.characteristic_key = $1 AND f.status = $4
+WHERE f.value->>'min_floor' IS NULL
+  AND EXISTS (SELECT 1 FROM sea WHERE ST_DWithin(sea.geom::geography, h.geom::geography, $3))
+ORDER BY h.name`, domain.SeaViewKey, domain.EntityHotel, domain.CoastalRadiusM, domain.FactActive)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return err
+		}
+		st.CoastalNoSeaView = append(st.CoastalNoSeaView, name)
+	}
+	return rows.Err()
 }
 
 func (s *GeoStore) facadeStats(ctx context.Context, st *domain.Stats) error {
