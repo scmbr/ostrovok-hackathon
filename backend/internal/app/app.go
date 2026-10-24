@@ -31,6 +31,9 @@ func Run() error {
 	if err := postgres.Migrate(ctx, pool); err != nil {
 		return fmt.Errorf("миграции: %w", err)
 	}
+	if _, err := postgres.LoadSeed(ctx, pool, cfg.SeedFile); err != nil {
+		return fmt.Errorf("сид: %w", err)
+	}
 
 	if cfg.LLMAPIKey == "" {
 		log.Println("LLM_API_KEY не задан: режим кеша (без LLM)")

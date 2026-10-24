@@ -11,6 +11,8 @@ type Config struct {
 	LLMModel    string
 	// RawDataDir — куда cmd/collect сохраняет сырые выгрузки (запуск из backend/).
 	RawDataDir string
+	// SeedFile — демо-данные (pg_dump, gzip); заливаются, если БД пуста.
+	SeedFile string
 }
 
 func LoadConfig() Config {
@@ -21,6 +23,7 @@ func LoadConfig() Config {
 		LLMAPIKey:   os.Getenv("LLM_API_KEY"),
 		LLMModel:    os.Getenv("LLM_MODEL"),
 		RawDataDir:  getenv("RAW_DATA_DIR", "../data/raw"),
+		SeedFile:    getenv("SEED_FILE", "../data/demo/seed.sql.gz"),
 	}
 }
 
