@@ -1,0 +1,51 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(go test:*)",
+      "Bash(go vet:*)",
+      "Bash(go run:*)",
+      "Bash(go mod:*)",
+      "Bash(gofmt:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(docker compose:*)",
+      "Bash(curl:*)",
+      "Bash(jq:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout -b:*)",
+      "Bash(git switch:*)",
+      "Bash(git push -u origin feat/*)",
+      "Bash(git push -u origin fix/*)",
+      "Bash(git push -u origin refactor/*)",
+      "Bash(git push -u origin chore/*)",
+      "Bash(git push -u origin docs/*)",
+      "Bash(git push -u origin build/*)",
+      "Bash(git push -u origin test/*)",
+      "Bash(git push origin feat/*)",
+      "Bash(git push origin fix/*)",
+      "Bash(git push origin refactor/*)",
+      "Bash(git push origin chore/*)",
+      "Bash(git push origin docs/*)",
+      "Bash(git push origin build/*)",
+      "Bash(git push origin test/*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr view:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(rm -rf:*)",
+      "Read(./.env)",
+      "Read(./data/raw/**)",
+      "Read(./frontend/node_modules/**)",
+      "Read(./frontend/dist/**)"
+    ]
+  }
+}

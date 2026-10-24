@@ -1,0 +1,40 @@
+# Секреты
+.env
+.env.*
+!.env.example
+
+# Сырые выгрузки и большие артефакты (в git только data/demo/)
+data/raw/
+*.tif
+*.tiff
+*.gpkg
+*.shp
+*.dbf
+*.shx
+*.osm
+*.pbf
+
+# Go
+/bin/
+*.exe
+*.test
+coverage.out
+
+# Фронтенд
+frontend/node_modules/
+frontend/dist/
+# сборка фронтенда, которую Docker копирует для go:embed
+backend/internal/adapter/http/dist/*
+!backend/internal/adapter/http/dist/.gitkeep
+
+# Локальные данные Postgres, если том смонтирован в папку
+pgdata/
+
+# Claude Code: локальные настройки не коммитим, общие (.claude/settings.json) — коммитим
+.claude/settings.local.json
+
+# Системное
+.DS_Store
+*.log
+.idea/
+.vscode/
