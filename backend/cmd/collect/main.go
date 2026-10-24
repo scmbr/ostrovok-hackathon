@@ -1,12 +1,16 @@
-// Команда collect — CLI сбора и расчёта данных. Реализуется на следующих задачах.
+// Команда collect — CLI сбора и расчёта данных.
 package main
 
 import (
 	"fmt"
 	"os"
+
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/app"
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "collect: команды пока не реализованы")
-	os.Exit(1)
+	if err := app.RunCollect(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

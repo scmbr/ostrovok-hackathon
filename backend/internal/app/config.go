@@ -9,6 +9,8 @@ type Config struct {
 	LLMBaseURL  string
 	LLMAPIKey   string
 	LLMModel    string
+	// RawDataDir — куда cmd/collect сохраняет сырые выгрузки (запуск из backend/).
+	RawDataDir string
 }
 
 func LoadConfig() Config {
@@ -18,6 +20,7 @@ func LoadConfig() Config {
 		LLMBaseURL:  os.Getenv("LLM_BASE_URL"),
 		LLMAPIKey:   os.Getenv("LLM_API_KEY"),
 		LLMModel:    os.Getenv("LLM_MODEL"),
+		RawDataDir:  getenv("RAW_DATA_DIR", "../data/raw"),
 	}
 }
 
