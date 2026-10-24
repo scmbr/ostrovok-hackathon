@@ -1,0 +1,204 @@
+package overpass
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"strconv"
+	"strings"
+
+	"github.com/paulmach/orb"
+
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
+)
+
+type latLon struct {
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
+}
+
+type element struct {
+	Type     string            `json:"type"`
+	ID       int64             `json:"id"`
+	Lat      float64           `json:"lat"`
+	Lon      float64           `json:"lon"`
+	Center   *latLon           `json:"center"`
+	Tags     map[string]string `json:"tags"`
+	Geometry []latLon          `json:"geometry"`
+}
+
+type response struct {
+	Elements []element `json:"elements"`
+}
+
+func bboxQL(b domain.BBox) string {
+	return fmt.Sprintf("(%g,%g,%g,%g)", b.South, b.West, b.North, b.East)
+}
+
+func decode(body []byte) ([]element, error) {
+	var r response
+	if err := json.Unmarshal(body, &r); err != nil {
+		return nil, fmt.Errorf("разбор ответа Overpass: %w", err)
+	}
+	return r.Elements, nil
+}
+
+// Hotels возвращает отели (tourism=hotel) внутри заданных районов.
+// Отели без названия и отели-relation пропускаются.
+func (c *Client) Hotels(ctx context.Context, districts []domain.District) ([]domain.Hotel, error) {
+	var sb strings.Builder
+	sb.WriteString("[out:json][timeout:90];(")
+	for _, d := range districts {
+		fmt.Fprintf(&sb, `nwr["tourism"="hotel"]%s;`, bboxQL(d.BBox))
+	}
+	sb.WriteString(");out center tags;")
+	body, err := c.query(ctx, "hotels", sb.String())
+	if err != nil {
+		return nil, err
+	}
+	els, err := decode(body)
+	if err != nil {
+		return nil, err
+	}
+	return parseHotels(els), nil
+}
+
+func parseHotels(els []element) []domain.Hotel {
+	var hotels []domain.Hotel
+	seen := map[int64]bool{}
+	skipped := 0
+	for _, e := range els {
+		h, ok := hotelFrom(e)
+		if !ok || seen[h.StoreID()] {
+			skipped++
+			continue
+		}
+		seen[h.StoreID()] = true
+		hotels = append(hotels, h)
+	}
+	if skipped > 0 {
+		log.Printf("отелей пропущено (без названия, relation, вне районов, дубли): %d", skipped)
+	}
+	return hotels
+}
+
+func hotelFrom(e element) (domain.Hotel, bool) {
+	name := e.Tags["name"]
+	if name == "" || (e.Type != "node" && e.Type != "way") {
+		return domain.Hotel{}, false
+	}
+	var p orb.Point
+	switch {
+	case e.Type == "node":
+		p = orb.Point{e.Lon, e.Lat}
+	case e.Center != nil:
+		p = orb.Point{e.Center.Lon, e.Center.Lat}
+	default:
+		return domain.Hotel{}, false
+	}
+	district := domain.DistrictOf(p)
+	if district == "" {
+		return domain.Hotel{}, false
+	}
+	return domain.Hotel{OSMType: e.Type, OSMID: e.ID, Name: name, Point: p, District: district}, true
+}
+
+// Buildings возвращает здания-way внутри bbox. Здания-relation (мультиполигоны) пока пропускаются.
+func (c *Client) Buildings(ctx context.Context, bbox domain.BBox) ([]domain.Building, error) {
+	ql := fmt.Sprintf(`[out:json][timeout:180];way["building"]%s;out geom tags;`, bboxQL(bbox))
+	body, err := c.query(ctx, "buildings", ql)
+	if err != nil {
+		return nil, err
+	}
+	els, err := decode(body)
+	if err != nil {
+		return nil, err
+	}
+	return parseBuildings(els), nil
+}
+
+func parseBuildings(els []element) []domain.Building {
+	var out []domain.Building
+	skipped := 0
+	for _, e := range els {
+		ring := ringFrom(e)
+		if ring == nil {
+			skipped++
+			continue
+		}
+		levels, heightM, source := domain.ResolveHeight(parseLevels(e.Tags["building:levels"]), parseHeight(e.Tags["height"]))
+		out = append(out, domain.Building{
+			OSMID:        e.ID,
+			Geom:         orb.MultiPolygon{orb.Polygon{ring}},
+			Levels:       levels,
+			HeightM:      heightM,
+			HeightSource: source,
+		})
+	}
+	if skipped > 0 {
+		log.Printf("зданий пропущено (незамкнутый контур): %d", skipped)
+	}
+	return out
+}
+
+// ringFrom возвращает замкнутое кольцо из геометрии way или nil.
+func ringFrom(e element) orb.Ring {
+	if len(e.Geometry) < 4 {
+		return nil
+	}
+	ring := make(orb.Ring, len(e.Geometry))
+	for i, g := range e.Geometry {
+		ring[i] = orb.Point{g.Lon, g.Lat}
+	}
+	if ring[0] != ring[len(ring)-1] {
+		return nil
+	}
+	return ring
+}
+
+// Coastline возвращает линии берега (natural=coastline) внутри bbox.
+func (c *Client) Coastline(ctx context.Context, bbox domain.BBox) ([]orb.LineString, error) {
+	ql := fmt.Sprintf(`[out:json][timeout:90];way["natural"="coastline"]%s;out geom;`, bboxQL(bbox))
+	body, err := c.query(ctx, "coastline", ql)
+	if err != nil {
+		return nil, err
+	}
+	els, err := decode(body)
+	if err != nil {
+		return nil, err
+	}
+	var lines []orb.LineString
+	for _, e := range els {
+		if len(e.Geometry) < 2 {
+			continue
+		}
+		ls := make(orb.LineString, len(e.Geometry))
+		for i, g := range e.Geometry {
+			ls[i] = orb.Point{g.Lon, g.Lat}
+		}
+		lines = append(lines, ls)
+	}
+	return lines, nil
+}
+
+// parseLevels разбирает building:levels ("5", "5.0"); нечисловое и неположительное — nil.
+func parseLevels(s string) *int {
+	f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil || f < 1 || f > 200 {
+		return nil
+	}
+	n := int(f)
+	return &n
+}
+
+// parseHeight разбирает height ("21", "21.5", "21 m", "21m"); футы и прочее — nil.
+func parseHeight(s string) *float64 {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.TrimSpace(strings.TrimSuffix(s, "m"))
+	f, err := strconv.ParseFloat(strings.ReplaceAll(s, ",", "."), 64)
+	if err != nil || f <= 0 || f > 500 {
+		return nil
+	}
+	return &f
+}

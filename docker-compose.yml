@@ -6,6 +6,8 @@ services:
       POSTGRES_USER: tima
       POSTGRES_PASSWORD: tima
       POSTGRES_DB: tima
+    ports:
+      - "127.0.0.1:5432:5432" # для cmd/collect с хоста
     volumes:
       - dbdata:/var/lib/postgresql/data
     healthcheck:
