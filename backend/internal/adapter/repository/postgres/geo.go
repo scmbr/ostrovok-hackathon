@@ -106,6 +106,41 @@ func (s *GeoStore) ReplaceSea(ctx context.Context, lines []orb.LineString) error
 	return tx.Commit(ctx)
 }
 
+// ReplaceRoads заменяет дороги целиком; сохраняются только лежащие не дальше RoadsRadiusM от какого-либо отеля.
+func (s *GeoStore) ReplaceRoads(ctx context.Context, roads []domain.Road) error {
+	const q = `
+INSERT INTO roads (osm_id, highway, name, geom)
+SELECT $1, $2, NULLIF($3, ''), t.g
+FROM (SELECT ST_GeomFromText($4, 4326) AS g) t
+WHERE EXISTS (SELECT 1 FROM hotels h
+              WHERE h.geom && ST_Expand(t.g, 0.005)
+                AND ST_DWithin(h.geom::geography, t.g::geography, $5))
+ON CONFLICT (osm_id) DO NOTHING`
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
+	if _, err := tx.Exec(ctx, `DELETE FROM roads`); err != nil {
+		return err
+	}
+	b := &pgx.Batch{}
+	for _, r := range roads {
+		b.Queue(q, r.OSMID, r.Highway, r.Name, wkt.MarshalString(r.Geom), domain.RoadsRadiusM)
+	}
+	br := tx.SendBatch(ctx, b)
+	for i := 0; i < len(roads); i++ {
+		if _, err := br.Exec(); err != nil {
+			_ = br.Close()
+			return fmt.Errorf("дорога %d из %d: %w", i+1, len(roads), err)
+		}
+	}
+	if err := br.Close(); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *GeoStore) ListHotels(ctx context.Context) ([]domain.HotelKey, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, osm_id FROM hotels ORDER BY id`)
 	if err != nil {
@@ -208,7 +243,48 @@ LEFT JOIN buildings o ON o.id = h.osm_building_id`,
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM hotels WHERE demo`).Scan(&st.DemoHotels); err != nil {
 		return st, err
 	}
+	if err := s.facadeStats(ctx, &st); err != nil {
+		return st, err
+	}
 	return st, nil
+}
+
+func (s *GeoStore) facadeStats(ctx context.Context, st *domain.Stats) error {
+	err := s.pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM roads),
+       (SELECT count(DISTINCT hotel_id) FROM facades),
+       (SELECT count(*) FROM facades),
+       (SELECT count(*) FROM facades WHERE faces_street),
+       (SELECT count(*) FROM facades WHERE courtyard),
+       (SELECT COALESCE(sum(contour_segments), 0) FROM hotels),
+       (SELECT COALESCE(sum(blind_segments), 0) FROM hotels)`).
+		Scan(&st.Roads, &st.HotelsFacades, &st.Facades, &st.StreetFacades, &st.CourtyardFacade,
+			&st.ContourSegments, &st.BlindSegments)
+	if err != nil {
+		return err
+	}
+	// Пока фасады не считались, список был бы просто всеми отелями.
+	if st.Facades == 0 {
+		return nil
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT h.name, COALESCE(h.district, ''), h.demo, count(f.id)
+FROM hotels h LEFT JOIN facades f ON f.hotel_id = h.id
+GROUP BY h.id
+HAVING count(f.id) FILTER (WHERE f.faces_street) = 0
+ORDER BY h.demo DESC, h.district, h.name`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var h domain.NoStreetHotel
+		if err := rows.Scan(&h.Name, &h.District, &h.Demo, &h.Facades); err != nil {
+			return err
+		}
+		st.NoStreetFacade = append(st.NoStreetFacade, h)
+	}
+	return rows.Err()
 }
 
 func (s *GeoStore) countBy(ctx context.Context, q string, into map[string]int) error {

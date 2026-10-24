@@ -100,4 +100,31 @@ type Stats struct {
 	BuildingsBySource     map[string]int
 	SeaSegments           int
 	DemoHotels            int
+
+	Roads           int
+	HotelsFacades   int // отелей хотя бы с одним фасадом
+	Facades         int
+	StreetFacades   int
+	CourtyardFacade int
+	ContourSegments int // рёбер контура, рассмотренных при расчёте фасадов
+	BlindSegments   int // из них отброшено как глухие стены
+	// NoStreetFacade — отели без единого фасада на улицу после исключения глухих стен:
+	// сигнал проблемы с данными (контур здания, дороги), скрывать нельзя.
+	NoStreetFacade []NoStreetHotel
+}
+
+// NoStreetHotel — отель без фасада на улицу.
+type NoStreetHotel struct {
+	Name     string
+	District string
+	Demo     bool
+	Facades  int
+}
+
+// Road — дорога OSM, нужная для определения выхода фасада на улицу.
+type Road struct {
+	OSMID   int64
+	Highway string
+	Name    string
+	Geom    orb.LineString
 }
