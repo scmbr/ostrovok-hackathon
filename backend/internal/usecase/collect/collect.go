@@ -24,11 +24,19 @@ type OSMSource interface {
 	Coastline(ctx context.Context, bbox domain.BBox) ([]orb.LineString, error)
 }
 
+// CatastroSource — выгрузка зданий кадастра с этажностью.
+type CatastroSource interface {
+	// Buildings возвращает здания, пересекающие рамку (контуры в EPSG:25831, см. domain.Building).
+	Buildings(ctx context.Context, bbox domain.BBox) ([]domain.Building, error)
+}
+
 // Store — хранилище собранных данных.
 type Store interface {
 	UpsertBuildings(ctx context.Context, buildings []domain.Building) error
-	// UpsertHotels сохраняет отели и привязывает каждый к зданию.
+	UpsertCatastroBuildings(ctx context.Context, buildings []domain.Building) error
 	UpsertHotels(ctx context.Context, hotels []domain.Hotel) error
+	// LinkHotels (пере)привязывает отели к зданиям OSM и кадастра.
+	LinkHotels(ctx context.Context) error
 	ReplaceSea(ctx context.Context, lines []orb.LineString) error
 	ListHotels(ctx context.Context) ([]domain.HotelKey, error)
 	SaveMockCard(ctx context.Context, hotelID int64, card domain.Card) error
@@ -40,8 +48,9 @@ type Store interface {
 
 // Collector выполняет сбор данных.
 type Collector struct {
-	Src   OSMSource
-	Store Store
+	Src      OSMSource
+	Catastro CatastroSource
+	Store    Store
 }
 
 // CollectOSM выгружает здания, береговую линию и отели из OSM и сохраняет их.
@@ -75,7 +84,20 @@ func (c *Collector) CollectOSM(ctx context.Context) error {
 	if err := c.Store.UpsertHotels(ctx, hotels); err != nil {
 		return fmt.Errorf("сохранение отелей: %w", err)
 	}
-	return nil
+	return c.Store.LinkHotels(ctx)
+}
+
+// CollectCatastro загружает здания кадастра с этажностью в районы охвата и перепривязывает отели.
+func (c *Collector) CollectCatastro(ctx context.Context) error {
+	buildings, err := c.Catastro.Buildings(ctx, domain.CoverageBBox().Pad(bufferDeg))
+	if err != nil {
+		return fmt.Errorf("кадастр: %w", err)
+	}
+	log.Printf("зданий кадастра получено: %d", len(buildings))
+	if err := c.Store.UpsertCatastroBuildings(ctx, buildings); err != nil {
+		return fmt.Errorf("сохранение зданий кадастра: %w", err)
+	}
+	return c.Store.LinkHotels(ctx)
 }
 
 // GenerateMockCards заполняет hotels.card детерминированным моком и возвращает число отелей.
