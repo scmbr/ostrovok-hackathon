@@ -111,6 +111,15 @@ type Stats struct {
 	// NoStreetFacade — отели без единого фасада на улицу после исключения глухих стен:
 	// сигнал проблемы с данными (контур здания, дороги), скрывать нельзя.
 	NoStreetFacade []NoStreetHotel
+
+	SeaViewFacadeFacts int // активных фактов sea_view по фасадам
+	SeaViewHotels      int // активных фактов sea_view по отелям
+	SeaViewWithView    int // из них с видом на море (min_floor задан)
+	SeaViewFloors12    int // распределение отелей с видом по минимальному этажу
+	SeaViewFloors34    int
+	SeaViewFloors5Plus int
+	// CoastalNoSeaView — береговые отели, для которых вида на море не нашлось: проверка правдоподобия.
+	CoastalNoSeaView []string
 }
 
 // NoStreetHotel — отель без фасада на улицу.
