@@ -74,14 +74,19 @@ func (c *SeaView) forHotel(ctx context.Context, t domain.SeaViewTarget) error {
 	var facts []domain.Fact
 	var best *facadeResult
 	withView := 0
+	maxLevels := 0
+	for _, f := range t.Facades {
+		maxLevels = max(maxLevels, f.Levels)
+	}
 	results := make([]facadeResult, len(t.Facades))
 	for i, f := range t.Facades {
-		v := domain.ComputeSeaView(rays[i*perFacade:(i+1)*perFacade], t.Levels)
+		v := domain.ComputeSeaView(rays[i*perFacade:(i+1)*perFacade], f.Levels)
 		results[i] = facadeResult{facade: f, view: v}
 		facts = append(facts, facadeFact(f, v, now))
 		if v.MinFloor > 0 {
 			withView++
-			if best == nil || better(results[i], *best) {
+			// Фасад низкой части (подиум под башней) номеров, скорее всего, не имеет: лучшим его не берём.
+			if f.Levels*2 >= maxLevels && (best == nil || better(results[i], *best)) {
 				best = &results[i]
 			}
 		}
@@ -151,9 +156,13 @@ func facadeFact(f domain.StoredFacade, v domain.SeaView, now time.Time) domain.F
 }
 
 func hotelFact(t domain.SeaViewTarget, best *facadeResult, withView int, now time.Time) domain.Fact {
+	levels := 0
+	for _, f := range t.Facades {
+		levels = max(levels, f.Levels)
+	}
 	value := map[string]any{
 		"min_floor":         nil,
-		"levels":            t.Levels,
+		"levels":            levels,
 		"facades_total":     len(t.Facades),
 		"facades_with_view": withView,
 	}
@@ -161,6 +170,7 @@ func hotelFact(t domain.SeaViewTarget, best *facadeResult, withView int, now tim
 	evidence := map[string]any{"derived_from": "факты sea_view по фасадам отеля"}
 	if best != nil {
 		value["min_floor"] = best.view.MinFloor
+		value["levels"] = best.view.Levels
 		value["facade_id"] = best.facade.ID
 		value["azimuth_deg"] = math.Round(best.facade.AzimuthDeg)
 		conf = best.view.Confidence()

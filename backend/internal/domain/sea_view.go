@@ -22,6 +22,9 @@ const (
 	SeaViewMinFraction = 0.25
 	// RayOriginOffsetM — начало луча отодвинуто от стены наружу, чтобы не пересекать здание отеля в его же стене.
 	RayOriginOffsetM = 0.5
+	// FacadeDepthM — части здания не дальше этого расстояния за фасадом считаются его этажами
+	// (башня, отступающая от стены подиума, смотрит в ту же сторону).
+	FacadeDepthM = 15.0
 
 	seaViewBlockersInEvidence = 5
 )
@@ -53,13 +56,14 @@ type StoredFacade struct {
 	ID         int64
 	Mid        orb.Point
 	AzimuthDeg float64
+	// Levels — этажность части здания у фасада (у зданий без частей — всего здания).
+	Levels int
 }
 
 // SeaViewTarget — отель, его основное здание и фасады.
 type SeaViewTarget struct {
 	HotelID    int64
 	BuildingID int64
-	Levels     int
 	Facades    []StoredFacade
 }
 
