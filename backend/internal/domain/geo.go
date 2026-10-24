@@ -29,10 +29,16 @@ type District struct {
 	BBox BBox
 }
 
-// Districts — районы Барселоны из PROJECT_CONTEXT.md, раздел 4. Контуры примерные.
-// При пересечении побеждает район, стоящий раньше в списке.
+// Districts — районы охвата. Береговые (vila_olimpica, diagonal_mar, barceloneta, poblenou)
+// заданы огибающими реальных границ barrio из OSM (boundary=administrative, admin_level=10,
+// выгрузка 24.10.2026, см. docs/data.md); gothic и eixample остались примерными контурами
+// из PROJECT_CONTEXT.md, раздел 4.
+// При пересечении побеждает район, стоящий раньше в списке: узкие береговые идут первыми.
 var Districts = []District{
-	{"barceloneta", BBox{41.375, 2.185, 41.386, 2.197}},
+	{"vila_olimpica", BBox{41.3833, 2.1880, 41.3964, 2.2063}},
+	{"diagonal_mar", BBox{41.3947, 2.2041, 41.4118, 2.2220}},
+	{"barceloneta", BBox{41.3577, 2.1824, 41.3879, 2.1996}},
+	{"poblenou", BBox{41.3915, 2.1939, 41.4075, 2.2108}},
 	{"gothic", BBox{41.379, 2.170, 41.388, 2.182}},
 	{"eixample", BBox{41.387, 2.160, 41.400, 2.178}},
 }
