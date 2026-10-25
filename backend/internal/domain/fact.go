@@ -34,4 +34,18 @@ type Fact struct {
 	ObservedAt time.Time
 	ValidUntil *time.Time
 	Evidence   []Evidence // свидетельства, из которых сложен факт
+	// Conflict — расхождение свидетельств факта, найденное при расчёте; сохраняется вместе с фактом.
+	Conflict *Conflict
+}
+
+// Статусы конфликта (conflicts.status).
+const (
+	ConflictOpen       = "open"
+	ConflictSuperseded = "superseded"
+)
+
+// Conflict — расхождение свидетельств по одной сущности и характеристике. Не усредняется: ждёт разрешения
+// по приоритету источников или вопроса отельеру (этап 4).
+type Conflict struct {
+	Description string
 }

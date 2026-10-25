@@ -28,6 +28,10 @@ func saveFacts(ctx context.Context, pool *pgxpool.Pool, hotelID int64, key strin
 		hotelID, domain.FactSuperseded, domain.FactActive, key, domain.EntityHotel, domain.EntityFacade); err != nil {
 		return err
 	}
+	if _, err := tx.Exec(ctx, `UPDATE conflicts SET status = $2 WHERE status = $3 AND `+ofHotel,
+		hotelID, domain.ConflictSuperseded, domain.ConflictOpen, key, domain.EntityHotel, domain.EntityFacade); err != nil {
+		return err
+	}
 	for _, f := range facts {
 		ids := make([]int64, 0, len(f.Evidence))
 		for _, e := range f.Evidence {
@@ -55,13 +59,23 @@ RETURNING id`,
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `
+		var factID int64
+		if err := tx.QueryRow(ctx, `
 INSERT INTO facts (entity_type, entity_id, characteristic_key, value, source, method,
                    confidence, observed_at, valid_until, evidence_ids, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING id`,
 			f.EntityType, f.EntityID, f.Key, value, f.Source, f.Method,
-			f.Confidence, f.ObservedAt, f.ValidUntil, ids, domain.FactActive); err != nil {
+			f.Confidence, f.ObservedAt, f.ValidUntil, ids, domain.FactActive).Scan(&factID); err != nil {
 			return err
+		}
+		if f.Conflict != nil {
+			if _, err := tx.Exec(ctx, `
+INSERT INTO conflicts (entity_type, entity_id, characteristic_key, fact_ids, evidence_ids, description, status)
+VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+				f.EntityType, f.EntityID, f.Key, []int64{factID}, ids, f.Conflict.Description, domain.ConflictOpen); err != nil {
+				return err
+			}
 		}
 	}
 	return tx.Commit(ctx)
