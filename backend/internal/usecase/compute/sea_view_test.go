@@ -78,8 +78,16 @@ func TestSeaViewFacts(t *testing.T) {
 		if f.Confidence <= 0 || f.ObservedAt != now || f.ValidUntil == nil || !f.ValidUntil.After(now) {
 			t.Errorf("confidence/observed_at/valid_until: %+v", f)
 		}
-		if len(f.Evidence) == 0 {
-			t.Errorf("пустой evidence: %+v", f)
+		if len(f.Evidence) != 1 {
+			t.Fatalf("свидетельств %d, want 1: %+v", len(f.Evidence), f)
+		}
+		e := f.Evidence[0]
+		if e.EntityType != f.EntityType || e.EntityID != f.EntityID || e.Key != f.Key ||
+			e.Source != f.Source || e.Method != f.Method || e.AuthorType != domain.AuthorTool {
+			t.Errorf("свидетельство не согласовано с фактом: %+v", e)
+		}
+		if e.Reliability != f.Confidence || len(e.Details) == 0 || e.Claimed == nil {
+			t.Errorf("надёжность/детали/значение свидетельства: %+v", e)
 		}
 	}
 	// Вид зависит от высоты OSM (levels), поэтому уверенность ниже кадастровой.
