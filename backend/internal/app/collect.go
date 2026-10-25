@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/repository/postgres"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/source/bcnnoise"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/source/catastro"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/source/overpass"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
@@ -21,6 +22,8 @@ const collectUsage = `команды:
   facades      рассчитать фасады отелей: стороны здания без глухих стен, выход на улицу или во двор
   sea-view     рассчитать вид на море по фасадам и этажам (факты sea_view, после facades)
   catastro     загрузить здания кадастра с этажностью из data/raw/catastro и привязать отели
+  noise        загрузить фасадный шум карты BCN для зданий отелей (после catastro; data/raw/noise)
+  noise-night  рассчитать noise_night по фасадному шуму (после facades и noise)
   mock-cards   сгенерировать мок базовых карточек отелей
   select-demo  отметить демо-подмножество отелей (флаг hotels.demo)
   stats        показать сводку по собранным данным`
@@ -31,7 +34,7 @@ func RunCollect(args []string) error {
 		return fmt.Errorf("укажите команду\n%s", collectUsage)
 	}
 	cmd := args[0]
-	if cmd != "osm" && cmd != "catastro" && cmd != "roads" && cmd != "facades" && cmd != "sea-view" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
+	if cmd != "osm" && cmd != "catastro" && cmd != "roads" && cmd != "facades" && cmd != "sea-view" && cmd != "noise" && cmd != "noise-night" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
 		return fmt.Errorf("неизвестная команда %q\n%s", cmd, collectUsage)
 	}
 
@@ -80,6 +83,18 @@ func RunCollect(args []string) error {
 			return err
 		}
 		fmt.Printf("sea_view рассчитан у отелей: %d\n", n)
+	case "noise":
+		n, err := (&collect.NoiseCollector{Src: bcnnoise.NewSource(cfg.RawDataDir), Store: postgres.NewNoiseStore(pool)}).Run(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("сегментов фасадного шума загружено: %d\n", n)
+	case "noise-night":
+		res, err := (&compute.NoiseNight{Store: postgres.NewNoiseStore(pool)}).Run(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("noise_night рассчитан у отелей: %d, фактов по фасадам: %d\n", res.Hotels, res.Facades)
 	case "mock-cards":
 		n, err := c.GenerateMockCards(ctx)
 		if err != nil {

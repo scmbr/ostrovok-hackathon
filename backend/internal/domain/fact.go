@@ -16,7 +16,10 @@ const (
 )
 
 // Источники факта (facts.source).
-const SourceComputed = "computed"
+const (
+	SourceComputed = "computed"
+	SourceBCNNoise = "bcn_noise"
+)
 
 // Fact — итоговое значение характеристики со ссылками на свидетельства. LLM источником факта быть не может.
 type Fact struct {
