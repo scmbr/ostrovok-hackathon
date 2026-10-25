@@ -211,6 +211,56 @@ func (c *Client) Roads(ctx context.Context, bbox domain.BBox) ([]domain.Road, er
 	return roads, nil
 }
 
+// poiFilter — какие объекты выгружаем: ночная жизнь для шума и круглосуточные сервисы для night_services.
+const poiFilter = `nwr["amenity"~"^(bar|pub|nightclub|biergarten|pharmacy|cafe|restaurant|fast_food)$"]%[1]s;nwr["shop"~"^(supermarket|convenience)$"]%[1]s;`
+
+// poiTags — теги, которые сохраняем в pois.tags.
+var poiTags = []string{"amenity", "shop", "opening_hours", "name"}
+
+// Pois возвращает бары, клубы, аптеки, кафе и магазины внутри bbox (центр для контуров и relation).
+func (c *Client) Pois(ctx context.Context, bbox domain.BBox) ([]domain.Poi, error) {
+	ql := fmt.Sprintf("[out:json][timeout:180];("+poiFilter+");out center tags;", bboxQL(bbox))
+	body, err := c.query(ctx, "pois", ql)
+	if err != nil {
+		return nil, err
+	}
+	els, err := decode(body)
+	if err != nil {
+		return nil, err
+	}
+	return parsePois(els), nil
+}
+
+func parsePois(els []element) []domain.Poi {
+	var out []domain.Poi
+	for _, e := range els {
+		var p orb.Point
+		switch {
+		case e.Type == "node":
+			p = orb.Point{e.Lon, e.Lat}
+		case e.Center != nil:
+			p = orb.Point{e.Center.Lon, e.Center.Lat}
+		default:
+			continue
+		}
+		kind := e.Tags["amenity"]
+		if kind == "" {
+			kind = e.Tags["shop"]
+		}
+		if kind == "" {
+			continue
+		}
+		tags := map[string]string{}
+		for _, k := range poiTags {
+			if v := e.Tags[k]; v != "" {
+				tags[k] = v
+			}
+		}
+		out = append(out, domain.Poi{OSMType: e.Type, OSMID: e.ID, Kind: kind, Name: e.Tags["name"], Point: p, Tags: tags})
+	}
+	return out
+}
+
 // parseLevels разбирает building:levels ("5", "5.0"); нечисловое и неположительное — nil.
 func parseLevels(s string) *int {
 	f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)

@@ -1,6 +1,10 @@
 package overpass
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/paulmach/orb"
+)
 
 const hotelsJSON = `{"elements":[
  {"type":"node","id":1,"lat":41.380,"lon":2.190,"tags":{"tourism":"hotel","name":"Mar"}},
@@ -86,5 +90,24 @@ func TestParseLevels(t *testing.T) {
 		if l := parseLevels(in); l != nil {
 			t.Errorf("%q: want nil, got %d", in, *l)
 		}
+	}
+}
+
+func TestParsePois(t *testing.T) {
+	els := []element{
+		{Type: "node", ID: 1, Lat: 41.38, Lon: 2.18, Tags: map[string]string{"amenity": "bar", "name": "Bar", "opening_hours": "Mo-Su 18:00-03:00", "cuisine": "x"}},
+		{Type: "way", ID: 2, Center: &latLon{Lat: 41.39, Lon: 2.17}, Tags: map[string]string{"shop": "convenience"}},
+		{Type: "way", ID: 3, Tags: map[string]string{"amenity": "pharmacy"}}, // нет центра
+		{Type: "node", ID: 4, Lat: 41.38, Lon: 2.18, Tags: map[string]string{"name": "без вида"}},
+	}
+	got := parsePois(els)
+	if len(got) != 2 {
+		t.Fatalf("POI %d, want 2: без центра и без вида пропускаются", len(got))
+	}
+	if got[0].Kind != "bar" || got[0].Tags["opening_hours"] == "" || got[0].Tags["cuisine"] != "" || got[0].Point[0] != 2.18 {
+		t.Errorf("бар: %+v", got[0])
+	}
+	if got[1].Kind != "convenience" || got[1].Point != (orb.Point{2.17, 41.39}) {
+		t.Errorf("магазин: %+v", got[1])
 	}
 }

@@ -140,6 +140,20 @@ type NoStreetHotel struct {
 	Facades  int
 }
 
+// PoisRadiusM — POI хранятся не дальше этого расстояния от отелей: шум и ночные сервисы считаются в радиусе сотен метров.
+const PoisRadiusM = 300
+
+// Poi — объект OSM рядом с отелями: бар, клуб, аптека, магазин. Kind — значение тега amenity или shop.
+type Poi struct {
+	OSMType string // node | way | relation
+	OSMID   int64
+	Kind    string
+	Name    string
+	Point   orb.Point
+	// Tags — полезные теги (opening_hours, amenity, shop), остальные не храним.
+	Tags map[string]string
+}
+
 // Road — дорога OSM, нужная для определения выхода фасада на улицу.
 type Road struct {
 	OSMID   int64
