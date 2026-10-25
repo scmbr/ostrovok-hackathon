@@ -26,6 +26,15 @@ type element struct {
 	Center   *latLon           `json:"center"`
 	Tags     map[string]string `json:"tags"`
 	Geometry []latLon          `json:"geometry"`
+	Nodes    []int64           `json:"nodes"`
+	Members  []member          `json:"members"`
+}
+
+// member — участник relation; у внешних контуров пляжей приходит геометрия.
+type member struct {
+	Type     string   `json:"type"`
+	Role     string   `json:"role"`
+	Geometry []latLon `json:"geometry"`
 }
 
 type response struct {
@@ -257,6 +266,94 @@ func parsePois(els []element) []domain.Poi {
 			}
 		}
 		out = append(out, domain.Poi{OSMType: e.Type, OSMID: e.ID, Kind: kind, Name: e.Tags["name"], Point: p, Tags: tags})
+	}
+	return out
+}
+
+// walkHighways — пути, по которым можно ходить пешком; автомагистрали и пути с foot=no, access=private|no исключены.
+const walkHighways = "footway|pedestrian|path|steps|living_street|residential|service|unclassified|track|cycleway|" +
+	"tertiary|tertiary_link|secondary|secondary_link|primary|primary_link|trunk|trunk_link"
+
+// WalkWays возвращает пешеходные пути внутри bbox с id узлов и координатами.
+func (c *Client) WalkWays(ctx context.Context, bbox domain.BBox) ([]domain.WalkWay, error) {
+	ql := fmt.Sprintf(`[out:json][timeout:300];way["highway"~"^(%s)$"]["foot"!~"^no$"]["access"!~"^(private|no)$"]%s;out geom;`,
+		walkHighways, bboxQL(bbox))
+	body, err := c.query(ctx, "walk", ql)
+	if err != nil {
+		return nil, err
+	}
+	els, err := decode(body)
+	if err != nil {
+		return nil, err
+	}
+	return parseWalkWays(els), nil
+}
+
+func parseWalkWays(els []element) []domain.WalkWay {
+	var out []domain.WalkWay
+	for _, e := range els {
+		if len(e.Nodes) < 2 || len(e.Nodes) != len(e.Geometry) {
+			continue
+		}
+		pts := make([]orb.Point, len(e.Geometry))
+		for i, g := range e.Geometry {
+			pts[i] = orb.Point{g.Lon, g.Lat}
+		}
+		out = append(out, domain.WalkWay{OSMID: e.ID, Nodes: e.Nodes, Points: pts})
+	}
+	return out
+}
+
+// Destinations возвращает цели пеших маршрутов внутри bbox: входы и станции метро, точки вдоль границ пляжей.
+// Городские пляжи Барселоны в OSM областями почти не размечены (есть только Соморрострo), поэтому кроме
+// natural=beach|sand берём стенды правил пляжей «Platja …» как точки доступа к пляжу; лишний песок (вольеры,
+// площадки) отсеивается при сохранении: пляж — только у береговой линии.
+func (c *Client) Destinations(ctx context.Context, bbox domain.BBox) ([]domain.Destination, error) {
+	b := bboxQL(bbox)
+	ql := fmt.Sprintf(`[out:json][timeout:180];(`+
+		`node["railway"="subway_entrance"]%[1]s;`+
+		`node["railway"="station"]["station"="subway"]%[1]s;`+
+		`node["tourism"="information"]["information"="board"]["name"~"^Platja"]%[1]s;`+
+		`way["natural"~"^(beach|sand)$"]%[1]s;relation["natural"~"^(beach|sand)$"]%[1]s;);out geom tags;`, b)
+	body, err := c.query(ctx, "destinations", ql)
+	if err != nil {
+		return nil, err
+	}
+	els, err := decode(body)
+	if err != nil {
+		return nil, err
+	}
+	return parseDestinations(els), nil
+}
+
+func parseDestinations(els []element) []domain.Destination {
+	var out []domain.Destination
+	for _, e := range els {
+		name := e.Tags["name"]
+		switch {
+		case e.Type == "node" && e.Tags["tourism"] == "information" && strings.HasPrefix(name, "Platja"):
+			// Стенды правил на пляжах Барселоны (AMB): городские пляжи в OSM областями не размечены.
+			out = append(out, domain.Destination{OSMID: e.ID, Kind: domain.DestBeach, Name: name, Point: orb.Point{e.Lon, e.Lat}})
+		case e.Type == "node" && e.Tags["railway"] != "":
+			out = append(out, domain.Destination{OSMID: e.ID, Kind: domain.DestMetro, Name: name, Point: orb.Point{e.Lon, e.Lat}})
+		case e.Tags["natural"] == "beach" || e.Tags["natural"] == "sand":
+			lines := [][]latLon{e.Geometry}
+			for _, m := range e.Members {
+				lines = append(lines, m.Geometry)
+			}
+			for _, g := range lines {
+				if len(g) < 2 {
+					continue
+				}
+				ls := make(orb.LineString, len(g))
+				for i, p := range g {
+					ls[i] = orb.Point{p.Lon, p.Lat}
+				}
+				for _, p := range domain.SampleBoundary(ls, domain.WalkBeachSampleM) {
+					out = append(out, domain.Destination{OSMID: e.ID, Kind: domain.DestBeach, Name: name, Point: p})
+				}
+			}
+		}
 	}
 	return out
 }
