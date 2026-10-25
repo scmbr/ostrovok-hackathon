@@ -60,12 +60,14 @@ type feature struct {
 }
 
 // scan читает GML потоком и вызывает fn для каждого элемента с локальным именем element
-// (Building или BuildingPart). withGeom=false не накапливает контуры.
-func scan(r io.Reader, element string, withGeom bool, fn func(feature) error) error {
+// (Building или BuildingPart). withGeom=false не накапливает контуры. Если задан keep, элементы,
+// чья кадастровая ссылка не прошла проверку, пропускаются без разбора геометрии и без вызова fn.
+func scan(r io.Reader, element string, withGeom bool, keep func(ref string) bool, fn func(feature) error) error {
 	dec := newDecoder(r)
 
 	var (
 		cur      *feature
+		skip     bool   // элемент отброшен keep
 		depth    int    // глубина вложенности внутри cur
 		ringKind string // exterior | interior
 		polygon  orb.Polygon
@@ -85,6 +87,7 @@ func scan(r io.Reader, element string, withGeom bool, fn func(feature) error) er
 			if cur == nil {
 				if name == element {
 					cur = &feature{ref: refFromID(attr(t, "id"))}
+					skip = keep != nil && !keep(cur.ref)
 					depth = 0
 					polygon = nil
 				}
@@ -108,7 +111,10 @@ func scan(r io.Reader, element string, withGeom bool, fn func(feature) error) er
 			}
 			name := t.Name.Local
 			if depth == 0 {
-				err := fn(*cur)
+				var err error
+				if !skip {
+					err = fn(*cur)
+				}
 				cur = nil
 				if err != nil {
 					return err
@@ -116,6 +122,9 @@ func scan(r io.Reader, element string, withGeom bool, fn func(feature) error) er
 				continue
 			}
 			depth--
+			if skip {
+				continue
+			}
 			s := strings.TrimSpace(text.String())
 			switch name {
 			case "numberOfFloorsAboveGround":

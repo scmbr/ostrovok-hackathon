@@ -18,7 +18,7 @@ const (
 // Источники факта (facts.source).
 const SourceComputed = "computed"
 
-// Fact — значение характеристики с происхождением. LLM источником факта быть не может.
+// Fact — итоговое значение характеристики со ссылками на свидетельства. LLM источником факта быть не может.
 type Fact struct {
 	ID         int64
 	EntityType string
@@ -30,5 +30,5 @@ type Fact struct {
 	Confidence float64
 	ObservedAt time.Time
 	ValidUntil *time.Time
-	Evidence   map[string]any
+	Evidence   []Evidence // свидетельства, из которых сложен факт
 }
