@@ -186,6 +186,44 @@ ON CONFLICT (osm_id) DO NOTHING`
 	return tx.Commit(ctx)
 }
 
+// ReplacePois заменяет POI; остаются только лежащие не дальше PoisRadiusM от отелей.
+func (s *GeoStore) ReplacePois(ctx context.Context, pois []domain.Poi) error {
+	const q = `
+INSERT INTO pois (osm_id, kind, name, geom, tags)
+SELECT $1, $2, NULLIF($3, ''), t.g, $5::jsonb
+FROM (SELECT ST_SetSRID(ST_MakePoint($4::float8, $6::float8), 4326) AS g) t
+WHERE EXISTS (SELECT 1 FROM hotels h
+              WHERE h.geom && ST_Expand(t.g, 0.005)
+                AND ST_DWithin(h.geom::geography, t.g::geography, $7))`
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
+	if _, err := tx.Exec(ctx, `DELETE FROM pois`); err != nil {
+		return err
+	}
+	b := &pgx.Batch{}
+	for _, p := range pois {
+		tags, err := json.Marshal(p.Tags)
+		if err != nil {
+			return err
+		}
+		b.Queue(q, p.OSMID, p.Kind, p.Name, p.Point[0], tags, p.Point[1], domain.PoisRadiusM)
+	}
+	br := tx.SendBatch(ctx, b)
+	for i := range pois {
+		if _, err := br.Exec(); err != nil {
+			_ = br.Close()
+			return fmt.Errorf("POI %d из %d: %w", i+1, len(pois), err)
+		}
+	}
+	if err := br.Close(); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *GeoStore) ListHotels(ctx context.Context) ([]domain.HotelKey, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, osm_id FROM hotels ORDER BY id`)
 	if err != nil {

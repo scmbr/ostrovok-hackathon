@@ -116,5 +116,6 @@ type NoiseTargetFacade struct {
 	AzimuthDeg  float64
 	FacesStreet bool
 	Courtyard   bool
-	Samples     []NoiseSample
+	Samples     []NoiseSample // сегменты карты BCN; пусто, если карта не покрывает фасад
+	OSM         OSMNoiseInput // источники шума OSM вокруг фасада
 }

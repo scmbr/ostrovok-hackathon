@@ -23,6 +23,7 @@ type OSMSource interface {
 	Buildings(ctx context.Context, bbox domain.BBox) ([]domain.Building, error)
 	Coastline(ctx context.Context, bbox domain.BBox) ([]orb.LineString, error)
 	Roads(ctx context.Context, bbox domain.BBox) ([]domain.Road, error)
+	Pois(ctx context.Context, bbox domain.BBox) ([]domain.Poi, error)
 }
 
 // CatastroSource — выгрузка зданий кадастра с этажностью.
@@ -45,6 +46,8 @@ type Store interface {
 	ReplaceSea(ctx context.Context, lines []orb.LineString) error
 	// ReplaceRoads заменяет дороги; сохраняются только лежащие не дальше domain.RoadsRadiusM от отелей.
 	ReplaceRoads(ctx context.Context, roads []domain.Road) error
+	// ReplacePois заменяет POI; сохраняются только лежащие не дальше domain.PoisRadiusM от отелей.
+	ReplacePois(ctx context.Context, pois []domain.Poi) error
 	ListHotels(ctx context.Context) ([]domain.HotelKey, error)
 	SaveMockCard(ctx context.Context, hotelID int64, card domain.Card) error
 	ListDemoCandidates(ctx context.Context) ([]domain.DemoCandidate, error)
@@ -128,6 +131,19 @@ func (c *Collector) GenerateMockCards(ctx context.Context) (int, error) {
 }
 
 // CollectRoads выгружает дороги OSM и оставляет те, что лежат вокруг отелей (отели должны быть уже загружены).
+// CollectPois выгружает бары, клубы, аптеки, кафе и магазины рядом с отелями.
+func (c *Collector) CollectPois(ctx context.Context) error {
+	pois, err := c.Src.Pois(ctx, domain.CoverageBBox().Pad(bufferDeg))
+	if err != nil {
+		return fmt.Errorf("POI: %w", err)
+	}
+	log.Printf("POI получено: %d", len(pois))
+	if err := c.Store.ReplacePois(ctx, pois); err != nil {
+		return fmt.Errorf("сохранение POI: %w", err)
+	}
+	return nil
+}
+
 func (c *Collector) CollectRoads(ctx context.Context) error {
 	roads, err := c.Src.Roads(ctx, domain.CoverageBBox().Pad(bufferDeg))
 	if err != nil {
