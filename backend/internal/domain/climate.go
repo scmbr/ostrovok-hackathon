@@ -11,10 +11,6 @@ const (
 	ClimateMethod = "climate_open_meteo@1"
 	// ClimateYears — сколько последних полных лет берётся для месячных норм.
 	ClimateYears = 10
-	// ClimateReliability — реанализ ERA5 и морской реанализ Open-Meteo: авторитетные данные, но ячейка сетки 9–25 км.
-	ClimateReliability = 0.85
-	// ClimateGroup — группа независимости климатических данных Open-Meteo.
-	ClimateGroup = "open_meteo_era5"
 	// RainDayMM — день считается дождливым при осадках не меньше этого значения.
 	RainDayMM = 1.0
 	// SwimmingMinWaterC — вода от этой температуры считается подходящей для купания.

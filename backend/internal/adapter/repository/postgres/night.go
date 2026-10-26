@@ -14,8 +14,8 @@ type NightStore struct {
 	evidenceWriter
 }
 
-func NewNightStore(pool *pgxpool.Pool) *NightStore {
-	return &NightStore{pool: pool, evidenceWriter: evidenceWriter{pool}}
+func NewNightStore(pool *pgxpool.Pool, rules map[string]domain.TruthParams) *NightStore {
+	return &NightStore{pool: pool, evidenceWriter: evidenceWriter{pool, rules}}
 }
 
 // NightTargets возвращает отели с заведениями в радиусе radiusM (расстояние по прямой, м) и их opening_hours.

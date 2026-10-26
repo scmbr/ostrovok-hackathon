@@ -86,8 +86,8 @@ type WalkStore struct {
 	evidenceWriter
 }
 
-func NewWalkStore(pool *pgxpool.Pool) *WalkStore {
-	return &WalkStore{pool: pool, evidenceWriter: evidenceWriter{pool}}
+func NewWalkStore(pool *pgxpool.Pool, rules map[string]domain.TruthParams) *WalkStore {
+	return &WalkStore{pool: pool, evidenceWriter: evidenceWriter{pool, rules}}
 }
 
 // LoadWalkEdges возвращает рёбра графа без геометрии (она нужна только для рёбер маршрута).

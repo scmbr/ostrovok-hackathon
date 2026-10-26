@@ -40,7 +40,7 @@ func (s *noiseStore) NoiseTargets(context.Context, domain.HotelFilter, domain.No
 func TestNoiseNightFacts(t *testing.T) {
 	store := &noiseStore{}
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
-	res, err := (&NoiseNight{Store: store, Now: func() time.Time { return now }}).Run(context.Background(), Options{})
+	res, err := (&NoiseNight{Registry: testRegistry(t), Store: store, Now: func() time.Time { return now }}).Run(context.Background(), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestNoiseNightFacts(t *testing.T) {
 	if yard.Value["level"] != domain.NoiseQuiet || yard.Conflict != nil {
 		t.Errorf("двор: %+v", yard.Value)
 	}
-	if osmOnly.Source != domain.SourceOSM || osmOnly.Confidence != domain.NoiseOSMReliability ||
+	if osmOnly.Source != domain.SourceOSM || osmOnly.Confidence != testOSMReliability ||
 		len(osmOnly.EvidenceIDs) != 1 || osmOnly.Value["dominant"] == nil {
 		t.Errorf("только OSM: %+v, свидетельств %d", osmOnly.Value, len(osmOnly.EvidenceIDs))
 	}

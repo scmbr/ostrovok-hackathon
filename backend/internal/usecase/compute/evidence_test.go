@@ -30,7 +30,7 @@ func (r *recorder) record(scope, key string, evs []domain.Evidence) {
 			now = e.ObservedAt
 		}
 	}
-	r.saved[scope+"/"+key] = domain.AssembleFacts(evs, domain.TruthContext{Now: now})
+	r.saved[scope+"/"+key] = domain.AssembleFacts(evs, domain.TruthContext{Now: now, Rules: testRules()})
 }
 
 func (r *recorder) SaveHotelEvidence(_ context.Context, hotelID int64, key string, _ []domain.Author, evs []domain.Evidence) error {

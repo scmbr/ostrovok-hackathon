@@ -12,9 +12,6 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 )
 
-// walkTTL — срок годности: пешие пути и входы в метро в OSM меняются медленно, но граф неполон.
-const walkTTL = 180 * 24 * time.Hour
-
 // maxPathPoints — сколько точек пути сохраняется в evidence (для карты); длинный путь прореживается.
 const maxPathPoints = 150
 
@@ -31,8 +28,9 @@ type WalkStore interface {
 
 // Walk считает walk_to_beach и walk_to_metro: кратчайший пеший путь по графу OSM от отеля до ближайшей цели.
 type Walk struct {
-	Store WalkStore
-	Now   func() time.Time // для тестов; по умолчанию time.Now
+	Registry domain.Registry
+	Store    WalkStore
+	Now      func() time.Time // для тестов; по умолчанию time.Now
 }
 
 // WalkResult — сколько отелей получили маршрут.
@@ -61,24 +59,37 @@ var WalkSpec = Spec{
 type walkKind struct {
 	key, dest string
 	maxM      float64
+	cfg       StrategyCfg
 }
 
-// walkKindsFor — виды маршрутов с предельными длинами из параметров запуска.
-func walkKindsFor(p Params) []walkKind {
-	return []walkKind{
-		{domain.WalkToBeachKey, domain.DestBeach, p["beach_max_m"]},
-		{domain.WalkToMetroKey, domain.DestMetro, p["metro_max_m"]},
+// walkKindsFor — виды маршрутов с предельными длинами из параметров запуска и стратегиями реестра.
+func walkKindsFor(p Params, reg domain.Registry) ([]walkKind, error) {
+	var out []walkKind
+	for _, k := range []walkKind{
+		{key: domain.WalkToBeachKey, dest: domain.DestBeach, maxM: p["beach_max_m"]},
+		{key: domain.WalkToMetroKey, dest: domain.DestMetro, maxM: p["metro_max_m"]},
+	} {
+		cfg, err := strategyCfg(reg, k.key, WalkSpec.Name, "")
+		if err != nil {
+			return nil, err
+		}
+		k.cfg = cfg
+		out = append(out, k)
 	}
+	return out, nil
 }
 
 // Run пересчитывает пешие маршруты у всех отелей.
 func (c *Walk) Run(ctx context.Context, opts Options) (WalkResult, error) {
 	var res WalkResult
-	p, err := WalkSpec.Resolve(opts.Params)
+	p, err := WalkSpec.ResolveLayers(registryParams(c.Registry, WalkSpec.Name), opts.Params)
 	if err != nil {
 		return res, err
 	}
-	kinds := walkKindsFor(p)
+	kinds, err := walkKindsFor(p, c.Registry)
+	if err != nil {
+		return res, err
+	}
 	edges, err := c.Store.LoadWalkEdges(ctx, opts.Filter.RegionID)
 	if err != nil {
 		return res, fmt.Errorf("граф: %w", err)
@@ -176,7 +187,7 @@ func (c *Walk) walkEvidence(ctx context.Context, h domain.HotelPoint, k walkKind
 		return domain.Evidence{}, err
 	}
 	path := routePath(r, edgeByID, geoms)
-	until := now.Add(walkTTL)
+	until := k.cfg.Until(now)
 	value := map[string]any{
 		"minutes":     r.MinutesAt(p["speed_m_per_min"]),
 		"distance_m":  math.Round(r.DistM),
@@ -187,13 +198,12 @@ func (c *Walk) walkEvidence(ctx context.Context, h domain.HotelPoint, k walkKind
 	}
 	id := fmt.Sprint(h.ID)
 	details := map[string]any{
-		"target_osm_id":      r.Target.ID,
-		"start_access_m":     math.Round(r.StartExtra),
-		"end_access_m":       math.Round(r.EndExtra),
-		"graph_nodes":        len(r.Nodes),
-		"graph_edges_total":  graphEdges,
-		"path":               path,
-		"independence_group": domain.WalkGroup,
+		"target_osm_id":     r.Target.ID,
+		"start_access_m":    math.Round(r.StartExtra),
+		"end_access_m":      math.Round(r.EndExtra),
+		"graph_nodes":       len(r.Nodes),
+		"graph_edges_total": graphEdges,
+		"path":              path,
 		"params": map[string]any{
 			"speed_m_per_min": p["speed_m_per_min"], "snap_max_m": p["snap_max_m"], "max_route_m": k.maxM,
 		},
@@ -205,10 +215,11 @@ func (c *Walk) walkEvidence(ctx context.Context, h domain.HotelPoint, k walkKind
 			"граф пешеходных путей OSM может быть неполон",
 		},
 	}
+	k.cfg.WithGroup(details)
 	return domain.Evidence{
 		EntityType: domain.EntityHotel, EntityID: id, Key: k.key, Claimed: value,
 		Source: domain.SourceOSM, Method: domain.WalkMethod, AuthorType: domain.AuthorTool, AuthorID: domain.WalkMethod,
-		Reliability: domain.WalkReliability, ObservedAt: now, ValidUntil: &until, Details: details,
+		Reliability: k.cfg.Reliability, ObservedAt: now, ValidUntil: &until, Details: details,
 	}, nil
 }
 

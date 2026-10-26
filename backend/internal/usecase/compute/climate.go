@@ -11,9 +11,6 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 )
 
-// climateTTL — срок годности: месячные нормы за десять лет меняются медленно.
-const climateTTL = 365 * 24 * time.Hour
-
 // ClimateSource — суточная погода и температура моря для точки.
 type ClimateSource interface {
 	Daily(ctx context.Context, p orb.Point, from, to time.Time) ([]domain.ClimateDay, error)
@@ -38,6 +35,7 @@ var ClimateSpec = Spec{
 
 // Climate считает climate_by_month по районам: месячные нормы воздуха, осадков, солнца и температуры моря.
 type Climate struct {
+	Registry  domain.Registry
 	Src       ClimateSource
 	Store     ClimateStore
 	Districts []domain.District
@@ -53,7 +51,11 @@ type ClimateResult struct {
 // Run загружает последние ClimateYears полных лет по центру каждого района и пишет факт района.
 func (c *Climate) Run(ctx context.Context, opts Options) (ClimateResult, error) {
 	res := ClimateResult{SeaYears: math.MaxInt}
-	p, err := ClimateSpec.Resolve(opts.Params)
+	p, err := ClimateSpec.ResolveLayers(registryParams(c.Registry, ClimateSpec.Name), opts.Params)
+	if err != nil {
+		return res, err
+	}
+	cfg, err := strategyCfg(c.Registry, domain.ClimateKey, ClimateSpec.Name, "")
 	if err != nil {
 		return res, err
 	}
@@ -93,7 +95,7 @@ func (c *Climate) Run(ctx context.Context, opts Options) (ClimateResult, error) 
 		if norms.Days == 0 {
 			return res, fmt.Errorf("район %s: нет данных за %d–%d", d.Name, from.Year(), to.Year())
 		}
-		ev := climateEvidence(d, centre, norms, from.Year(), to.Year(), now)
+		ev := climateEvidence(d, centre, norms, from.Year(), to.Year(), now, cfg)
 		if err := c.Store.SaveDistrictEvidence(ctx, d.Name, domain.ClimateKey,
 			[]domain.Author{domain.ToolAuthor(domain.ClimateMethod)}, []domain.Evidence{ev}); err != nil {
 			return res, fmt.Errorf("район %s: %w", d.Name, err)
@@ -107,8 +109,8 @@ func (c *Climate) Run(ctx context.Context, opts Options) (ClimateResult, error) 
 	return res, nil
 }
 
-func climateEvidence(d domain.District, centre orb.Point, n domain.ClimateNorms, fromYear, toYear int, now time.Time) domain.Evidence {
-	until := now.Add(climateTTL)
+func climateEvidence(d domain.District, centre orb.Point, n domain.ClimateNorms, fromYear, toYear int, now time.Time, cfg StrategyCfg) domain.Evidence {
+	until := cfg.Until(now)
 	months := make([]map[string]any, 0, 12)
 	for _, m := range n.Months {
 		row := map[string]any{
@@ -130,7 +132,6 @@ func climateEvidence(d domain.District, centre orb.Point, n domain.ClimateNorms,
 		"centre":              map[string]any{"lon": round5v(centre[0]), "lat": round5v(centre[1])},
 		"days_with_data":      n.Days,
 		"sea_years_with_data": n.SeaYears,
-		"independence_group":  domain.ClimateGroup,
 		"datasets": map[string]any{
 			"weather": "Open-Meteo Historical Weather API (реанализ ERA5), https://open-meteo.com",
 			"sea":     "Open-Meteo Marine API, sea_surface_temperature",
@@ -146,11 +147,12 @@ func climateEvidence(d domain.District, centre orb.Point, n domain.ClimateNorms,
 			"купание = вода не холоднее 20 °C; ветер, волны и медузы не учитываются",
 		},
 	}
+	cfg.WithGroup(details)
 	id := d.Name
 	return domain.Evidence{
 		EntityType: domain.EntityDistrict, EntityID: id, Key: domain.ClimateKey, Claimed: value,
 		Source: domain.SourceOpenMeteo, Method: domain.ClimateMethod, AuthorType: domain.AuthorTool, AuthorID: domain.ClimateMethod,
-		Reliability: domain.ClimateReliability, ObservedAt: now, ValidUntil: &until, Details: details,
+		Reliability: cfg.Reliability, ObservedAt: now, ValidUntil: &until, Details: details,
 	}
 }
 

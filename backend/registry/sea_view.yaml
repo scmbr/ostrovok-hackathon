@@ -1,0 +1,16 @@
+key: sea_view
+title: Вид на море
+description: С какого этажа каждый фасад видит море
+level: facade
+value_type: range
+value_field: min_floor
+ttl_days: 365
+strategies:
+  - tool: sea-view
+    params: { fan_half_deg: 45, fan_step_deg: 5, ray_max_m: 1500, min_fraction: 0.25 }
+    # base_reliability — потолок: расчёт понижает надёжность сам по качеству высот зданий
+    # (кадастр 0,85; высоты OSM 0,6; предположенные 0,45), выше базы она не бывает.
+    base_reliability: 0.85
+    independence_group: buildings_raycast
+ask_hotelier: Из каких категорий номеров, с какой стороны и с какого этажа видно море?
+ask_guest: Видно ли было море из окна вашего номера?

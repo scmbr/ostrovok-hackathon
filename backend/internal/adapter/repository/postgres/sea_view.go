@@ -15,8 +15,8 @@ type SeaViewStore struct {
 	evidenceWriter
 }
 
-func NewSeaViewStore(pool *pgxpool.Pool) *SeaViewStore {
-	return &SeaViewStore{pool: pool, evidenceWriter: evidenceWriter{pool}}
+func NewSeaViewStore(pool *pgxpool.Pool, rules map[string]domain.TruthParams) *SeaViewStore {
+	return &SeaViewStore{pool: pool, evidenceWriter: evidenceWriter{pool, rules}}
 }
 
 // SeaViewTargets возвращает отели с фасадами. Этажность фасада — максимум по частям здания

@@ -19,8 +19,8 @@ type NoiseStore struct {
 }
 
 // NewNoiseStore: regionID нужен записи сегментов карты шума (ReplaceNoiseFacades); расчёт выбирает отели по фильтру.
-func NewNoiseStore(pool *pgxpool.Pool, regionID int64) *NoiseStore {
-	return &NoiseStore{pool: pool, regionID: regionID, evidenceWriter: evidenceWriter{pool}}
+func NewNoiseStore(pool *pgxpool.Pool, regionID int64, rules map[string]domain.TruthParams) *NoiseStore {
+	return &NoiseStore{pool: pool, regionID: regionID, evidenceWriter: evidenceWriter{pool, rules}}
 }
 
 // HotelCatastroRefs возвращает кадастровые ссылки зданий отелей.

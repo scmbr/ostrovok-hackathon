@@ -1,0 +1,12 @@
+key: climate_by_month
+title: Климат по месяцам
+description: Месячные нормы района — воздух, осадки, солнце, температура воды и признак «купание»
+level: district
+value_type: range
+value_field: months
+ttl_days: 365
+strategies:
+  - tool: climate
+    params: { years: 10 }
+    base_reliability: 0.85 # ячейка реанализа 9–25 км: значения общие для района
+    independence_group: open_meteo_era5

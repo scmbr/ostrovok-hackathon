@@ -38,6 +38,7 @@ const collectUsage = `использование: collect <команда> [-reg
   catastro     загрузить здания кадастра с этажностью из data/raw/catastro и привязать отели
   noise        загрузить фасадный шум карты BCN для зданий отелей (после catastro; data/raw/noise)
   noise-night  рассчитать noise_night: карта BCN и оценка OSM, расхождения источников (после facades, noise, pois)
+  add-characteristic "описание"  добавить характеристику по тексту: LLM составляет YAML реестра из существующих инструментов
   truth        пересобрать все факты из активных свидетельств движком правды; печатает конфликты и таблицу по θ и conflict_steps
   mock-cards   сгенерировать мок базовых карточек отелей
   select-demo  отметить демо-подмножество отелей (флаг hotels.demo)
@@ -52,12 +53,19 @@ func RunCollect(args []string) error {
 	if !collectCommands[cmd] {
 		return fmt.Errorf("неизвестная команда %q\n%s", cmd, collectUsage)
 	}
+	reg, err := LoadRegistry()
+	if err != nil {
+		return err
+	}
+	if cmd == "add-characteristic" {
+		return runAddCharacteristic(args[1:], reg)
+	}
 	flags, err := parseToolFlags(cmd, args[1:])
 	if err != nil {
 		return err
 	}
 	if cmd == "tools" {
-		printTools()
+		printTools(reg)
 		return nil
 	}
 
@@ -79,9 +87,10 @@ func RunCollect(args []string) error {
 		return err
 	}
 	opts := compute.Options{
-		Filter: domain.HotelFilter{RegionID: region.ID, HotelID: flags.hotel}, District: flags.district, Params: flags.params,
+		Filter: domain.HotelFilter{RegionID: region.ID, HotelID: flags.hotel}, District: flags.district, Params: flags.params, Sets: flags.sets,
 	}
 
+	rules := reg.Rules()
 	store := postgres.NewGeoStore(pool, region.ID)
 	c := &collect.Collector{
 		Region:   region,
@@ -109,25 +118,27 @@ func RunCollect(args []string) error {
 		}
 	case "climate":
 		res, err := (&compute.Climate{
-			Src: openmeteo.NewClient(cfg.RawDataDir), Store: postgres.NewClimateStore(pool), Districts: region.Districts,
+			Registry: reg, Src: openmeteo.NewClient(cfg.RawDataDir), Store: postgres.NewClimateStore(pool, rules), Districts: region.Districts,
 		}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("climate_by_month рассчитан у районов: %d; лет данных о море (минимум по районам): %d\n", res.Districts, res.SeaYears)
 	case "night-services":
-		res, err := (&compute.NightServices{Store: postgres.NewNightStore(pool)}).Run(ctx, opts)
+		res, err := (&compute.NightServices{Registry: reg, Store: postgres.NewNightStore(pool, rules)}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("night_services: богато %d, базово %d, ничего %d; заведений в радиусе %d, с разобранными часами %d\n",
-			res.Rich, res.Basic, res.None, res.Pois, res.WithHours)
+		for _, k := range res.Keys {
+			fmt.Printf("%s: богато %d, базово %d, ничего %d; заведений в радиусе %d, с разобранными часами %d\n",
+				k.Key, k.Rich, k.Basic, k.None, k.Pois, k.WithHours)
+		}
 	case "walk-data":
 		if err := c.CollectWalk(ctx); err != nil {
 			return err
 		}
 	case "walk":
-		res, err := (&compute.Walk{Store: postgres.NewWalkStore(pool)}).Run(ctx, opts)
+		res, err := (&compute.Walk{Registry: reg, Store: postgres.NewWalkStore(pool, rules)}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
@@ -140,19 +151,19 @@ func RunCollect(args []string) error {
 		}
 		fmt.Printf("фасады рассчитаны у отелей: %d\n", n)
 	case "sea-view":
-		n, err := (&compute.SeaView{Store: postgres.NewSeaViewStore(pool)}).Run(ctx, opts)
+		n, err := (&compute.SeaView{Registry: reg, Store: postgres.NewSeaViewStore(pool, rules)}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("sea_view рассчитан у отелей: %d\n", n)
 	case "noise":
-		n, err := (&collect.NoiseCollector{Src: bcnnoise.NewSource(cfg.RawDataDir), Store: postgres.NewNoiseStore(pool, region.ID)}).Run(ctx)
+		n, err := (&collect.NoiseCollector{Src: bcnnoise.NewSource(cfg.RawDataDir), Store: postgres.NewNoiseStore(pool, region.ID, rules)}).Run(ctx)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("сегментов фасадного шума загружено: %d\n", n)
 	case "noise-night":
-		res, err := (&compute.NoiseNight{Store: postgres.NewNoiseStore(pool, region.ID)}).Run(ctx, opts)
+		res, err := (&compute.NoiseNight{Registry: reg, Store: postgres.NewNoiseStore(pool, region.ID, rules)}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
@@ -160,7 +171,7 @@ func RunCollect(args []string) error {
 		fmt.Printf("  фасадов с картой BCN: %d (источники согласны: %d, расхождения BCN и OSM: %d), только оценка OSM: %d\n",
 			res.BCN, res.Same, res.Conflicts, res.OSMOnly)
 	case "truth":
-		rep, err := (&truth.Recompute{Store: postgres.NewTruthStore(pool)}).Run(ctx)
+		rep, err := (&truth.Recompute{Registry: reg, Store: postgres.NewTruthStore(pool)}).Run(ctx)
 		if err != nil {
 			return err
 		}
@@ -195,7 +206,7 @@ const defaultRegion = "barcelona"
 var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
 	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
-	"truth": true, "mock-cards": true, "select-demo": true, "stats": true,
+	"truth": true, "add-characteristic": true, "mock-cards": true, "select-demo": true, "stats": true,
 }
 
 // toolFlags — область и параметры запуска расчётного инструмента.
@@ -204,30 +215,46 @@ type toolFlags struct {
 	hotel    int64
 	district string
 	params   compute.Params
+	sets     map[string][]string
 }
 
-// paramFlag собирает повторяющиеся -param имя=значение.
-type paramFlag compute.Params
+// paramFlag собирает повторяющиеся -param имя=значение. Параметр-набор инструмента (kinds) принимает
+// значения через запятую: -param kinds=pharmacy,shop.
+type paramFlag struct {
+	nums    compute.Params
+	sets    map[string][]string
+	setName map[string]bool
+}
 
-func (p paramFlag) String() string { return fmt.Sprint(map[string]float64(p)) }
+func (p *paramFlag) String() string { return fmt.Sprint(map[string]float64(p.nums)) }
 
-func (p paramFlag) Set(v string) error {
+func (p *paramFlag) Set(v string) error {
 	name, val, ok := strings.Cut(v, "=")
 	if !ok || name == "" {
 		return fmt.Errorf("ожидается имя=значение, получено %q", v)
+	}
+	if p.setName[name] {
+		p.sets[name] = strings.Split(val, ",")
+		return nil
 	}
 	x, err := strconv.ParseFloat(val, 64)
 	if err != nil {
 		return fmt.Errorf("параметр %s: %q не число", name, val)
 	}
-	p[name] = x
+	p.nums[name] = x
 	return nil
 }
 
 // parseToolFlags разбирает флаги команды и проверяет, что они применимы к ней.
 func parseToolFlags(cmd string, args []string) (toolFlags, error) {
 	var f toolFlags
-	params := paramFlag{}
+	spec := findSpec(cmd)
+	params := &paramFlag{nums: compute.Params{}, sets: map[string][]string{}, setName: map[string]bool{}}
+	if spec != nil {
+		for _, sp := range spec.SetParams {
+			params.setName[sp.Name] = true
+		}
+	}
 	fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
 	fs.Int64Var(&f.hotel, "hotel", 0, "считать только этот отель (id из таблицы hotels)")
 	fs.StringVar(&f.district, "district", "", "считать только этот район (climate)")
@@ -239,15 +266,12 @@ func parseToolFlags(cmd string, args []string) (toolFlags, error) {
 	if fs.NArg() > 0 {
 		return f, fmt.Errorf("лишние аргументы: %v", fs.Args())
 	}
-	f.params = compute.Params(params)
-	var spec *compute.Spec
-	for i := range compute.Specs {
-		if compute.Specs[i].Name == cmd {
-			spec = &compute.Specs[i]
-		}
+	f.params, f.sets = params.nums, params.sets
+	if len(f.sets) == 0 {
+		f.sets = nil
 	}
 	switch {
-	case spec == nil && (f.hotel != 0 || f.district != "" || len(params) > 0):
+	case spec == nil && (f.hotel != 0 || f.district != "" || len(params.nums) > 0 || len(params.sets) > 0):
 		return f, fmt.Errorf("-hotel, -district и -param относятся только к расчётным инструментам (команда tools)")
 	case spec != nil && spec.Scope == compute.ScopeHotel && f.district != "":
 		return f, fmt.Errorf("%s считает по отелям: используйте -hotel, а не -district", cmd)
@@ -257,12 +281,35 @@ func parseToolFlags(cmd string, args []string) (toolFlags, error) {
 	return f, nil
 }
 
-// printTools печатает описания инструментов и их параметры со значениями по умолчанию.
-func printTools() {
+func findSpec(name string) *compute.Spec {
+	for i := range compute.Specs {
+		if compute.Specs[i].Name == name {
+			return &compute.Specs[i]
+		}
+	}
+	return nil
+}
+
+// printTools печатает описания инструментов, их параметры со значениями по умолчанию и характеристики из реестра.
+func printTools(reg domain.Registry) {
 	for _, s := range compute.Specs {
-		fmt.Printf("%s — %s\n  область: %s; характеристики: %s\n", s.Name, s.Description, s.Scope, strings.Join(s.Keys, ", "))
+		keys := strings.Join(s.Keys, ", ")
+		if s.AnyKey {
+			var fromRegistry []string
+			for _, u := range reg.ToolUses(s.Name) {
+				fromRegistry = append(fromRegistry, u.Characteristic.Key)
+			}
+			keys = "любые из реестра: " + strings.Join(fromRegistry, ", ")
+		}
+		fmt.Printf("%s — %s\n  область: %s; характеристики: %s\n", s.Name, s.Description, s.Scope, keys)
+		for _, v := range s.Variants {
+			fmt.Printf("    strategy %s  (%s) %s\n", v.ID, v.Method, v.Description)
+		}
 		for _, p := range s.Params {
 			fmt.Printf("    -param %s=%g  (%s) %s\n", p.Name, p.Default, p.Unit, p.Description)
+		}
+		for _, p := range s.SetParams {
+			fmt.Printf("    -param %s=%s  %s\n", p.Name, strings.Join(p.Choices, ","), p.Description)
 		}
 	}
 }

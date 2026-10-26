@@ -40,11 +40,12 @@ var (
 
 // Recompute пересобирает все факты.
 type Recompute struct {
-	Store Store
-	Now   func() time.Time
+	Registry domain.Registry
+	Store    Store
+	Now      func() time.Time
 }
 
-// Run собирает факты правилами по умолчанию (domain.TruthRules), записывает их и считает таблицу чувствительности.
+// Run собирает факты правилами реестра, записывает их и считает таблицу чувствительности.
 func (r *Recompute) Run(ctx context.Context) (Report, error) {
 	now := time.Now
 	if r.Now != nil {
@@ -58,7 +59,8 @@ func (r *Recompute) Run(ctx context.Context) (Report, error) {
 	if err != nil {
 		return Report{}, err
 	}
-	tc := domain.TruthContext{Now: now(), Trust: trust}
+	rules := r.Registry.Rules()
+	tc := domain.TruthContext{Now: now(), Trust: trust, Rules: rules}
 	facts := domain.AssembleFacts(evs, tc)
 	if err := r.Store.ReplaceFacts(ctx, facts); err != nil {
 		return Report{}, err
@@ -89,9 +91,13 @@ func (r *Recompute) Run(ctx context.Context) (Report, error) {
 			noise = append(noise, e)
 		}
 	}
+	base, ok := rules[domain.NoiseNightKey]
+	if !ok {
+		return rep, nil
+	}
 	for _, steps := range SensitivitySteps {
 		for _, theta := range SensitivityThetas {
-			p := domain.TruthRules[domain.NoiseNightKey]
+			p := base
 			p.ConflictMinSide, p.ConflictSteps = theta, steps
 			cell := Cell{Theta: theta, Steps: steps}
 			tcv := domain.TruthContext{Now: tc.Now, Trust: trust, Rules: map[string]domain.TruthParams{domain.NoiseNightKey: p}}

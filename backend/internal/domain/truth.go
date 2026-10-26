@@ -30,7 +30,7 @@ const (
 	MaxFactConfidence = 0.99
 )
 
-// TruthParams — параметры характеристики для движка правды. Пока лежат в TruthRules; в задаче 4.3 переезжают в реестр.
+// TruthParams — параметры характеристики для движка правды; берутся из реестра (Characteristic.TruthParams).
 type TruthParams struct {
 	Kind       string
 	ValueField string // поле значения в claimed (level, minutes)
@@ -50,35 +50,18 @@ type TruthParams struct {
 	ConflictEntityTypes []string
 }
 
-// DefaultConflictMinSide — порог θ по умолчанию.
+// DefaultConflictMinSide — порог θ, если реестр его не задаёт.
 const DefaultConflictMinSide = 1.0
-
-// TruthRules — правила по характеристикам. Характеристика без правила ведёт себя как TruthSingle.
-var TruthRules = map[string]TruthParams{
-	NoiseNightKey: {
-		Kind: TruthEnum, ValueField: "level", Order: []string{NoiseQuiet, NoiseModerate, NoiseLoud},
-		ConflictSteps: 2, ConflictMinSide: DefaultConflictMinSide,
-		FavorableValues: []string{NoiseQuiet}, ConflictEntityTypes: []string{EntityFacade},
-	},
-	WalkToBeachKey: {Kind: TruthNumber, ValueField: "minutes", SignificantDiff: 5, ConflictMinSide: DefaultConflictMinSide},
-	WalkToMetroKey: {Kind: TruthNumber, ValueField: "minutes", SignificantDiff: 5, ConflictMinSide: DefaultConflictMinSide},
-}
 
 // TruthContext — всё, кроме самих свидетельств, что нужно движку: время, репутация авторов, правила.
 type TruthContext struct {
 	Now   time.Time
-	Trust map[Author]float64 // репутация человека-автора; нет в карте — DefaultTrust
-	Rules map[string]TruthParams
+	Trust map[Author]float64     // репутация человека-автора; нет в карте — DefaultTrust
+	Rules map[string]TruthParams // по ключу характеристики (Registry.Rules); нет правила — TruthSingle
 }
 
 func (c TruthContext) params(key string) TruthParams {
-	if c.Rules != nil {
-		if p, ok := c.Rules[key]; ok {
-			return p
-		}
-		return TruthParams{Kind: TruthSingle}
-	}
-	if p, ok := TruthRules[key]; ok {
+	if p, ok := c.Rules[key]; ok {
 		return p
 	}
 	return TruthParams{Kind: TruthSingle}

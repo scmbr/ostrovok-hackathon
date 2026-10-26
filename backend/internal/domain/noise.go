@@ -13,10 +13,6 @@ const (
 
 	// NoiseMapYear — год стратегической карты шума: данные расчётные и устаревшие, это видно в evidence.
 	NoiseMapYear = 2017
-	// NoiseBCNGroup — независимая группа источников: наборы по фасадам и по улицам из одной модели.
-	NoiseBCNGroup = "bcn_noise_2017"
-	// NoiseBCNReliability — надёжность расчёта по авторитетной карте (раздел 6 PROJECT_CONTEXT.md).
-	NoiseBCNReliability = 0.85
 
 	// Пороги ночного уровня Ln, дБ: до NoiseQuietMaxDB включительно — тихо, до NoiseModerateMaxDB — умеренно.
 	NoiseQuietMaxDB    = 45.0
