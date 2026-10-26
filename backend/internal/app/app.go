@@ -17,6 +17,7 @@ import (
 
 // Run запускает HTTP-сервер и блокируется до SIGINT/SIGTERM.
 func Run() error {
+	loadDotEnv()
 	cfg := LoadConfig()
 
 	reg, err := LoadRegistry()

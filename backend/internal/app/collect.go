@@ -46,12 +46,16 @@ const collectUsage = `использование: collect <команда> [-reg
 
 // RunCollect выполняет команду CLI сбора и расчёта.
 func RunCollect(args []string) error {
+	loadDotEnv()
 	if len(args) < 1 {
 		return fmt.Errorf("укажите команду\n%s", collectUsage)
 	}
 	cmd := args[0]
 	if !collectCommands[cmd] {
 		return fmt.Errorf("неизвестная команда %q\n%s", cmd, collectUsage)
+	}
+	if cmd == "llm-check" {
+		return runLLMCheck()
 	}
 	reg, err := LoadRegistry()
 	if err != nil {
@@ -206,7 +210,7 @@ const defaultRegion = "barcelona"
 var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
 	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
-	"truth": true, "add-characteristic": true, "mock-cards": true, "select-demo": true, "stats": true,
+	"truth": true, "add-characteristic": true, "llm-check": true, "mock-cards": true, "select-demo": true, "stats": true,
 }
 
 // toolFlags — область и параметры запуска расчётного инструмента.
