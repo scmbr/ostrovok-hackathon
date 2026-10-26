@@ -23,24 +23,24 @@ type file struct {
 	Description      string         `yaml:"description"`
 	Level            string         `yaml:"level"`
 	ValueType        string         `yaml:"value_type"`
-	Values           []string       `yaml:"values"`
-	Ordered          bool           `yaml:"ordered"`
-	ValueField       string         `yaml:"value_field"`
+	Values           []string       `yaml:"values,omitempty"`
+	Ordered          bool           `yaml:"ordered,omitempty"`
+	ValueField       string         `yaml:"value_field,omitempty"`
 	TTLDays          int            `yaml:"ttl_days"`
-	FavorableValues  []string       `yaml:"favorable_values"`
-	SignificantDiff  float64        `yaml:"significant_diff"`
-	ConflictSteps    int            `yaml:"conflict_steps"`
-	ConflictTheta    float64        `yaml:"conflict_theta"`
-	ConflictEntities []string       `yaml:"conflict_entities"`
-	Strategies       []fileStrategy `yaml:"strategies"`
-	AskHotelier      string         `yaml:"ask_hotelier"`
-	AskGuest         string         `yaml:"ask_guest"`
+	FavorableValues  []string       `yaml:"favorable_values,omitempty"`
+	SignificantDiff  float64        `yaml:"significant_diff,omitempty"`
+	ConflictSteps    int            `yaml:"conflict_steps,omitempty"`
+	ConflictTheta    float64        `yaml:"conflict_theta,omitempty"`
+	ConflictEntities []string       `yaml:"conflict_entities,omitempty"`
+	Strategies       []fileStrategy `yaml:"strategies,omitempty"`
+	AskHotelier      string         `yaml:"ask_hotelier,omitempty"`
+	AskGuest         string         `yaml:"ask_guest,omitempty"`
 }
 
 type fileStrategy struct {
 	Tool              string         `yaml:"tool"`
-	Strategy          string         `yaml:"strategy"`
-	Params            map[string]any `yaml:"params"`
+	Strategy          string         `yaml:"strategy,omitempty"`
+	Params            map[string]any `yaml:"params,omitempty"`
 	BaseReliability   float64        `yaml:"base_reliability"`
 	IndependenceGroup string         `yaml:"independence_group"`
 }
@@ -147,4 +147,38 @@ func Load(fsys fs.FS) (domain.Registry, error) {
 		cs = append(cs, c)
 	}
 	return domain.NewRegistry(cs)
+}
+
+// Marshal записывает характеристику в YAML, который читает Parse.
+func Marshal(c domain.Characteristic) ([]byte, error) {
+	f := file{
+		Key: c.Key, Title: c.Title, Description: c.Description, Level: c.Level, ValueType: c.ValueType,
+		Values: c.Values, Ordered: c.Ordered, ValueField: c.ValueField, TTLDays: c.TTLDays,
+		FavorableValues: c.FavorableValues, SignificantDiff: c.SignificantDiff, ConflictSteps: c.ConflictSteps,
+		ConflictTheta: c.ConflictTheta, ConflictEntities: c.ConflictEntities,
+		AskHotelier: c.AskHotelier, AskGuest: c.AskGuest,
+	}
+	for _, s := range c.Strategies {
+		fs := fileStrategy{Tool: s.Tool, Strategy: s.Variant, BaseReliability: s.BaseReliability, IndependenceGroup: s.IndependenceGroup}
+		if len(s.Params)+len(s.Lists) > 0 {
+			fs.Params = make(map[string]any, len(s.Params)+len(s.Lists))
+			for k, v := range s.Params {
+				fs.Params[k] = v
+			}
+			for k, v := range s.Lists {
+				fs.Params[k] = v
+			}
+		}
+		f.Strategies = append(f.Strategies, fs)
+	}
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(f); err != nil {
+		return nil, err
+	}
+	if err := enc.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

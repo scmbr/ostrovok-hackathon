@@ -1,0 +1,23 @@
+# Заготовка ответа LLM для режима кеша. Ответ проходит ту же проверку, что и живой.
+task: add_characteristic
+inputs:
+  - есть ли рядом круглосуточная аптека
+  - круглосуточная аптека рядом
+  - ночная аптека
+  - аптека рядом работает ночью
+response: |
+  key: night_pharmacy
+  title: Ночная аптека рядом
+  description: Есть ли в 300 м от отеля аптека, открытая ночью
+  level: hotel
+  value_type: bool
+  value_field: available
+  ttl_days: 90
+  favorable_values: ["true"]
+  strategies:
+    - tool: night-services
+      params: { radius_m: 300, kinds: [pharmacy] }
+      base_reliability: 0.6
+      independence_group: osm_pois
+  ask_hotelier: "Есть ли рядом с отелем аптека, открытая ночью? Какая и как далеко?"
+  ask_guest: Нашли ли вы рядом с отелем аптеку, открытую ночью?

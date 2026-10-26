@@ -1,0 +1,19 @@
+task: add_characteristic
+inputs:
+  - можно ли с собакой
+  - можно ли с питомцем
+  - можно ли с животными
+  - отель принимает с собаками
+response: |
+  key: pet_friendly
+  title: Можно с питомцем
+  description: Принимает ли отель гостей с животными, каких и на каких условиях
+  level: hotel
+  value_type: enum
+  values: [no, with_conditions, yes]
+  ordered: true
+  value_field: policy
+  ttl_days: 180
+  favorable_values: [with_conditions, yes]
+  ask_hotelier: "Принимаете ли вы гостей с животными? Каких животных, до какого веса, сколько это стоит и в каких категориях номеров?"
+  ask_guest: Вас с питомцем приняли на условиях, которые заявил отель?
