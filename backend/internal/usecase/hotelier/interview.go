@@ -338,28 +338,68 @@ func guestsSearched(n int, title string) string {
 	return fmt.Sprintf("%d %s %s «%s»", n, word, verb, title)
 }
 
-// simulate: имитированная персона отвечает на отправленный вопрос. У живого отельера (персоны нет) ответа ждёт кабинет.
-func (i *Interviewer) simulate(ctx context.Context, s *session, h Hotel, q Question) (*Outcome, error) {
+// personaText — ответ имитированной персоны на вопрос; у живого отельера (персоны нет) — пустая строка.
+func (i *Interviewer) personaText(ctx context.Context, h Hotel, q Question) (string, error) {
 	if h.Persona == "" {
-		return nil, nil
+		return "", nil
 	}
 	truth, _, err := i.Store.Truth(ctx, h.ID, q.Key)
 	if err != nil {
-		return nil, fmt.Errorf("истина мока: %w", err)
+		return "", fmt.Errorf("истина мока: %w", err)
 	}
 	req := domain.AnswerRequest{HotelID: h.ID, Key: q.Key, Format: q.Format, Truth: truth}
 	if c, ok := i.Registry.Get(q.Key); ok && q.Format == domain.FormatConfirm {
 		facts, err := i.Store.HotelFacts(ctx, h.ID)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		val, _ := i.currentValue(ctx, h, c, &q, facts)
 		req.CalcUnfavorable = unfavorable(c, q, val)
 	}
-	text := domain.PersonaAnswer(h.Persona, req)
+	return domain.PersonaAnswer(h.Persona, req), nil
+}
+
+// simulate: имитированная персона отвечает на отправленный вопрос. У живого отельера (персоны нет) ответа ждёт кабинет.
+func (i *Interviewer) simulate(ctx context.Context, s *session, h Hotel, q Question) (*Outcome, error) {
+	text, err := i.personaText(ctx, h, q)
+	if err != nil || text == "" {
+		return nil, err
+	}
 	i.trace(ctx, s, h, agent.ModePlanner, "персона "+h.Persona+" ответила на "+q.Key, "persona_answer",
 		map[string]any{"characteristic": q.Key, "entity": q.Label}, map[string]any{"answer": text})
 	return i.processAnswer(ctx, s, h, q, text)
+}
+
+// Preview — что ответила бы персона отеля на открытый вопрос и как этот ответ разобран. В БД ничего не пишется:
+// кнопка «ответить как персона» в кабинете показывает разбор, а решение остаётся за отельером. Разбор идёт
+// тем же путём, что в processAnswer, поэтому ответы живой модели попадают в кеш и воспроизводятся без ключа.
+type Preview struct {
+	Question Question
+	Answer   string
+	Parsed   Parsed
+}
+
+// Preview разбирает ответ персоны на вопрос q без записи; nil — у отеля нет персоны.
+func (i *Interviewer) Preview(ctx context.Context, q Question) (*Preview, error) {
+	h, err := i.Store.Hotel(ctx, q.HotelID)
+	if err != nil {
+		return nil, err
+	}
+	text, err := i.personaText(ctx, h, q)
+	if err != nil || text == "" {
+		return nil, err
+	}
+	c, ok := i.Registry.Get(q.Key)
+	if !ok {
+		return nil, fmt.Errorf("нет характеристики %q", q.Key)
+	}
+	facts, err := i.Store.HotelFacts(ctx, h.ID)
+	if err != nil {
+		return nil, err
+	}
+	q.AnswerText = text
+	val, _ := i.currentValue(ctx, h, c, &q, facts)
+	return &Preview{Question: q, Answer: text, Parsed: i.Parse(ctx, c, q, val)}, nil
 }
 
 // currentValue — расчётное значение, которое подтверждает вопрос: факт отеля или значение категории по расчёту.
@@ -505,8 +545,12 @@ func (i *Interviewer) scoreCategory(c domain.Characteristic, is CategoryIssue, d
 	if sc.Demand > 0 {
 		parts = append(parts, guestsSearched(sc.Demand, c.Title))
 	}
-	parts = append(parts, fmt.Sprintf("категория «%s»: утверждение отеля спорит с расчётом (уверенность %s)", is.Name,
-		strings.Replace(strconv.FormatFloat(is.Confidence, 'f', 2, 64), ".", ",", 1)))
+	conf := strings.Replace(strconv.FormatFloat(is.Confidence, 'f', 2, 64), ".", ",", 1)
+	if is.GuestAgainst > 0 {
+		parts = append(parts, fmt.Sprintf("категория «%s»: %s расходятся с расчётом (уверенность %s)", is.Name, guestsReported(is.GuestAgainst), conf))
+	} else {
+		parts = append(parts, fmt.Sprintf("категория «%s»: утверждение отеля спорит с расчётом (уверенность %s)", is.Name, conf))
+	}
 	parts = append(parts, "ответ снимет конфликт или подтвердит его")
 	q.Reason = strings.Join(parts, "; ")
 	return q
@@ -531,7 +575,33 @@ func categoryDraft(c domain.Characteristic, is CategoryIssue) string {
 			what = "море видно"
 		}
 	}
+	if is.GuestAgainst > 0 && c.Key == domain.SeaViewKey {
+		return fmt.Sprintf("По расчёту из номеров «%s» (%s) %s, но %s, что вид закрыт (деревья, строительные леса, стройка?). Море из этих номеров видно — верно? (да / нет / уточнить)",
+			is.Name, strings.Join(where, "; "), what, guestsReportedVerb(is.GuestAgainst))
+	}
 	return fmt.Sprintf("По расчёту из номеров «%s» (%s) %s — верно? (да / нет / уточнить)", is.Name, strings.Join(where, "; "), what)
+}
+
+// guestsReported — «3 надёжных гостя сообщают»: ответы гостей, которые расходятся с расчётом.
+func guestsReported(n int) string {
+	return plural(n, "надёжный гость", "надёжных гостя", "надёжных гостей") + " по анкетам"
+}
+
+// guestsReportedVerb — «3 гостя сообщили».
+func guestsReportedVerb(n int) string {
+	return plural(n, "гость сообщил", "гостя сообщили", "гостей сообщили")
+}
+
+// plural — число со словом в нужной форме (1 гость, 2 гостя, 5 гостей).
+func plural(n int, one, few, many string) string {
+	m10, m100 := n%10, n%100
+	switch {
+	case m10 == 1 && m100 != 11:
+		return fmt.Sprintf("%d %s", n, one)
+	case m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20):
+		return fmt.Sprintf("%d %s", n, few)
+	}
+	return fmt.Sprintf("%d %s", n, many)
 }
 
 // Compass возвращает направление фасада словами по азимуту внешней нормали.

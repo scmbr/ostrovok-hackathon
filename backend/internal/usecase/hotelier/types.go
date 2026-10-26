@@ -129,6 +129,9 @@ type CategoryIssue struct {
 	CalcValue  string
 	Conflict   string
 	Placements []IssuePlacement
+	// GuestAgainst — сколько ответов гостей в конфликте расходятся с расчётом (категория «Sea View» с закрытым видом:
+	// деревья, леса, стройка, которых нет в открытых данных); 0 — спорит только название категории.
+	GuestAgainst int
 }
 
 // IssuePlacement — где расположены номера категории: фасад словами, этажи, число номеров.
