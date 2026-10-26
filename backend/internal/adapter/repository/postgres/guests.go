@@ -43,7 +43,8 @@ func (s *GuestStore) DemoHotels(ctx context.Context, flt domain.HotelFilter) ([]
 	rows, err := s.pool.Query(ctx, `
 SELECT h.id, h.name,
        EXISTS (SELECT 1 FROM conflicts k JOIN room_categories c ON k.entity_type = $3 AND k.entity_id = c.id::text
-               WHERE c.hotel_id = h.id AND k.characteristic_key = $4 AND k.status = $5)
+               WHERE c.hotel_id = h.id AND k.characteristic_key = $4 AND k.status = $5
+                 AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.id = ANY(k.evidence_ids) AND e.author_type = 'guest'))
 FROM hotels h
 WHERE h.demo AND ($1::bigint = 0 OR h.region_id = $1) AND ($2::bigint = 0 OR h.id = $2)
 ORDER BY h.id`, flt.RegionID, flt.HotelID, domain.EntityRoomCategory, domain.SeaViewKey, domain.ConflictOpen)

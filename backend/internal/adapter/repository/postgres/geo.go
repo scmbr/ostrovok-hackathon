@@ -372,6 +372,7 @@ FROM conflicts k
 JOIN room_categories c ON k.entity_type = $1 AND k.entity_id = c.id::text
 JOIN hotels h ON h.id = c.hotel_id
 WHERE k.characteristic_key = $2 AND k.status = $3
+  AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.id = ANY(k.evidence_ids) AND e.author_type = 'guest')
 ORDER BY h.demo DESC, h.name, c.name`, domain.EntityRoomCategory, domain.SeaViewKey, domain.ConflictOpen)
 	if err != nil {
 		return err

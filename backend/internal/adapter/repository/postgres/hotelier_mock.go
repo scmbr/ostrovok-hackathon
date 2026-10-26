@@ -40,13 +40,15 @@ ORDER BY id`, flt.RegionID, flt.HotelID)
 }
 
 // EmbellishingHotels — демо-отели с открытым конфликтом sea_view у категории номеров (те же, что в collect stats).
+// Конфликт «гости против расчёта» (в нём есть свидетельства гостей) приукрашиванием отельера не считается.
 func (s *HotelierMockStore) EmbellishingHotels(ctx context.Context, regionID int64) (map[int64]bool, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT DISTINCT h.id
 FROM conflicts k
 JOIN room_categories c ON k.entity_type = $1 AND k.entity_id = c.id::text
 JOIN hotels h ON h.id = c.hotel_id
-WHERE k.characteristic_key = $2 AND k.status = $3 AND h.demo AND ($4::bigint = 0 OR h.region_id = $4)`,
+WHERE k.characteristic_key = $2 AND k.status = $3 AND h.demo AND ($4::bigint = 0 OR h.region_id = $4)
+  AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.id = ANY(k.evidence_ids) AND e.author_type = 'guest')`,
 		domain.EntityRoomCategory, domain.SeaViewKey, domain.ConflictOpen, regionID)
 	if err != nil {
 		return nil, err
