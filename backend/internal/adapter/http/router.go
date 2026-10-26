@@ -8,20 +8,23 @@ import (
 	"net/http"
 	"path"
 	"strings"
+
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 )
 
 //go:embed all:dist
 var distFS embed.FS
 
 // NewRouter возвращает корневой обработчик: /health, /api/* и статика фронтенда.
-func NewRouter() http.Handler {
+func NewRouter(reg domain.Registry) http.Handler {
 	static, _ := fs.Sub(distFS, "dist")
-	return newRouter(static)
+	return newRouter(static, reg)
 }
 
-func newRouter(static fs.FS) http.Handler {
+func newRouter(static fs.FS, reg domain.Registry) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
+	mux.Handle("GET /api/characteristics", handleCharacteristics(reg))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	})
