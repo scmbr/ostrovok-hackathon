@@ -15,4 +15,4 @@ seed:
 	docker compose exec -T db psql -U tima -d tima -c "DELETE FROM facts WHERE status = 'superseded'"
 	docker compose exec -T db psql -U tima -d tima -c "DELETE FROM evidence WHERE status = 'superseded'"
 	docker compose exec -T db psql -U tima -d tima -c "DELETE FROM conflicts WHERE status = 'superseded'"
-	docker compose exec -T db pg_dump -U tima -d tima --data-only -t hotels -t buildings -t sea -t room_categories -t roads -t facades -t evidence -t noise_facades -t pois -t conflicts -t facts -t agent_trace -t hotelier_questions | gzip -n > data/demo/seed.sql.gz
+	docker compose exec -T db pg_dump -U tima -d tima --data-only -t hotels -t buildings -t sea -t room_categories -t room_placements -t roads -t facades -t evidence -t noise_facades -t pois -t conflicts -t facts -t agent_trace -t hotelier_questions | gzip -n > data/demo/seed.sql.gz
