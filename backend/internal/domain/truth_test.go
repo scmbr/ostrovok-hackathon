@@ -29,7 +29,18 @@ func near(t *testing.T, name string, got, want float64) {
 	}
 }
 
-func ctx() TruthContext { return TruthContext{Now: t0} }
+// testRules — правила характеристик, как в registry/*.yaml (их равенство проверяет тест загрузчика реестра).
+var testRules = map[string]TruthParams{
+	NoiseNightKey: {
+		Kind: TruthEnum, ValueField: "level", Order: []string{NoiseQuiet, NoiseModerate, NoiseLoud},
+		ConflictSteps: 2, ConflictMinSide: DefaultConflictMinSide,
+		FavorableValues: []string{NoiseQuiet}, ConflictEntityTypes: []string{EntityFacade},
+	},
+	WalkToBeachKey: {Kind: TruthNumber, ValueField: "minutes", SignificantDiff: 5, ConflictMinSide: DefaultConflictMinSide},
+	WalkToMetroKey: {Kind: TruthNumber, ValueField: "minutes", SignificantDiff: 5, ConflictMinSide: DefaultConflictMinSide},
+}
+
+func ctx() TruthContext { return TruthContext{Now: t0, Rules: testRules} }
 
 // Расчёт по карте (0.85) и слабая оценка OSM (0.6) на разных ступенях: L = 1.7346 и 0.4055,
 // S(quiet) = 1.7346 − 0.4055 = 1.3291, уверенность σ(1.3291) = 0.7908. «Против» весит 0.41 < θ=1: не конфликт, но флаг.
@@ -101,7 +112,7 @@ func TestTruthConflictHotelierAgainstTool(t *testing.T) {
 
 // Асимметрия: «тихо» от отельера слабее, чем признание «громко» с той же исходной надёжностью.
 func TestTruthAsymmetry(t *testing.T) {
-	p := TruthRules[NoiseNightKey]
+	p := testRules[NoiseNightKey]
 	quiet := effectiveReliability(hotelierEv(1, 0.8, NoiseQuiet), p, ctx())
 	loud := effectiveReliability(hotelierEv(2, 0.8, NoiseLoud), p, ctx())
 	near(t, "выгодное", quiet, 0.6)
@@ -110,7 +121,7 @@ func TestTruthAsymmetry(t *testing.T) {
 
 // Репутация: множитель 0.5 + trust. Новичок (0.5) ×1.0, нарушитель (0.1) ×0.6, доверенный (0.9) ×1.4, образцовый ×1.5.
 func TestTruthReputation(t *testing.T) {
-	p := TruthRules[NoiseNightKey]
+	p := testRules[NoiseNightKey]
 	for _, tt := range []struct {
 		trust, want float64
 	}{{0.5, 0.6}, {0.1, 0.36}, {0.9, 0.84}, {1.0, 0.9}} {
@@ -125,7 +136,7 @@ func TestTruthReputation(t *testing.T) {
 func TestTruthIndependenceGroup(t *testing.T) {
 	a := noiseEv(1, EntityFacade, SourceBCNNoise, 0.85, NoiseLoud)
 	b := noiseEv(2, EntityFacade, SourceBCNNoise, 0.8, NoiseQuiet)
-	a.Details["independence_group"], b.Details["independence_group"] = NoiseBCNGroup, NoiseBCNGroup
+	a.Details["independence_group"], b.Details["independence_group"] = "bcn_noise_2017", "bcn_noise_2017"
 	f, _ := AssembleFact([]Evidence{a, b}, ctx())
 	near(t, "confidence", f.Confidence, 0.85)
 	if f.Contributions[1].Value != 0 || f.Conflict != nil || f.WeakDisagreement {
@@ -139,7 +150,7 @@ func TestTruthFreshness(t *testing.T) {
 	e := noiseEv(1, EntityFacade, SourceBCNNoise, 0.8, NoiseLoud)
 	e.ValidUntil = &until
 
-	c := TruthContext{Now: t0.Add(50 * 24 * time.Hour)}
+	c := TruthContext{Now: t0.Add(50 * 24 * time.Hour), Rules: testRules}
 	f, _ := AssembleFact([]Evidence{e}, c)
 	near(t, "confidence на середине срока", f.Confidence, 0.6)
 	if f.Stale {
@@ -169,7 +180,7 @@ func TestTruthHotelLevelNoDisagreementFlags(t *testing.T) {
 
 // Параметры θ и conflict_steps можно переопределить (таблица чувствительности collect truth).
 func TestTruthRulesOverride(t *testing.T) {
-	p := TruthRules[NoiseNightKey]
+	p := testRules[NoiseNightKey]
 	p.ConflictMinSide = 0.4
 	c := TruthContext{Now: t0, Rules: map[string]TruthParams{NoiseNightKey: p}}
 	f, _ := AssembleFact([]Evidence{

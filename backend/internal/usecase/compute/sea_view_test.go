@@ -43,7 +43,7 @@ func (s *seaStore) SeaRays(_ context.Context, q []domain.RayQuery, _ float64) ([
 func TestSeaViewFacts(t *testing.T) {
 	store := &seaStore{}
 	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
-	n, err := (&SeaView{Store: store, Now: func() time.Time { return now }}).Run(context.Background(), Options{})
+	n, err := (&SeaView{Registry: testRegistry(t), Store: store, Now: func() time.Time { return now }}).Run(context.Background(), Options{})
 	if err != nil || n != 1 {
 		t.Fatalf("Run: %d, %v", n, err)
 	}
@@ -118,7 +118,7 @@ func (s *towerStore) SeaRays(_ context.Context, q []domain.RayQuery, _ float64) 
 
 func TestSeaViewHotelFactSkipsLowPodium(t *testing.T) {
 	store := &towerStore{}
-	if _, err := (&SeaView{Store: store}).Run(context.Background(), Options{}); err != nil {
+	if _, err := (&SeaView{Registry: testRegistry(t), Store: store}).Run(context.Background(), Options{}); err != nil {
 		t.Fatal(err)
 	}
 	saved := store.saved["6/"+domain.SeaViewKey]

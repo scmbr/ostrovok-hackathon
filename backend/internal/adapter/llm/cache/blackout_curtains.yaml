@@ -1,0 +1,15 @@
+task: add_characteristic
+inputs:
+  - затемняющие шторы
+  - плотные шторы в номере
+  - можно выспаться за плотными шторами
+response: |
+  key: blackout_curtains
+  title: Затемняющие шторы
+  description: Есть ли в номерах плотные шторы, не пропускающие уличный свет
+  level: hotel
+  value_type: bool
+  ttl_days: 365
+  favorable_values: ["true"]
+  ask_hotelier: "В каких категориях номеров есть затемняющие шторы и закрывают ли они окно полностью?"
+  ask_guest: Было ли в номере темно днём при закрытых шторах?

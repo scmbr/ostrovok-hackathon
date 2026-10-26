@@ -74,7 +74,7 @@ func (s *walkFake) EdgeGeoms(_ context.Context, ids []int64) (map[int64]orb.Line
 func TestWalkFacts(t *testing.T) {
 	store := &walkFake{}
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
-	res, err := (&Walk{Store: store, Now: func() time.Time { return now }}).Run(context.Background(), Options{})
+	res, err := (&Walk{Registry: testRegistry(t), Store: store, Now: func() time.Time { return now }}).Run(context.Background(), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,12 +91,12 @@ func TestWalkFacts(t *testing.T) {
 	if f.Value["minutes"] != 3 || f.Value["distance_m"] != 200.0 || f.Value["target"] != "Jaume I" || f.Value["target_kind"] != domain.DestMetro {
 		t.Errorf("метро A: %+v", f.Value)
 	}
-	if f.Source != domain.SourceOSM || f.Method != domain.WalkMethod || f.Confidence != domain.WalkReliability ||
+	if f.Source != domain.SourceOSM || f.Method != domain.WalkMethod || f.Confidence != testWalkReliability ||
 		f.ObservedAt != now || f.ValidUntil == nil || !f.ValidUntil.After(now) {
 		t.Errorf("происхождение: %+v", f)
 	}
 	evs := store.ev(f)
-	if len(evs) != 1 || evs[0].Details["independence_group"] != domain.WalkGroup || evs[0].Reliability != f.Confidence {
+	if len(evs) != 1 || evs[0].Details["independence_group"] != "osm_walk_graph" || evs[0].Reliability != f.Confidence {
 		t.Fatalf("свидетельство: %+v", evs)
 	}
 	// Путь: одно ребро 1–2.

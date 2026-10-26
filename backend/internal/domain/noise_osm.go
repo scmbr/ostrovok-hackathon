@@ -10,10 +10,6 @@ import (
 const (
 	NoiseNightOSMMethod = "noise_night_osm@1"
 	SourceOSM           = "osm"
-	// NoiseOSMGroup — группа независимости оценки по OSM.
-	NoiseOSMGroup = "osm_noise_estimate"
-	// NoiseOSMReliability — надёжность расчёта по высотам и тегам OSM (раздел 6 PROJECT_CONTEXT.md).
-	NoiseOSMReliability = 0.6
 
 	// NoiseOSMRadiusM — источники дальше этого расстояния от середины фасада не учитываются.
 	NoiseOSMRadiusM = 150.0
@@ -134,7 +130,7 @@ func exposed(azimuth, bearing float64) bool {
 }
 
 // NoiseConflictSteps — расхождение источников на столько ступеней и больше инструмент считает в своей сводке.
-// Конфликт фасада определяет движок правды (TruthRules): ступени и вес сторон.
+// Конфликт фасада определяет движок правды (правила из реестра): ступени и вес сторон.
 const NoiseConflictSteps = 1
 
 // NoiseConflict сообщает, расходятся ли два источника на NoiseConflictSteps ступеней и более (для сводки инструмента).

@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"sort"
 	"time"
 )
@@ -11,10 +12,6 @@ const (
 	NightServicesMethod = "night_services_osm@1"
 	// NightRadiusM — заведения дальше этого расстояния по прямой от отеля не учитываются (≈4 минуты пешком).
 	NightRadiusM = 300.0
-	// NightServicesReliability — надёжность по тегам OSM: opening_hours есть не у всех заведений и бывает устаревшим.
-	NightServicesReliability = 0.6
-	// NightServicesGroup — группа независимости POI OSM.
-	NightServicesGroup = "osm_pois"
 	// NightProbeMinute — «ночью» значит в 01:00; проверяем ночь будня (среда) и ночь выходных (суббота).
 	NightProbeMinute = 60
 )
@@ -127,6 +124,15 @@ func EvaluateNightServices(pois []NightPoi) NightServices {
 
 // EvaluateNightServicesWithin — то же для заведений не дальше radiusM от отеля.
 func EvaluateNightServicesWithin(pois []NightPoi, radiusM float64) NightServices {
+	return EvaluateNightServicesOf(pois, radiusM, nil)
+}
+
+// NightServiceKinds — все виды сервисов в порядке показа.
+var NightServiceKinds = []string{ServicePharmacy, ServiceShop, ServiceFood}
+
+// EvaluateNightServicesOf — то же, но учитываются только заведения перечисленных видов сервисов (пусто — все).
+// Уровень считается по учтённым: с одной аптекой он бывает только basic или none.
+func EvaluateNightServicesOf(pois []NightPoi, radiusM float64, kinds []string) NightServices {
 	res := NightServices{Services: map[string]*ServiceSummary{
 		ServicePharmacy: {}, ServiceShop: {}, ServiceFood: {},
 	}}
@@ -134,7 +140,7 @@ func EvaluateNightServicesWithin(pois []NightPoi, radiusM float64) NightServices
 	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].DistM < sorted[j].DistM })
 	for _, p := range sorted {
 		kind := ServiceKind(p.Kind)
-		if kind == "" || p.DistM > radiusM {
+		if kind == "" || p.DistM > radiusM || (len(kinds) > 0 && !slices.Contains(kinds, kind)) {
 			continue
 		}
 		sum := res.Services[kind]

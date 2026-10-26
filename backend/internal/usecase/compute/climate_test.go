@@ -29,7 +29,7 @@ func (s *climateFake) Daily(_ context.Context, p orb.Point, from, to time.Time) 
 func TestClimateFacts(t *testing.T) {
 	fake := &climateFake{}
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
-	c := &Climate{Src: fake, Store: fake, Now: func() time.Time { return now },
+	c := &Climate{Registry: testRegistry(t), Src: fake, Store: fake, Now: func() time.Time { return now },
 		Districts: []domain.District{{Name: "gothic", BBox: domain.BBox{South: 41.379, West: 2.170, North: 41.388, East: 2.182}}}}
 	res, err := c.Run(context.Background(), Options{})
 	if err != nil {
@@ -44,7 +44,7 @@ func TestClimateFacts(t *testing.T) {
 	}
 	f := fake.saved["gothic/"+domain.ClimateKey][0]
 	if f.EntityType != domain.EntityDistrict || f.EntityID != "gothic" || f.Source != domain.SourceOpenMeteo ||
-		f.Method != domain.ClimateMethod || f.Confidence != domain.ClimateReliability || f.ValidUntil == nil || !f.ValidUntil.After(now) {
+		f.Method != domain.ClimateMethod || f.Confidence != testClimateRel || f.ValidUntil == nil || !f.ValidUntil.After(now) {
 		t.Errorf("происхождение: %+v", f)
 	}
 	months, _ := f.Value["months"].([]map[string]any)
@@ -62,14 +62,14 @@ func TestClimateFacts(t *testing.T) {
 		t.Errorf("месяцы купания: %v", f.Value["swimming_months"])
 	}
 	evs := fake.ev(f)
-	if len(evs) != 1 || evs[0].Details["independence_group"] != domain.ClimateGroup || evs[0].Details["sea_years_with_data"] != 1 {
+	if len(evs) != 1 || evs[0].Details["independence_group"] != "open_meteo_era5" || evs[0].Details["sea_years_with_data"] != 1 {
 		t.Errorf("свидетельство: %+v", evs)
 	}
 }
 
 func TestClimateFailsWithoutData(t *testing.T) {
 	empty := &emptyClimate{}
-	c := &Climate{Src: empty, Store: empty, Districts: []domain.District{{Name: "x"}}}
+	c := &Climate{Registry: testRegistry(t), Src: empty, Store: empty, Districts: []domain.District{{Name: "x"}}}
 	if _, err := c.Run(context.Background(), Options{}); err == nil {
 		t.Error("район без данных не дал ошибку")
 	}

@@ -74,7 +74,7 @@ func TestSaveEvidenceKeepsHumanEvidence(t *testing.T) {
 	cleanTestRows(t, pool)
 	t.Cleanup(func() { cleanTestRows(t, pool) })
 	tool := []domain.Author{domain.ToolAuthor("test_tool@1")}
-	w := evidenceWriter{pool}
+	w := evidenceWriter{pool: pool}
 
 	if err := w.SaveHotelEvidence(ctx, testHotelID, testKey, tool, []domain.Evidence{toolEvidence("first", 0.85)}); err != nil {
 		t.Fatal(err)

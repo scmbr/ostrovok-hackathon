@@ -34,7 +34,7 @@ func districtScope(district string) evidenceScope {
 // (domain.AssembleFacts) и вклады свидетельств, прежние факты и конфликты области получают superseded.
 // Всё в одной транзакции.
 // Пустой evs — только снять прежнее свидетельство инструмента (например, маршрут больше не найден).
-func saveEvidence(ctx context.Context, pool *pgxpool.Pool, scope evidenceScope, key string,
+func saveEvidence(ctx context.Context, pool *pgxpool.Pool, rules map[string]domain.TruthParams, scope evidenceScope, key string,
 	authors []domain.Author, evs []domain.Evidence) error {
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -77,7 +77,7 @@ WHERE status = $4 AND `+scope.clause+`
 	if err != nil {
 		return err
 	}
-	for _, f := range domain.AssembleFacts(active, domain.TruthContext{Now: time.Now(), Trust: trust}) {
+	for _, f := range domain.AssembleFacts(active, domain.TruthContext{Now: time.Now(), Trust: trust, Rules: rules}) {
 		if err := insertFact(ctx, tx, f); err != nil {
 			return err
 		}
@@ -195,16 +195,20 @@ func loadTrust(ctx context.Context, q interface {
 }
 
 // evidenceWriter — запись свидетельств инструментов; встраивается в хранилища инструментов.
-type evidenceWriter struct{ pool *pgxpool.Pool }
+type evidenceWriter struct {
+	pool *pgxpool.Pool
+	// rules — правила движка правды по характеристикам (реестр).
+	rules map[string]domain.TruthParams
+}
 
 // SaveHotelEvidence записывает свидетельства характеристики key у отеля и его фасадов, см. saveEvidence.
 func (w evidenceWriter) SaveHotelEvidence(ctx context.Context, hotelID int64, key string,
 	authors []domain.Author, evs []domain.Evidence) error {
-	return saveEvidence(ctx, w.pool, hotelScope(hotelID), key, authors, evs)
+	return saveEvidence(ctx, w.pool, w.rules, hotelScope(hotelID), key, authors, evs)
 }
 
 // SaveDistrictEvidence записывает свидетельства характеристики key у района, см. saveEvidence.
 func (w evidenceWriter) SaveDistrictEvidence(ctx context.Context, district, key string,
 	authors []domain.Author, evs []domain.Evidence) error {
-	return saveEvidence(ctx, w.pool, districtScope(district), key, authors, evs)
+	return saveEvidence(ctx, w.pool, w.rules, districtScope(district), key, authors, evs)
 }

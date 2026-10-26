@@ -1,0 +1,16 @@
+key: walk_to_metro
+title: Пешком до метро
+description: Минуты пешком от отеля до ближайшего входа в метро по пешеходному графу OSM
+level: hotel
+value_type: number
+value_field: minutes
+ttl_days: 180
+significant_diff: 5
+conflict_theta: 1.0
+strategies:
+  - tool: walk
+    params: { speed_m_per_min: 80, snap_max_m: 200, metro_max_m: 2500 }
+    base_reliability: 0.7
+    independence_group: osm_walk_graph
+ask_hotelier: Сколько минут пешком до ближайшей станции метро?
+ask_guest: Сколько минут вы шли от отеля до метро?

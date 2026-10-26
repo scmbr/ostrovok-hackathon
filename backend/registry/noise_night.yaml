@@ -1,0 +1,26 @@
+key: noise_night
+title: Тишина ночью
+description: Насколько тихо ночью со стороны каждого фасада
+level: facade
+value_type: enum
+values: [quiet, moderate, loud]
+ordered: true
+value_field: level
+ttl_days: 365
+favorable_values: [quiet]
+conflict_steps: 2 # quiet против loud — конфликт, соседние ступени только снижают уверенность
+conflict_theta: 1.0
+conflict_entities: [facade] # уровень отеля производный от фасада и своего конфликта не даёт
+strategies:
+  - tool: noise-night
+    strategy: bcn
+    params: { facade_buffer_m: 2, min_overlap_m: 3 }
+    base_reliability: 0.85
+    independence_group: bcn_noise_2017 # наборы по фасадам и по улицам из одной модели 2017 года
+  - tool: noise-night
+    strategy: osm
+    params: { osm_radius_m: 150 }
+    base_reliability: 0.6
+    independence_group: osm_noise_estimate
+ask_hotelier: Есть ли в номерах со стороны улицы шумоизоляция или окна во двор?
+ask_guest: Было ли ночью тихо в вашем номере?

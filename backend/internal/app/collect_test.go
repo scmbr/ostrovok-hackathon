@@ -28,3 +28,14 @@ func TestParseToolFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestParseToolFlagsKindsSet(t *testing.T) {
+	f, err := parseToolFlags("night-services", []string{"-param", "kinds=pharmacy,shop", "-param", "radius_m=200"})
+	if err != nil || len(f.sets["kinds"]) != 2 || f.sets["kinds"][1] != "shop" || f.params["radius_m"] != 200 {
+		t.Fatalf("%+v, %v", f, err)
+	}
+	// kinds — набор только у night-services: у остальных это неизвестное число, и разбор падает.
+	if _, err := parseToolFlags("walk", []string{"-param", "kinds=pharmacy"}); err == nil {
+		t.Error("kinds у walk должен быть ошибкой")
+	}
+}

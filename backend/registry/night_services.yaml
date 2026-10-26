@@ -1,0 +1,19 @@
+key: night_services
+title: Что открыто ночью рядом
+description: Аптеки, магазины и заведения еды, открытые ночью в 300 м от отеля, по opening_hours из OSM
+level: hotel
+value_type: enum
+values: [none, basic, rich]
+ordered: true
+value_field: level
+ttl_days: 90
+favorable_values: [basic, rich]
+conflict_steps: 2
+conflict_theta: 1.0
+strategies:
+  - tool: night-services
+    params: { radius_m: 300 }
+    base_reliability: 0.6 # opening_hours есть лишь у части заведений и бывает устаревшим
+    independence_group: osm_pois
+ask_hotelier: "Что рядом с отелем работает ночью: аптека, магазин, кафе?"
+ask_guest: Удалось ли вам найти открытое заведение рядом с отелем ночью?

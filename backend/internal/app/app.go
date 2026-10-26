@@ -19,6 +19,11 @@ import (
 func Run() error {
 	cfg := LoadConfig()
 
+	reg, err := LoadRegistry()
+	if err != nil {
+		return err
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -41,7 +46,7 @@ func Run() error {
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           apphttp.NewRouter(),
+		Handler:           apphttp.NewRouter(reg),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

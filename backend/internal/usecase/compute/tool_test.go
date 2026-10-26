@@ -52,16 +52,16 @@ func TestSpecsAreUnique(t *testing.T) {
 func TestSeaViewParamsAndFilter(t *testing.T) {
 	store := &filterSea{}
 	opts := Options{Filter: domain.HotelFilter{HotelID: 5}, Params: Params{"fan_half_deg": 10, "fan_step_deg": 5, "ray_max_m": 900}}
-	if _, err := (&SeaView{Store: store}).Run(context.Background(), opts); err != nil {
+	if _, err := (&SeaView{Registry: testRegistry(t), Store: store}).Run(context.Background(), opts); err != nil {
 		t.Fatal(err)
 	}
 	if store.filter.HotelID != 5 || store.rayMaxM != 900 || store.rays != 5*2 {
 		t.Errorf("фильтр %+v, ray_max_m %v, лучей %d, want отель 5, 900, 10 (веер ±10° с шагом 5° = 5 лучей на фасад)", store.filter, store.rayMaxM, store.rays)
 	}
-	if _, err := (&SeaView{Store: store}).Run(context.Background(), Options{Params: Params{"bogus": 1}}); err == nil {
+	if _, err := (&SeaView{Registry: testRegistry(t), Store: store}).Run(context.Background(), Options{Params: Params{"bogus": 1}}); err == nil {
 		t.Error("неизвестный параметр должен давать ошибку")
 	}
-	if _, err := (&SeaView{Store: &emptySea{}}).Run(context.Background(), Options{Filter: domain.HotelFilter{HotelID: 404}}); err == nil {
+	if _, err := (&SeaView{Registry: testRegistry(t), Store: &emptySea{}}).Run(context.Background(), Options{Filter: domain.HotelFilter{HotelID: 404}}); err == nil {
 		t.Error("отель без фасадов или несуществующий должен давать ошибку")
 	}
 }

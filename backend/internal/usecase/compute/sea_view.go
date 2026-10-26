@@ -10,9 +10,6 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 )
 
-// seaViewTTL — срок годности факта: застройка и высоты меняются медленно.
-const seaViewTTL = 365 * 24 * time.Hour
-
 // SeaViewStore — хранилище для расчёта sea_view; лучи и пересечения считает PostGIS.
 type SeaViewStore interface {
 	// SeaViewTargets возвращает отели с фасадами, основным зданием и этажностью.
@@ -39,13 +36,18 @@ var SeaViewSpec = Spec{
 
 // SeaView считает характеристику sea_view: с какого этажа фасад видит море.
 type SeaView struct {
-	Store SeaViewStore
-	Now   func() time.Time // для тестов; по умолчанию time.Now
+	Registry domain.Registry
+	Store    SeaViewStore
+	Now      func() time.Time // для тестов; по умолчанию time.Now
 }
 
 // Run пересчитывает sea_view у отелей с фасадами (по opts.Filter) и возвращает их число.
 func (c *SeaView) Run(ctx context.Context, opts Options) (int, error) {
-	p, err := SeaViewSpec.Resolve(opts.Params)
+	p, err := SeaViewSpec.ResolveLayers(registryParams(c.Registry, SeaViewSpec.Name), opts.Params)
+	if err != nil {
+		return 0, err
+	}
+	cfg, err := strategyCfg(c.Registry, domain.SeaViewKey, SeaViewSpec.Name, "")
 	if err != nil {
 		return 0, err
 	}
@@ -60,7 +62,7 @@ func (c *SeaView) Run(ctx context.Context, opts Options) (int, error) {
 		if err := ctx.Err(); err != nil {
 			return i, err
 		}
-		if err := c.forHotel(ctx, t, p); err != nil {
+		if err := c.forHotel(ctx, t, p, cfg); err != nil {
 			return i, fmt.Errorf("отель %d: %w", t.HotelID, err)
 		}
 		if (i+1)%25 == 0 {
@@ -70,7 +72,7 @@ func (c *SeaView) Run(ctx context.Context, opts Options) (int, error) {
 	return len(targets), nil
 }
 
-func (c *SeaView) forHotel(ctx context.Context, t domain.SeaViewTarget, p Params) error {
+func (c *SeaView) forHotel(ctx context.Context, t domain.SeaViewTarget, p Params, cfg StrategyCfg) error {
 	now := time.Now()
 	if c.Now != nil {
 		now = c.Now()
@@ -102,7 +104,7 @@ func (c *SeaView) forHotel(ctx context.Context, t domain.SeaViewTarget, p Params
 	for i, f := range t.Facades {
 		v := domain.ComputeSeaViewWith(rays[i*perFacade:(i+1)*perFacade], f.Levels, p["min_fraction"])
 		results[i] = facadeResult{facade: f, view: v}
-		evs = append(evs, facadeEvidence(f, v, p, now))
+		evs = append(evs, facadeEvidence(f, v, p, now, cfg))
 		if v.MinFloor > 0 {
 			withView++
 			// Фасад низкой части (подиум под башней) номеров, скорее всего, не имеет: лучшим его не берём.
@@ -111,7 +113,7 @@ func (c *SeaView) forHotel(ctx context.Context, t domain.SeaViewTarget, p Params
 			}
 		}
 	}
-	evs = append(evs, hotelEvidence(t, best, withView, now))
+	evs = append(evs, hotelEvidence(t, best, withView, now, cfg))
 	return c.Store.SaveHotelEvidence(ctx, t.HotelID, domain.SeaViewKey, []domain.Author{domain.ToolAuthor(domain.SeaViewMethod)}, evs)
 }
 
@@ -128,7 +130,7 @@ func better(a, b facadeResult) bool {
 	return a.view.Fractions[a.view.MinFloor-1] > b.view.Fractions[b.view.MinFloor-1]
 }
 
-func facadeEvidence(f domain.StoredFacade, v domain.SeaView, p Params, now time.Time) domain.Evidence {
+func facadeEvidence(f domain.StoredFacade, v domain.SeaView, p Params, now time.Time, cfg StrategyCfg) domain.Evidence {
 	fractions := make([]float64, len(v.Fractions))
 	for i, x := range v.Fractions {
 		fractions[i] = round2(x)
@@ -141,7 +143,6 @@ func facadeEvidence(f domain.StoredFacade, v domain.SeaView, p Params, now time.
 	if v.NearestWaterM >= 0 {
 		value["nearest_water_m"] = math.Round(v.NearestWaterM)
 	}
-	until := now.Add(seaViewTTL)
 	details := map[string]any{
 		"facade_azimuth_deg": math.Round(f.AzimuthDeg),
 		"rays":               map[string]any{"total": v.Rays, "with_water": v.RaysWithWater},
@@ -162,10 +163,10 @@ func facadeEvidence(f domain.StoredFacade, v domain.SeaView, p Params, now time.
 			"деревья и надстройки не учитываются",
 		},
 	}
-	return seaViewEvidence(domain.EntityFacade, fmt.Sprint(f.ID), value, v.Confidence(), now, until, details)
+	return seaViewEvidence(domain.EntityFacade, fmt.Sprint(f.ID), value, v.Confidence(), now, details, cfg)
 }
 
-func hotelEvidence(t domain.SeaViewTarget, best *facadeResult, withView int, now time.Time) domain.Evidence {
+func hotelEvidence(t domain.SeaViewTarget, best *facadeResult, withView int, now time.Time, cfg StrategyCfg) domain.Evidence {
 	levels := 0
 	for _, f := range t.Facades {
 		levels = max(levels, f.Levels)
@@ -176,7 +177,7 @@ func hotelEvidence(t domain.SeaViewTarget, best *facadeResult, withView int, now
 		"facades_total":     len(t.Facades),
 		"facades_with_view": withView,
 	}
-	conf := 0.85
+	conf := cfg.Reliability
 	details := map[string]any{"derived_from": "факты sea_view по фасадам отеля"}
 	if best != nil {
 		value["min_floor"] = best.view.MinFloor
@@ -187,12 +188,15 @@ func hotelEvidence(t domain.SeaViewTarget, best *facadeResult, withView int, now
 		details["facade_id"] = best.facade.ID
 		details["blockers"] = blockersEvidence(best.view.Blockers)
 	}
-	until := now.Add(seaViewTTL)
-	return seaViewEvidence(domain.EntityHotel, fmt.Sprint(t.HotelID), value, conf, now, until, details)
+	return seaViewEvidence(domain.EntityHotel, fmt.Sprint(t.HotelID), value, conf, now, details, cfg)
 }
 
-// seaViewEvidence — свидетельство расчёта: надёжность равна уверенности расчёта.
-func seaViewEvidence(entityType, entityID string, value map[string]any, reliability float64, now, until time.Time, details map[string]any) domain.Evidence {
+// seaViewEvidence — свидетельство расчёта: надёжность равна уверенности расчёта по качеству высот, но не выше
+// базы стратегии из реестра (потолок).
+func seaViewEvidence(entityType, entityID string, value map[string]any, reliability float64, now time.Time, details map[string]any, cfg StrategyCfg) domain.Evidence {
+	reliability = math.Min(reliability, cfg.Reliability)
+	until := cfg.Until(now)
+	cfg.WithGroup(details)
 	return domain.Evidence{
 		EntityType: entityType, EntityID: entityID, Key: domain.SeaViewKey, Claimed: value,
 		Source: domain.SourceComputed, Method: domain.SeaViewMethod,

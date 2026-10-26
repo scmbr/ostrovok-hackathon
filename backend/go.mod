@@ -5,6 +5,7 @@ go 1.23
 require (
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/paulmach/orb v0.11.1
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.34.5
 )
 
