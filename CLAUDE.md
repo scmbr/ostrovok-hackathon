@@ -72,6 +72,7 @@ Frontend — Feature-Sliced Design:
 
 - Сбор и расчёт: `cd backend && go run ./cmd/collect <команда>`
 - Расчёт по одному отелю и с параметрами: `go run ./cmd/collect sea-view -hotel 12 -param fan_half_deg=30`; регион — `-region <код>` (по умолчанию `barcelona`); описания инструментов и параметры — `go run ./cmd/collect tools`
+- Новая характеристика текстом: `go run ./cmd/collect add-characteristic "<описание>"` (без `LLM_API_KEY` — заготовки из кеша)
 - Сервер: `cd backend && go run ./cmd/server`
 - Фронтенд: `cd frontend && npm run dev`
 - Тесты: `cd backend && go test ./...`
