@@ -85,7 +85,7 @@ func TestSaveEvidenceKeepsHumanEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := insertEvidence(ctx, tx, hotelier); err != nil {
+	if _, err := insertEvidence(ctx, tx, hotelier); err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.Commit(ctx); err != nil {

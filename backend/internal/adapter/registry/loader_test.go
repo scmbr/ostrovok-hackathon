@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"math"
 	"reflect"
 	"strings"
 	"testing"
@@ -93,6 +94,11 @@ func TestEmbeddedRulesMatchFormerConstants(t *testing.T) {
 			Kind: domain.TruthEnum, ValueField: "level", Order: []string{domain.NoiseQuiet, domain.NoiseModerate, domain.NoiseLoud},
 			ConflictSteps: 2, ConflictMinSide: 1, FavorableValues: []string{domain.NoiseQuiet},
 			ConflictEntityTypes: []string{domain.EntityFacade},
+			// В категории номеров шум читается так же, но конфликты ищутся (по умолчанию θ = 1,0 берёт движок).
+			ByEntity: map[string]domain.TruthParams{domain.EntityRoomCategory: {
+				Kind: domain.TruthEnum, ValueField: "level", Order: []string{domain.NoiseQuiet, domain.NoiseModerate, domain.NoiseLoud},
+				ConflictSteps: 2, FavorableValues: []string{domain.NoiseQuiet},
+			}},
 		},
 		domain.WalkToBeachKey: {Kind: domain.TruthNumber, ValueField: "minutes", SignificantDiff: 5, ConflictMinSide: 1},
 		domain.WalkToMetroKey: {Kind: domain.TruthNumber, ValueField: "minutes", SignificantDiff: 5, ConflictMinSide: 1},
@@ -129,5 +135,42 @@ func TestEmbeddedReliabilityAndTTLMatchFormerConstants(t *testing.T) {
 		if !ok || s.BaseReliability != tt.reliability || s.IndependenceGroup != tt.group || c.TTLDays != tt.ttlDays {
 			t.Errorf("%s/%s/%s: %+v, ttl %d", tt.key, tt.tool, tt.variant, s, c.TTLDays)
 		}
+	}
+}
+
+// sea_view в категории номеров читается как enum full/none в поле view; утверждение отельера «Sea View» после
+// асимметрии (≈0,41 в логарифме шансов) должно проходить порог конфликта категории.
+func TestEmbeddedSeaViewCategoryRule(t *testing.T) {
+	reg, err := Load(embedded.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _ := reg.Get(domain.SeaViewKey)
+	if c.Category == nil || c.Category.Target != "full" || c.Category.FloorField != "min_floor" {
+		t.Fatalf("category sea_view: %+v", c.Category)
+	}
+	got := reg.Rules()[domain.SeaViewKey].ByEntity[domain.EntityRoomCategory]
+	asym := math.Log(domain.HotelierBaseReliability * domain.HotelierAsymmetry / (1 - domain.HotelierBaseReliability*domain.HotelierAsymmetry))
+	if got.Kind != domain.TruthEnum || got.ValueField != "view" || got.ConflictMinSide > asym {
+		t.Errorf("правила категории: %+v (вклад отельера %.3f)", got, asym)
+	}
+}
+
+func TestCategoryRoundTrip(t *testing.T) {
+	reg, err := Load(embedded.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _ := reg.Get(domain.SeaViewKey)
+	data, err := Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(back.Category, c.Category) {
+		t.Errorf("category после Marshal/Parse: %+v, было %+v", back.Category, c.Category)
 	}
 }

@@ -164,3 +164,40 @@ func TestValidateOrigin(t *testing.T) {
 		}
 	}
 }
+
+// category: переносит характеристику уровня фасада на категории номеров.
+func TestValidateCategoryRule(t *testing.T) {
+	good := func() domain.Characteristic {
+		return domain.Characteristic{
+			Key: "sea_view", Title: "Вид", Description: "d", Level: domain.LevelFacade, ValueType: domain.ValueRange, ValueField: "min_floor",
+			TTLDays: 365,
+			Category: &domain.CategoryRule{
+				Values: []string{"full", "none"}, ValueField: "view", Target: "full", FloorField: "min_floor", FavorableValues: []string{"full"},
+			},
+			Strategies: []domain.Strategy{{Tool: "sea-view", BaseReliability: 0.85, IndependenceGroup: "buildings_raycast"}},
+		}
+	}
+	if err := check(t, good()); err != nil {
+		t.Fatalf("корректное правило: %v", err)
+	}
+	for name, tt := range map[string]struct {
+		mutate func(*domain.Characteristic)
+		want   string
+	}{
+		"не фасад":            {func(c *domain.Characteristic) { c.Level = domain.LevelHotel }, "только характеристика уровня facade"},
+		"цели нет в values":   {func(c *domain.Characteristic) { c.Category.Target = "maybe" }, `target "maybe"`},
+		"одно значение":       {func(c *domain.Characteristic) { c.Category.Values = []string{"full"} }, "не меньше двух values"},
+		"нет поля значения":   {func(c *domain.Characteristic) { c.Category.ValueField = "" }, "пустой value_field"},
+		"выгодное не из set":  {func(c *domain.Characteristic) { c.Category.FavorableValues = []string{"great"} }, "favorable_values"},
+		"values без этажа":    {func(c *domain.Characteristic) { c.Category.FloorField = "" }, "values должны совпадать"},
+		"шаги без порядка":    {func(c *domain.Characteristic) { c.Category.ConflictSteps = 2 }, "только при ordered"},
+		"отрицательный theta": {func(c *domain.Characteristic) { c.Category.ConflictTheta = -1 }, "conflict_theta"},
+	} {
+		c := good()
+		tt.mutate(&c)
+		err := check(t, c)
+		if err == nil || !strings.Contains(err.Error(), tt.want) {
+			t.Errorf("%s: ошибка %v, ждали %q", name, err, tt.want)
+		}
+	}
+}

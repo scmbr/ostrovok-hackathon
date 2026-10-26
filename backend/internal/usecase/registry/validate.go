@@ -70,6 +70,7 @@ func validateOne(c domain.Characteristic, tools []compute.Spec) []string {
 	}
 	out = append(out, validateOrigin(c)...)
 	out = append(out, validateValues(c)...)
+	out = append(out, validateCategory(c)...)
 	out = append(out, validateStrategies(c, tools)...)
 	return out
 }
@@ -158,6 +159,49 @@ func validateValues(c domain.Characteristic) []string {
 		if !slices.Contains(levels, e) {
 			add("conflict_entities: %q, допустимо %s", e, strings.Join(levels, ", "))
 		}
+	}
+	return out
+}
+
+// validateCategory проверяет правило переноса на категорию номеров (category:).
+func validateCategory(c domain.Characteristic) []string {
+	k := c.Category
+	if k == nil {
+		return nil
+	}
+	var out []string
+	add := func(format string, args ...any) { out = append(out, fmt.Sprintf("category: "+format, args...)) }
+
+	if c.Level != domain.LevelFacade {
+		add("переносится на категорию только характеристика уровня facade, а level %q", c.Level)
+	}
+	if len(k.Values) < 2 {
+		add("нужно не меньше двух values")
+	}
+	if strings.TrimSpace(k.ValueField) == "" {
+		add("пустой value_field")
+	}
+	if !slices.Contains(k.Values, k.Target) {
+		add("target %q нет среди values", k.Target)
+	}
+	for _, v := range k.FavorableValues {
+		if !slices.Contains(k.Values, v) {
+			add("favorable_values: %q нет среди values", v)
+		}
+	}
+	if k.FloorField == "" && !slices.Equal(k.Values, c.Values) {
+		add("без floor_field значение берётся из факта фасада, поэтому values должны совпадать со значениями характеристики %v", c.Values)
+	}
+	switch {
+	case k.ConflictSteps < 0:
+		add("conflict_steps не может быть отрицательным")
+	case k.ConflictSteps > 1 && !k.Ordered:
+		add("conflict_steps больше 1 имеет смысл только при ordered")
+	case k.ConflictSteps > 1 && k.ConflictSteps > len(k.Values)-1:
+		add("conflict_steps %d больше числа ступеней %d", k.ConflictSteps, len(k.Values)-1)
+	}
+	if k.ConflictTheta < 0 {
+		add("conflict_theta не может быть отрицательным")
 	}
 	return out
 }
