@@ -71,6 +71,24 @@ type Characteristic struct {
 	Origin     string
 	OriginText string
 	AddedAt    string
+	// Synonyms — фразы гостя, называющие характеристику («питомец», «собака»); значение берётся по умолчанию.
+	Synonyms []string
+	// ValueSynonyms — фразы, которые задают значение: ключ — значение из values (или true / false у bool).
+	ValueSynonyms map[string][]string
+	// AmbiguousSynonyms — фразы, которые могут значить эту характеристику, но и другую («у моря»: вид или пляж).
+	AmbiguousSynonyms []AmbiguousSynonym
+	// DefaultNumber — для number: порог желания, если гость назвал характеристику без числа («пляж рядом»); 0 — нет.
+	DefaultNumber float64
+}
+
+// AmbiguousSynonym — фраза, которую понимают как несколько характеристик; у всех, кто её перечисляет, она одна.
+// Label — как называется эта трактовка в вопросе гостю; Value — значение желания при этой трактовке (nil — по умолчанию);
+// Default — трактовка по умолчанию, ровно одна на фразу.
+type AmbiguousSynonym struct {
+	Phrase  string
+	Label   string
+	Value   any
+	Default bool
 }
 
 // CategoryRule — правило переноса характеристики с фасадов на категорию номеров. Категория получает

@@ -201,3 +201,66 @@ func TestValidateCategoryRule(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateSynonyms(t *testing.T) {
+	for name, tt := range map[string]struct {
+		mutate func(*domain.Characteristic)
+		want   string
+	}{
+		"пустая фраза":         {func(c *domain.Characteristic) { c.Synonyms = []string{"  "} }, "пустая фраза"},
+		"значения нет в шкале": {func(c *domain.Characteristic) { c.ValueSynonyms = map[string][]string{"maybe": {"возможно"}} }, `значения "maybe" нет в шкале`},
+		"неоднозначная без label": {func(c *domain.Characteristic) {
+			c.AmbiguousSynonyms = []domain.AmbiguousSynonym{{Phrase: "у моря"}}
+		}, "нужен label"},
+		"default_number у bool": {func(c *domain.Characteristic) { c.DefaultNumber = 5 }, "только у number"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := valid()
+			tt.mutate(&c)
+			if err := check(t, c); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("ждали ошибку с %q, получили %v", tt.want, err)
+			}
+		})
+	}
+	c := valid()
+	c.ValueSynonyms = map[string][]string{"true": {"ночная аптека"}}
+	c.Synonyms = []string{"аптека"}
+	if err := check(t, c); err != nil {
+		t.Fatal(err)
+	}
+	n := valid()
+	n.Key, n.ValueType, n.ValueField, n.FavorableValues = "walk_x", domain.ValueNumber, "minutes", nil
+	n.Strategies = nil
+	n.Synonyms = []string{"пляж"}
+	if err := check(t, n); err == nil || !strings.Contains(err.Error(), "default_number") {
+		t.Fatalf("number с synonyms без default_number должен отклоняться: %v", err)
+	}
+}
+
+func TestCheckAmbiguous(t *testing.T) {
+	mk := func(key string, def bool) domain.Characteristic {
+		c := valid()
+		c.Key = key
+		c.AmbiguousSynonyms = []domain.AmbiguousSynonym{{Phrase: "У моря", Label: key, Default: def}}
+		return c
+	}
+	reg := func(cs ...domain.Characteristic) domain.Registry {
+		r, err := domain.NewRegistry(cs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	if errs := checkAmbiguous(reg(mk("a", true), mk("b", false))); len(errs) != 0 {
+		t.Fatalf("корректная пара отклонена: %v", errs)
+	}
+	for name, r := range map[string]domain.Registry{
+		"одна характеристика":        reg(mk("a", true)),
+		"нет трактовки по умолчанию": reg(mk("a", false), mk("b", false)),
+		"две по умолчанию":           reg(mk("a", true), mk("b", true)),
+	} {
+		if errs := checkAmbiguous(r); len(errs) == 0 {
+			t.Errorf("%s: ждали ошибку", name)
+		}
+	}
+}

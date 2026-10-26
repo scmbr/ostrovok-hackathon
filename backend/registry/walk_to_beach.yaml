@@ -14,3 +14,21 @@ strategies:
     independence_group: osm_walk_graph
 ask_hotelier: Сколько минут пешком до пляжа и есть ли на пути оживлённые переходы?
 ask_guest: Сколько минут вы шли от отеля до пляжа?
+default_number: 10 # «пляж рядом» без числа — не дальше десяти минут
+synonyms:
+  - пляж
+  - пляжа
+  - пляже
+  - пляжу
+  - пляжем
+  - пляжи
+  - пляжей
+  - пляжах
+  - купаться
+ambiguous_synonyms:
+  - { phrase: у моря, label: пляж в паре минут, value: 5, default: true }
+  - { phrase: рядом с морем, label: пляж в паре минут, value: 5, default: true }
+  - { phrase: около моря, label: пляж в паре минут, value: 5, default: true }
+  - { phrase: возле моря, label: пляж в паре минут, value: 5, default: true }
+  - { phrase: близко к морю, label: пляж в паре минут, value: 5, default: true }
+  - { phrase: недалеко от моря, label: пляж в паре минут, value: 5, default: true }
