@@ -9,7 +9,9 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	adapterllm "github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/llm"
+
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/repository/postgres"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/hotelier"
@@ -180,4 +182,27 @@ func runHotelierReset(args []string, reg domain.Registry) error {
 	}
 	printTruth(rep)
 	return nil
+}
+
+// newServerInterviewer собирает интервьюера для кабинета в сервере: ключ задан — живая модель (без записи кеша),
+// иначе кеш; при промахе кеша разбор ответа идёт запасным путём (да / нет).
+func newServerInterviewer(cfg Config, reg domain.Registry, pool *pgxpool.Pool) (*hotelier.Interviewer, error) {
+	rules := reg.Rules()
+	var llm *adapterllm.Hotelier
+	var err error
+	if cfg.LLMAPIKey != "" {
+		llm, err = adapterllm.NewHotelierLive(adapterllm.NewClient(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel), false)
+	} else {
+		llm, err = adapterllm.NewHotelierCache()
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &hotelier.Interviewer{
+		Registry:   reg,
+		Store:      postgres.NewHotelierStore(pool, rules),
+		Impact:     &rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, rules)},
+		Reputation: &reputation.Service{Registry: reg, Store: postgres.NewReputationStore(pool, rules)},
+		LLM:        llm,
+	}, nil
 }

@@ -16,12 +16,12 @@ import (
 var distFS embed.FS
 
 // NewRouter возвращает корневой обработчик: /health, /api/* и статика фронтенда.
-func NewRouter(reg domain.Registry, traces TraceSource, rooms RoomsSource) http.Handler {
+func NewRouter(reg domain.Registry, traces TraceSource, rooms RoomsSource, cabinet HotelierService) http.Handler {
 	static, _ := fs.Sub(distFS, "dist")
-	return newRouter(static, reg, traces, rooms)
+	return newRouter(static, reg, traces, rooms, cabinet)
 }
 
-func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms RoomsSource) http.Handler {
+func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms RoomsSource, cabinet HotelierService) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.Handle("GET /api/characteristics", handleCharacteristics(reg))
@@ -30,6 +30,11 @@ func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms Room
 	}
 	if rooms != nil {
 		mux.Handle("GET /api/hotels/{id}/rooms", handleRooms(rooms))
+	}
+	if cabinet != nil {
+		mux.Handle("GET /api/hotelier/{hotel_id}/inbox", handleHotelierInbox(cabinet))
+		mux.Handle("POST /api/hotelier/questions/{id}/answer", handleHotelierAnswer(cabinet))
+		mux.Handle("POST /api/hotelier/facts/{id}/{action}", handleHotelierFact(cabinet))
 	}
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})

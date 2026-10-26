@@ -33,7 +33,7 @@ func (s *HotelierStore) Hotel(ctx context.Context, id int64) (hotelier.Hotel, er
 SELECT id, name, COALESCE(district, ''), region_id, COALESCE(hotelier_persona, '') FROM hotels WHERE id = $1`, id).
 		Scan(&h.ID, &h.Name, &h.District, &h.RegionID, &h.Persona)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return h, errors.New("отель не найден")
+		return h, fmt.Errorf("%w: отель %d", hotelier.ErrNotFound, id)
 	}
 	return h, err
 }
@@ -132,7 +132,7 @@ func (s *HotelierStore) Questions(ctx context.Context, hotelID int64) ([]hotelie
 func (s *HotelierStore) Question(ctx context.Context, id int64) (hotelier.Question, error) {
 	q, err := scanQuestion(s.pool.QueryRow(ctx, `SELECT `+questionColumns+` FROM hotelier_questions WHERE id = $1`, id))
 	if errors.Is(err, pgx.ErrNoRows) {
-		return q, errors.New("вопрос не найден")
+		return q, fmt.Errorf("%w: вопрос %d", hotelier.ErrNotFound, id)
 	}
 	return q, err
 }
@@ -199,13 +199,20 @@ WHERE id = $1 AND status IN ('pending', 'pending_low_value')`, id, note)
 // характеристике снимается (superseded): новое утверждение того же автора заменяет прежнее, а не добавляется рядом.
 // Факт собирает движок правды.
 func (s *HotelierStore) SaveAnswerEvidence(ctx context.Context, ev domain.Evidence) error {
-	id, err := strconv.ParseInt(ev.EntityID, 10, 64)
-	if err != nil {
-		return err
-	}
-	scope := hotelScope(id)
+	// Область записи: категория номеров или отель вместе с фасадами (автор-отельер привязан к одному отелю).
+	var scope evidenceScope
 	if ev.EntityType == domain.EntityRoomCategory {
+		id, err := strconv.ParseInt(ev.EntityID, 10, 64)
+		if err != nil {
+			return err
+		}
 		scope = categoryScope(id)
+	} else {
+		id, err := strconv.ParseInt(ev.AuthorID, 10, 64)
+		if err != nil {
+			return err
+		}
+		scope = hotelScope(id)
 	}
 	return saveEvidence(ctx, s.pool, s.rules, scope, ev.Key,
 		[]domain.Author{{Type: ev.AuthorType, ID: ev.AuthorID}}, []domain.Evidence{ev})
@@ -354,4 +361,36 @@ WHERE e.id IN (SELECT max(id) FROM evidence WHERE author_type = $2 AND status = 
 		}
 	}
 	return rc, tx.Commit(ctx)
+}
+
+// Fact читает активный факт по id и отель, которому он принадлежит (сам отель, его фасад или категория номеров).
+func (s *HotelierStore) Fact(ctx context.Context, id int64) (hotelier.FactRef, error) {
+	var ref hotelier.FactRef
+	var value []byte
+	f := &ref.Fact
+	err := s.pool.QueryRow(ctx, `
+SELECT f.id, f.entity_type, f.entity_id, f.characteristic_key, f.value, f.source, f.method, f.confidence,
+       f.observed_at, f.valid_until, f.weak_disagreement, f.stale,
+       CASE f.entity_type
+            WHEN 'hotel' THEN f.entity_id::bigint
+            WHEN 'facade' THEN (SELECT hotel_id FROM facades WHERE id = f.entity_id::bigint)
+            WHEN 'room_category' THEN (SELECT hotel_id FROM room_categories WHERE id = f.entity_id::bigint)
+       END
+FROM facts f WHERE f.id = $1 AND f.status = $2`, id, domain.FactActive).
+		Scan(&f.ID, &f.EntityType, &f.EntityID, &f.Key, &value, &f.Source, &f.Method, &f.Confidence,
+			&f.ObservedAt, &f.ValidUntil, &f.WeakDisagreement, &f.Stale, &ref.HotelID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ref, fmt.Errorf("%w: факт %d", hotelier.ErrNotFound, id)
+	}
+	if err != nil {
+		// район и прочие сущности без отеля: NULL в hotel_id
+		return ref, fmt.Errorf("%w: у факта %d нет отеля, отельер его не правит (%v)", hotelier.ErrNotFound, id, err)
+	}
+	return ref, json.Unmarshal(value, &f.Value)
+}
+
+// MarkStale ставит факт на пересчёт; следующая пересборка движком правды определит stale заново.
+func (s *HotelierStore) MarkStale(ctx context.Context, id int64) error {
+	_, err := s.pool.Exec(ctx, `UPDATE facts SET stale = true WHERE id = $1 AND status = $2`, id, domain.FactActive)
+	return err
 }

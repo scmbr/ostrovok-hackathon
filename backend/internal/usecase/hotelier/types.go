@@ -72,6 +72,12 @@ type Question struct {
 type Store interface {
 	Hotel(ctx context.Context, id int64) (Hotel, error)
 	HotelFacts(ctx context.Context, hotelID int64) ([]domain.Fact, error)
+	// Question — вопрос по id; ErrNotFound, если его нет.
+	Question(ctx context.Context, id int64) (Question, error)
+	// Fact — активный факт по id; ErrNotFound, если его нет.
+	Fact(ctx context.Context, id int64) (FactRef, error)
+	// MarkStale ставит факт на пересчёт (stale): исправление числа отельером не голосует.
+	MarkStale(ctx context.Context, id int64) error
 	Demand(ctx context.Context, regionID int64) (map[string]int, error)
 	// Trust — репутация отельера (author_trust); нет записи — domain.DefaultTrust.
 	Trust(ctx context.Context, a domain.Author) (float64, error)
@@ -134,4 +140,10 @@ type IssuePlacement struct {
 // Reputation — пересчёт репутации автора (usecase/reputation.Service).
 type Reputation interface {
 	Update(ctx context.Context, a domain.Author) (reputation.Update, error)
+}
+
+// FactRef — факт с отелем, которому он принадлежит (отельер правит только факты своего отеля).
+type FactRef struct {
+	Fact    domain.Fact
+	HotelID int64
 }

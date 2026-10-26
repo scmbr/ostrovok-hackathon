@@ -23,6 +23,8 @@ type fakeStore struct {
 	trace     []agent.TraceStep
 	issues    []CategoryIssue
 	reopened  map[int64]string
+	refs      map[int64]FactRef
+	stale     []int64
 }
 
 func (f *fakeStore) Hotel(context.Context, int64) (Hotel, error) { return f.hotel, nil }
@@ -460,4 +462,23 @@ func TestFollowUpReopensQuestion(t *testing.T) {
 	if !strings.Contains(st.reopened[res.Sent[0].ID], "Vista mar") {
 		t.Errorf("в уточнении называется категория: %q", st.reopened[res.Sent[0].ID])
 	}
+}
+
+func (f *fakeStore) Question(_ context.Context, id int64) (Question, error) {
+	for _, q := range f.qs {
+		if q.ID == id {
+			return q, nil
+		}
+	}
+	return Question{}, ErrNotFound
+}
+func (f *fakeStore) Fact(_ context.Context, id int64) (FactRef, error) {
+	if r, ok := f.refs[id]; ok {
+		return r, nil
+	}
+	return FactRef{}, ErrNotFound
+}
+func (f *fakeStore) MarkStale(_ context.Context, id int64) error {
+	f.stale = append(f.stale, id)
+	return nil
 }
