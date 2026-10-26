@@ -336,7 +336,55 @@ LEFT JOIN buildings o ON o.id = h.osm_building_id`,
 	if err := s.seaViewStats(ctx, &st); err != nil {
 		return st, err
 	}
+	if err := s.roomStats(ctx, &st); err != nil {
+		return st, err
+	}
 	return st, nil
+}
+
+func (s *GeoStore) roomStats(ctx context.Context, st *domain.Stats) error {
+	if err := s.pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM room_categories), (SELECT count(DISTINCT room_category_id) FROM room_placements),
+       (SELECT count(*) FROM room_placements)`).Scan(&st.RoomCategories, &st.RoomsPlaced, &st.RoomPlacements); err != nil {
+		return err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT name FROM room_categories`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return err
+		}
+		if domain.TitleClaimsSeaView(name) {
+			st.TitledSeaView++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	rows.Close()
+	crows, err := s.pool.Query(ctx, `
+SELECT h.name, c.name, h.demo
+FROM conflicts k
+JOIN room_categories c ON k.entity_type = $1 AND k.entity_id = c.id::text
+JOIN hotels h ON h.id = c.hotel_id
+WHERE k.characteristic_key = $2 AND k.status = $3
+ORDER BY h.demo DESC, h.name, c.name`, domain.EntityRoomCategory, domain.SeaViewKey, domain.ConflictOpen)
+	if err != nil {
+		return err
+	}
+	defer crows.Close()
+	for crows.Next() {
+		var t domain.TitleConflict
+		if err := crows.Scan(&t.Hotel, &t.Category, &t.Demo); err != nil {
+			return err
+		}
+		st.SeaViewTitleConflicts = append(st.SeaViewTitleConflicts, t)
+	}
+	return crows.Err()
 }
 
 func (s *GeoStore) seaViewStats(ctx context.Context, st *domain.Stats) error {

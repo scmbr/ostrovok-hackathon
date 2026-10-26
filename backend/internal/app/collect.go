@@ -18,6 +18,7 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/collect"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/compute"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/rooms"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/truth"
 )
 
@@ -43,6 +44,8 @@ const collectUsage = `использование: collect <команда> [-reg
   add-characteristic "описание"  добавить характеристику по тексту: LLM составляет YAML реестра из существующих инструментов
   truth        пересобрать все факты из активных свидетельств движком правды; печатает конфликты и таблицу по θ и conflict_steps
   mock-cards   сгенерировать мок базовых карточек отелей
+  mock-rooms   сгенерировать категории номеров и их размещение у демо-отелей, «Sea View» у береговых (после mock-cards и sea-view; -hotel ID — один отель)
+  rooms        рассчитать значения характеристик в категориях номеров из фактов фасадов и размещения (после mock-rooms; -hotel ID — один отель)
   select-demo  отметить демо-подмножество отелей (флаг hotels.demo)
   stats        показать сводку по собранным данным`
 
@@ -192,6 +195,23 @@ func RunCollect(args []string) error {
 			return err
 		}
 		fmt.Printf("мок-карточек записано: %d\n", n)
+	case "mock-rooms":
+		res, err := (&collect.RoomsMocker{Store: postgres.NewRoomStore(pool, rules)}).Run(ctx, opts.Filter)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("категорий номеров записано: %d у %d отелей, размещений: %d; «Sea View» с видом по расчёту: %d\n",
+			res.Categories, res.Hotels, res.Placements, res.SeaViewHonest)
+		fmt.Printf("«Sea View» на фасадах без вида (материал для приукрашивающего отельера): %d\n", len(res.Beautifiers))
+		for _, name := range res.Beautifiers {
+			fmt.Printf("  %s\n", name)
+		}
+	case "rooms":
+		res, err := (&rooms.Projector{Registry: reg, Store: postgres.NewRoomStore(pool, rules)}).Run(ctx, opts.Filter)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("категории номеров рассчитаны: отелей %d, категорий %d, свидетельств записано %d\n", res.Hotels, res.Categories, res.Evidence)
 	case "select-demo":
 		n, err := c.SelectDemo(ctx, collect.DemoSize)
 		if err != nil {
@@ -215,8 +235,12 @@ const defaultRegion = "barcelona"
 var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
 	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
-	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "mock-cards": true, "select-demo": true, "stats": true,
+	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "mock-cards": true, "mock-rooms": true, "rooms": true,
+	"select-demo": true, "stats": true,
 }
+
+// roomsCommands — команды по категориям номеров: работают по отелям (-hotel), но не расчётные инструменты реестра.
+var roomsCommands = map[string]bool{"mock-rooms": true, "rooms": true}
 
 // toolFlags — область и параметры запуска расчётного инструмента.
 type toolFlags struct {
@@ -280,7 +304,9 @@ func parseToolFlags(cmd string, args []string) (toolFlags, error) {
 		f.sets = nil
 	}
 	switch {
-	case spec == nil && (f.hotel != 0 || f.district != "" || len(params.nums) > 0 || len(params.sets) > 0):
+	case spec == nil && roomsCommands[cmd] && (f.district != "" || len(params.nums) > 0 || len(params.sets) > 0):
+		return f, fmt.Errorf("%s принимает только -hotel и -region", cmd)
+	case spec == nil && !roomsCommands[cmd] && (f.hotel != 0 || f.district != "" || len(params.nums) > 0 || len(params.sets) > 0):
 		return f, fmt.Errorf("-hotel, -district и -param относятся только к расчётным инструментам (команда tools)")
 	case spec != nil && spec.Scope == compute.ScopeHotel && f.district != "":
 		return f, fmt.Errorf("%s считает по отелям: используйте -hotel, а не -district", cmd)
@@ -367,6 +393,24 @@ func printStats(s domain.Stats) {
 	fmt.Printf("Демо-отелей: %d\n", s.DemoHotels)
 	printFacadeStats(s)
 	printSeaViewStats(s)
+	printRoomStats(s)
+}
+
+func printRoomStats(s domain.Stats) {
+	if s.RoomPlacements == 0 {
+		fmt.Println("Категории номеров не размещены (collect mock-rooms)")
+		return
+	}
+	fmt.Printf("Категорий номеров: %d, с размещением: %d (размещений %d); названий про море: %d\n",
+		s.RoomCategories, s.RoomsPlaced, s.RoomPlacements, s.TitledSeaView)
+	fmt.Printf("  название обещает море, а расчёт против (конфликт): %d\n", len(s.SeaViewTitleConflicts))
+	for _, t := range s.SeaViewTitleConflicts {
+		demo := ""
+		if t.Demo {
+			demo = " [демо]"
+		}
+		fmt.Printf("    %s — «%s»%s\n", t.Hotel, t.Category, demo)
+	}
 }
 
 func printSeaViewStats(s domain.Stats) {
