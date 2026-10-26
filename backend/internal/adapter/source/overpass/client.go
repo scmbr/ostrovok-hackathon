@@ -3,6 +3,7 @@ package overpass
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -32,7 +33,15 @@ type Client struct {
 	RawDir string
 	// Backoff — пауза между попытками; в тестах обнуляется.
 	Backoff time.Duration
+	// MaxDataAge — ответ с базой OSM старше этого срока отклоняется как устаревший снимок зеркала; 0 — не проверять.
+	MaxDataAge time.Duration
+	// Now — текущее время; в тестах подменяется.
+	Now func() time.Time
 }
+
+// DefaultMaxDataAge — зеркало Overpass иногда отдаёт снимок OSM месячной давности (26.10 пришла база от 31.05:
+// на 47 путей песка меньше, пляжные маршруты сдвинулись на минуты).
+const DefaultMaxDataAge = 7 * 24 * time.Hour
 
 // NewClient создаёт клиент с зеркалами по умолчанию.
 func NewClient(rawDir string) *Client {
@@ -41,6 +50,8 @@ func NewClient(rawDir string) *Client {
 		HTTP:      &http.Client{Timeout: 5 * time.Minute},
 		RawDir:    rawDir,
 		Backoff:   5 * time.Second,
+
+		MaxDataAge: DefaultMaxDataAge,
 	}
 }
 
@@ -89,12 +100,42 @@ func (c *Client) post(ctx context.Context, endpoint, ql string) (body []byte, re
 	}
 	switch {
 	case resp.StatusCode == http.StatusOK:
+		if err := c.checkFresh(body); err != nil {
+			return nil, true, err
+		}
 		return body, false, nil
 	case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500:
 		return nil, true, fmt.Errorf("HTTP %d", resp.StatusCode)
 	default:
 		return nil, false, fmt.Errorf("HTTP %d: %s", resp.StatusCode, truncate(string(body), 200))
 	}
+}
+
+// checkFresh отклоняет ответ, чья база OSM (osm3s.timestamp_osm_base) старше MaxDataAge. Ответ без метки принимается.
+func (c *Client) checkFresh(body []byte) error {
+	if c.MaxDataAge <= 0 {
+		return nil
+	}
+	var r struct {
+		Osm3s struct {
+			Base string `json:"timestamp_osm_base"`
+		} `json:"osm3s"`
+	}
+	if json.Unmarshal(body, &r) != nil || r.Osm3s.Base == "" {
+		return nil
+	}
+	base, err := time.Parse(time.RFC3339, r.Osm3s.Base)
+	if err != nil {
+		return nil
+	}
+	now := time.Now
+	if c.Now != nil {
+		now = c.Now
+	}
+	if age := now().Sub(base); age > c.MaxDataAge {
+		return fmt.Errorf("устаревшая база OSM от %s (старше %s)", r.Osm3s.Base, c.MaxDataAge)
+	}
+	return nil
 }
 
 func (c *Client) saveRaw(label string, body []byte) {
