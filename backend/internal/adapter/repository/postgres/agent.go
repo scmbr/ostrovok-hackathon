@@ -94,6 +94,18 @@ ON CONFLICT (hotel_id, characteristic_key) WHERE status = 'open' DO NOTHING`,
 	return tag.RowsAffected() == 1, nil
 }
 
+// CloseQuestion закрывает открытый вопрос по характеристике и дописывает причину к тексту причины вопроса.
+func (s *AgentStore) CloseQuestion(ctx context.Context, hotelID int64, key, note string) (bool, error) {
+	tag, err := s.pool.Exec(ctx, `
+UPDATE hotelier_questions
+SET status = 'closed', reason = COALESCE(reason || '; ', '') || 'закрыт: ' || $3
+WHERE hotel_id = $1 AND characteristic_key = $2 AND status = 'open'`, hotelID, key, note)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
 func (s *AgentStore) AppendTrace(ctx context.Context, t agent.TraceStep) error {
 	in, err := json.Marshal(t.Input)
 	if err != nil {

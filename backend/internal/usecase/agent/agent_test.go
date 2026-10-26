@@ -16,6 +16,7 @@ type fakeStore struct {
 	facts     []domain.Fact
 	questions []Question
 	trace     []TraceStep
+	closed    map[string]bool
 }
 
 func (s *fakeStore) Hotel(context.Context, int64) (HotelInfo, error)          { return s.hotel, nil }
@@ -31,6 +32,18 @@ func (s *fakeStore) CreateQuestion(_ context.Context, q Question) (bool, error) 
 	}
 	s.questions = append(s.questions, q)
 	return true, nil
+}
+func (s *fakeStore) CloseQuestion(_ context.Context, _ int64, key, _ string) (bool, error) {
+	for i := range s.questions {
+		if s.questions[i].Key == key && !s.closed[key] {
+			if s.closed == nil {
+				s.closed = map[string]bool{}
+			}
+			s.closed[key] = true
+			return true, nil
+		}
+	}
+	return false, nil
 }
 func (s *fakeStore) AppendTrace(_ context.Context, t TraceStep) error {
 	s.trace = append(s.trace, t)
@@ -505,5 +518,38 @@ func TestRecomputeRefusedAfterToolRun(t *testing.T) {
 	}
 	if !refused {
 		t.Error("пересчёт после запуска инструмента не отклонён")
+	}
+}
+
+// Открытый вопрос отельеру закрывается, когда расчёт снял неуверенность (уверенность не ниже 0,6), и не дублируется;
+// вопрос по характеристике, где уверенность по-прежнему низкая, остаётся открытым.
+func TestOpenQuestionClosedWhenConfident(t *testing.T) {
+	a, st, _ := newFixture(t)
+	st.facts = []domain.Fact{hotelFact("sea_view", 0.85), hotelFact("night_services", 0.4)}
+	st.questions = []Question{{HotelID: 7, Key: "sea_view", Text: "Какие номера с видом?"}, {HotelID: 7, Key: "night_services", Text: "Что открыто ночью?"}}
+	if _, err := a.Run(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	if !st.closed["sea_view"] {
+		t.Error("вопрос по sea_view (уверенность 0,85) должен быть закрыт")
+	}
+	if st.closed["night_services"] {
+		t.Error("вопрос по night_services закрыт, хотя после расчёта уверенность 0,5")
+	}
+	count := 0
+	for _, q := range st.questions {
+		if q.Key == "sea_view" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("вопросов по sea_view %d: дубликатов быть не должно", count)
+	}
+	var logged bool
+	for _, s := range st.trace {
+		logged = logged || strings.HasPrefix(s.Decision, "закрываю вопрос отельеру по sea_view")
+	}
+	if !logged {
+		t.Error("в журнале нет записи о закрытии вопроса")
 	}
 }

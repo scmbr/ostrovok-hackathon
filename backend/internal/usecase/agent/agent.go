@@ -206,6 +206,30 @@ func (r *run) survey(ctx context.Context) error {
 			}
 		}
 	}
+	return r.closeResolved(ctx)
+}
+
+// closeResolved закрывает открытые вопросы отельеру по характеристикам, у которых уверенность уже не ниже AskConfidence:
+// вопрос задавался из-за неуверенности, а расчёт её снял. Дубликатов агент не создаёт (открытый вопрос на пару
+// «отель, характеристика» один), так что у открытого вопроса есть два исхода: ответ отельера или закрытие здесь.
+func (r *run) closeResolved(ctx context.Context) error {
+	for _, c := range r.a.Registry.All() {
+		st := r.states[c.Key]
+		if st.Confidence == nil || *st.Confidence < AskConfidence {
+			continue
+		}
+		note := fmt.Sprintf("уверенность %.2f не ниже %.2f", *st.Confidence, AskConfidence)
+		closed, err := r.a.Store.CloseQuestion(ctx, r.h.ID, c.Key, note)
+		if err != nil {
+			return err
+		}
+		if closed {
+			if err := r.log(ctx, fmt.Sprintf("закрываю вопрос отельеру по %s: %s", c.Key, note), "",
+				map[string]any{"characteristic": c.Key}, map[string]any{"closed": true, "confidence": *st.Confidence}); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -314,6 +338,9 @@ func (r *run) runStrategy(ctx context.Context, c domain.Characteristic, idx int,
 	}
 	out := map[string]any{"summary": summary, "states": r.views(same)}
 	_ = r.log(ctx, why, "run_tool", in, out)
+	if err := r.closeResolved(ctx); err != nil {
+		return map[string]any{"error": err.Error()}
+	}
 	return out
 }
 
@@ -346,6 +373,9 @@ func (r *run) opRecompute(ctx context.Context, key, why string) map[string]any {
 	r.streak = 0
 	out := map[string]any{"states": r.views(map[string]bool{key: true})}
 	_ = r.log(ctx, why, "recompute_fact", in, out)
+	if err := r.closeResolved(ctx); err != nil {
+		return map[string]any{"error": err.Error()}
+	}
 	return out
 }
 
