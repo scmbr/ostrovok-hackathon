@@ -72,7 +72,7 @@ func TestCachedMatchesByNormalizedInput(t *testing.T) {
 	}
 	_, err = c.Complete(context.Background(), registry.Request{Task: registry.TaskAddCharacteristic, Key: "бассейн на крыше"})
 	var nc *ErrNotCached
-	if !errors.As(err, &nc) || len(nc.Examples) != 3 || !strings.Contains(err.Error(), "LLM_API_KEY") {
+	if !errors.As(err, &nc) || len(nc.Examples) != 4 || !strings.Contains(err.Error(), "LLM_API_KEY") {
 		t.Errorf("нет в кеше: %v", err)
 	}
 	// Подстрока слова не считается совпадением: «дособакой» — не «с собакой».
@@ -112,6 +112,7 @@ func TestCannedAnswersPassRegistryValidation(t *testing.T) {
 		{"Есть ли рядом круглосуточная аптека?", "night_pharmacy", 1},
 		{"Можно ли с собакой?", "pet_friendly", 0},
 		{"Затемняющие шторы", "blackout_curtains", 0},
+		{"Есть ли рядом круглосуточный магазин?", "night_shop", 1},
 	} {
 		adder := &registry.Adder{LLM: cached, Registry: base, Tools: compute.Specs, Parse: adapterregistry.Parse}
 		res, err := adder.Add(context.Background(), tt.input)
