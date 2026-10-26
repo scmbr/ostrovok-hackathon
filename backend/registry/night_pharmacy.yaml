@@ -1,0 +1,22 @@
+key: night_pharmacy
+title: Ночная аптека рядом
+description: Есть ли в 300 м от отеля аптека, открытая ночью
+level: hotel
+value_type: bool
+value_field: available
+ttl_days: 90
+favorable_values:
+  - "true"
+strategies:
+  - tool: night-services
+    params:
+      kinds:
+        - pharmacy
+      radius_m: 300
+    base_reliability: 0.6
+    independence_group: osm_pois
+ask_hotelier: Есть ли рядом с отелем аптека, открытая ночью? Какая и как далеко?
+ask_guest: Нашли ли вы рядом с отелем аптеку, открытую ночью?
+origin: text
+origin_text: Есть ли рядом круглосуточная аптека?
+added_at: "2026-10-26"

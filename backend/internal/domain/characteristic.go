@@ -62,7 +62,15 @@ type Characteristic struct {
 	// AskHotelier — вопрос отельеру, если расчёта нет или он неуверен. AskGuest — вопрос гостю в анкете после проживания.
 	AskHotelier string
 	AskGuest    string
+	// Origin — откуда в реестре характеристика: пусто — написана вручную, OriginText — добавлена текстом
+	// (collect add-characteristic); OriginText — исходная фраза, AddedAt — дата добавления (YYYY-MM-DD).
+	Origin     string
+	OriginText string
+	AddedAt    string
 }
+
+// OriginText — значение Characteristic.Origin для характеристик, добавленных текстом.
+const OriginText = "text"
 
 // TTL — срок годности свидетельства.
 func (c Characteristic) TTL() time.Duration { return time.Duration(c.TTLDays) * 24 * time.Hour }

@@ -1,0 +1,22 @@
+task: add_characteristic
+inputs:
+  - есть ли рядом круглосуточный магазин
+  - круглосуточный магазин рядом
+  - ночной магазин
+  - магазин рядом работает ночью
+response: |
+  key: night_shop
+  title: Ночной магазин рядом
+  description: Есть ли в 300 м от отеля магазин или супермаркет, открытый ночью
+  level: hotel
+  value_type: bool
+  value_field: available
+  ttl_days: 90
+  favorable_values: ["true"]
+  strategies:
+    - tool: night-services
+      params: { radius_m: 300, kinds: [shop] }
+      base_reliability: 0.6
+      independence_group: osm_pois
+  ask_hotelier: "Есть ли рядом с отелем магазин, открытый ночью? Какой и как далеко?"
+  ask_guest: Нашли ли вы рядом с отелем магазин, открытый ночью?

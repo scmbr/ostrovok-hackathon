@@ -27,6 +27,9 @@ type characteristicDTO struct {
 	Strategies      []strategyDTO `json:"strategies"`
 	AskHotelier     string        `json:"ask_hotelier,omitempty"`
 	AskGuest        string        `json:"ask_guest,omitempty"`
+	Origin          string        `json:"origin,omitempty"`
+	OriginText      string        `json:"origin_text,omitempty"`
+	AddedAt         string        `json:"added_at,omitempty"`
 }
 
 // conflictDTO — действующие правила конфликта (с умолчаниями, если реестр их не задаёт).
@@ -54,6 +57,7 @@ func newCharacteristicsDTO(reg domain.Registry) characteristicsDTO {
 			FavorableValues: c.FavorableValues, SignificantDiff: c.SignificantDiff,
 			Conflict:   conflictDTO{Steps: max(rules.ConflictSteps, 1), Theta: rules.ConflictMinSide, Entities: c.ConflictEntities},
 			Strategies: []strategyDTO{}, AskHotelier: c.AskHotelier, AskGuest: c.AskGuest,
+			Origin: c.Origin, OriginText: c.OriginText, AddedAt: c.AddedAt,
 		}
 		if d.Conflict.Theta <= 0 {
 			d.Conflict.Theta = domain.DefaultConflictMinSide

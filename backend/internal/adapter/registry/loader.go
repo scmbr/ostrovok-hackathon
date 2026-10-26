@@ -35,6 +35,9 @@ type file struct {
 	Strategies       []fileStrategy `yaml:"strategies,omitempty"`
 	AskHotelier      string         `yaml:"ask_hotelier,omitempty"`
 	AskGuest         string         `yaml:"ask_guest,omitempty"`
+	Origin           string         `yaml:"origin,omitempty"`
+	OriginText       string         `yaml:"origin_text,omitempty"`
+	AddedAt          string         `yaml:"added_at,omitempty"`
 }
 
 type fileStrategy struct {
@@ -65,7 +68,7 @@ func Parse(data []byte) (domain.Characteristic, error) {
 		Values: f.Values, Ordered: f.Ordered, ValueField: f.ValueField, TTLDays: f.TTLDays,
 		FavorableValues: f.FavorableValues, SignificantDiff: f.SignificantDiff, ConflictSteps: f.ConflictSteps,
 		ConflictTheta: f.ConflictTheta, ConflictEntities: f.ConflictEntities,
-		AskHotelier: f.AskHotelier, AskGuest: f.AskGuest,
+		AskHotelier: f.AskHotelier, AskGuest: f.AskGuest, Origin: f.Origin, OriginText: f.OriginText, AddedAt: f.AddedAt,
 	}
 	for i, s := range f.Strategies {
 		st := domain.Strategy{
@@ -156,7 +159,7 @@ func Marshal(c domain.Characteristic) ([]byte, error) {
 		Values: c.Values, Ordered: c.Ordered, ValueField: c.ValueField, TTLDays: c.TTLDays,
 		FavorableValues: c.FavorableValues, SignificantDiff: c.SignificantDiff, ConflictSteps: c.ConflictSteps,
 		ConflictTheta: c.ConflictTheta, ConflictEntities: c.ConflictEntities,
-		AskHotelier: c.AskHotelier, AskGuest: c.AskGuest,
+		AskHotelier: c.AskHotelier, AskGuest: c.AskGuest, Origin: c.Origin, OriginText: c.OriginText, AddedAt: c.AddedAt,
 	}
 	for _, s := range c.Strategies {
 		fs := fileStrategy{Tool: s.Tool, Strategy: s.Variant, BaseReliability: s.BaseReliability, IndependenceGroup: s.IndependenceGroup}

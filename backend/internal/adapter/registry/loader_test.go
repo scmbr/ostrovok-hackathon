@@ -25,6 +25,9 @@ strategies:
     base_reliability: 0.6
     independence_group: osm_pois
 ask_hotelier: Есть ли рядом ночная аптека?
+origin: text
+origin_text: есть ли рядом аптека
+added_at: "2026-10-26"
 `
 
 func TestParseSplitsNumbersAndLists(t *testing.T) {
@@ -38,6 +41,9 @@ func TestParseSplitsNumbersAndLists(t *testing.T) {
 	}
 	if s.Params["radius_m"] != 300 || !reflect.DeepEqual(s.Lists["kinds"], []string{"pharmacy"}) {
 		t.Errorf("параметры: %+v %+v", s.Params, s.Lists)
+	}
+	if c.Origin != "text" || c.OriginText != "есть ли рядом аптека" || c.AddedAt != "2026-10-26" {
+		t.Errorf("происхождение: %+v", c)
 	}
 	if !reflect.DeepEqual(c.FavorableValues, []string{"true"}) || c.TTL().Hours() != 90*24 {
 		t.Errorf("характеристика: %+v", c)

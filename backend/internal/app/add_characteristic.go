@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	adapterllm "github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/llm"
 	adapterregistry "github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/registry"
@@ -60,12 +61,12 @@ func runAddCharacteristic(args []string, reg domain.Registry) error {
 		return err
 	}
 	c := res.Characteristic
+	c.Origin, c.OriginText, c.AddedAt = domain.OriginText, description, time.Now().Format(time.DateOnly)
 	body, err := adapterregistry.Marshal(c)
 	if err != nil {
 		return err
 	}
-	header := fmt.Sprintf("# Добавлено командой collect add-characteristic: %q.\n# LLM описала характеристику, проверка реестра пройдена; значения фактов LLM не пишет.\n", description)
-	text := header + string(body)
+	text := string(body)
 
 	for _, n := range res.Notes {
 		fmt.Println("правка:", n)
