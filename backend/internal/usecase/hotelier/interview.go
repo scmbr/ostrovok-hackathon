@@ -10,6 +10,7 @@ import (
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/agent"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/reputation"
 )
 
 // Interviewer выбирает вопросы отельеру по ценности и бюджету и обрабатывает ответы.
@@ -18,7 +19,9 @@ type Interviewer struct {
 	Store    Store
 	Impact   Impact // nil — влияние на категории не считается
 	LLM      LLM    // nil — шаблоны вопросов и разбор да / нет
-	Now      func() time.Time
+	// Reputation пересчитывает репутацию отельера после его ответа; nil — репутация не обновляется.
+	Reputation Reputation
+	Now        func() time.Time
 }
 
 // Options — параметры раунда.
@@ -32,6 +35,8 @@ type Outcome struct {
 	Question Question
 	Parsed   Parsed
 	Status   string
+	// Trust — репутация отельера после ответа; nil, если не пересчитывалась.
+	Trust *reputation.Update
 }
 
 // Result — итог раунда по отелю.
@@ -416,6 +421,7 @@ func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q 
 	parsed := i.Parse(ctx, c, q, val)
 	now := i.now()
 	status := StatusNeedsClarification
+	var trustUpdate *reputation.Update
 	parsedJSON := map[string]any{"found": parsed.Found, "note": parsed.Note, "parsed_by": parsed.Mode}
 	switch {
 	case parsed.Found:
@@ -435,6 +441,16 @@ func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q 
 		if err := i.Store.SaveAnswerEvidence(ctx, ev); err != nil {
 			return nil, fmt.Errorf("свидетельство отельера: %w", err)
 		}
+		if i.Reputation != nil {
+			up, err := i.Reputation.Update(ctx, domain.HotelierAuthor(h.ID))
+			if err != nil {
+				return nil, fmt.Errorf("репутация: %w", err)
+			}
+			trustUpdate = &up
+			parsedJSON["trust"] = map[string]any{"before": round2(up.Before), "after": round2(up.After), "agree": up.Agree, "total": up.Total}
+			i.trace(ctx, s, h, agent.ModePlanner, fmt.Sprintf("репутация отельера: %.2f → %.2f (подтверждено %d из %d)", up.Before, up.After, up.Agree, up.Total),
+				"reputation", map[string]any{"author": up.Author.ID}, map[string]any{"before": up.Before, "after": up.After, "agree": up.Agree, "total": up.Total})
+		}
 		if err := i.Store.RecordAnswer(ctx, q.ID, status, text, parsedJSON, now); err != nil {
 			return nil, err
 		}
@@ -453,7 +469,7 @@ func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q 
 	q.Status, q.Parsed = status, parsedJSON
 	i.trace(ctx, s, h, parsed.Mode, fmt.Sprintf("ответ по %s разобран: %s", q.Key, status), "parse_answer",
 		map[string]any{"characteristic": q.Key, "entity": q.Label, "answer": text}, parsedJSON)
-	return &Outcome{Question: q, Parsed: parsed, Status: status}, nil
+	return &Outcome{Question: q, Parsed: parsed, Status: status, Trust: trustUpdate}, nil
 }
 
 // HotelierMethod — метод свидетельства отельера, полученного из ответа на вопрос.

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/agent"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/reputation"
 )
 
 // AgentName — имя агента в agent_trace.
@@ -128,4 +129,9 @@ type CategoryIssue struct {
 type IssuePlacement struct {
 	Facade          string
 	From, To, Rooms int
+}
+
+// Reputation — пересчёт репутации автора (usecase/reputation.Service).
+type Reputation interface {
+	Update(ctx context.Context, a domain.Author) (reputation.Update, error)
 }

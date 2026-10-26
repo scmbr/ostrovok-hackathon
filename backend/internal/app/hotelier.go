@@ -13,6 +13,7 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/repository/postgres"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/hotelier"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/reputation"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/rooms"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/truth"
 )
@@ -50,9 +51,10 @@ func runHotelierRound(args []string, reg domain.Registry) error {
 
 	rules := reg.Rules()
 	iv := &hotelier.Interviewer{
-		Registry: reg,
-		Store:    postgres.NewHotelierStore(pool, rules),
-		Impact:   &rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, rules)},
+		Registry:   reg,
+		Store:      postgres.NewHotelierStore(pool, rules),
+		Impact:     &rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, rules)},
+		Reputation: &reputation.Service{Registry: reg, Store: postgres.NewReputationStore(pool, rules)},
 	}
 	var llm *adapterllm.Hotelier
 	switch {
@@ -139,6 +141,9 @@ func printHotelierResult(r hotelier.Result) {
 	}
 	for _, a := range r.Answers {
 		fmt.Printf("  ← %s: «%s» → %s", a.Question.Key, a.Question.AnswerText, a.Status)
+		if a.Trust != nil {
+			fmt.Printf(" [репутация %.2f → %.2f, подтверждено %d из %d]", a.Trust.Before, a.Trust.After, a.Trust.Agree, a.Trust.Total)
+		}
 		if a.Parsed.Note != "" {
 			fmt.Printf(" (%s)", strings.TrimSpace(a.Parsed.Note))
 		}
