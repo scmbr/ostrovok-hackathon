@@ -1,0 +1,57 @@
+{
+  "hotel": "177",
+  "model": "gpt-4o-mini",
+  "replies": {
+    "469cdb8d56ee3507c5660573d10f475ef53d04a85b121528bb784890ef6263ad": {
+      "tool_calls": [
+        {
+          "id": "call_bJsatOKSwT8ZlIvEz5sBsrIO",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy_index\": 1}"
+        },
+        {
+          "id": "call_K8EBXTjJRCby32jz6Lw3H37m",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy_index\": 1}"
+        },
+        {
+          "id": "call_fzIStzTUn9KHRmPFPY58P2NA",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"noise_night\", \"strategy_index\": 1}"
+        },
+        {
+          "id": "call_Y630jaVvLRuOUgXLxsSiW8he",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy_index\": 0}"
+        },
+        {
+          "id": "call_8R3RcztUag71pFPvWqKeyyq5",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy_index\": 0}"
+        }
+      ]
+    },
+    "c71ba066db8f12617e6e8ac7d0903086239db714cb8a20c3e6c095e291e5d090": {
+      "content": "Результаты обработки характеристик отеля «Hotel Attica 21»:\n\n- **night_pharmacy**: статус uncertain, уверенность 0.6.\n- **night_services**: статус uncertain, уверенность 0.6.\n- **noise_night**: статус uncertain, уверенность 0.6.\n- **walk_to_beach**: статус uncertain, уверенность 0.7.\n- **walk_to_metro**: статус uncertain, уверенность 0.7.\n\nВсе характеристики с низкой уверенностью остались без изменений. Необходимо задать вопросы отельеру по следующим характеристикам: night_pharmacy, night_services, noise_night."
+    },
+    "ebb0cdf34298d6e2980053f427e73eeafc4f5fd2f56d31e2d582590f317f1987": {
+      "tool_calls": [
+        {
+          "id": "call_9UGSsXvDZjPXNdAJ4s3RBHLT",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy_index\": 0}"
+        },
+        {
+          "id": "call_yhBWKM8rS8zLg40BxSpSCZfg",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy_index\": 0}"
+        },
+        {
+          "id": "call_jmou9t5t3hW7GhHJVKSm3gGG",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy_index\": 0}"
+        }
+      ]
+    }
+  }
+}

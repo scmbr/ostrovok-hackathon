@@ -1,0 +1,52 @@
+{
+  "hotel": "279",
+  "model": "gpt-4o-mini",
+  "replies": {
+    "6795043c6718c40a6f31419d6bd06e842972356f9c730c56a6cf09c5540e1858": {
+      "tool_calls": [
+        {
+          "id": "call_fupiJUsqX8ST9l05LCx0twXl",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy_index\": 1}"
+        },
+        {
+          "id": "call_jA9rYWvedzwqO6GSCZuVMWLK",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy_index\": 1}"
+        },
+        {
+          "id": "call_wDqznQuQw3VUlpYOguJcQgkL",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"noise_night\", \"strategy_index\": 1}"
+        },
+        {
+          "id": "call_X43GsI398zizrY7XkXvdWaQq",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy_index\": 0}"
+        },
+        {
+          "id": "call_yQ2YrUqCM2oDhKuzawl0ttuj",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy_index\": 0}"
+        }
+      ]
+    },
+    "7a24d44bed12b3245756e3b6eb052276216bfed15b0d5c3f05ce20d1a037d155": {
+      "content": "Результаты по характеристикам отеля «Acta Voraport»:\n\n- **night_pharmacy**: статус uncertain, уверенность 0.6.\n- **night_services**: статус uncertain, уверенность 0.6.\n- **noise_night**: статус uncertain, уверенность 0.6.\n- **walk_to_beach**: статус uncertain, уверенность 0.7.\n- **walk_to_metro**: статус uncertain, уверенность 0.7.\n\nВсе характеристики с низкой уверенностью остались без изменений. Необходимо задать вопросы отельеру по характеристикам с низкой уверенностью."
+    },
+    "82369eb7a210e3329aa5b68ef927394fe8058a74ee17659507fd906aa2e42a99": {
+      "tool_calls": [
+        {
+          "id": "call_ItNoVHwbwpIZlr6uSM51O5Xg",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy_index\": 0}"
+        },
+        {
+          "id": "call_bm2B2lGAuiG0A7WUU5uEjS5T",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy_index\": 0}"
+        }
+      ]
+    }
+  }
+}

@@ -38,6 +38,8 @@ const collectUsage = `использование: collect <команда> [-reg
   catastro     загрузить здания кадастра с этажностью из data/raw/catastro и привязать отели
   noise        загрузить фасадный шум карты BCN для зданий отелей (после catastro; data/raw/noise)
   noise-night  рассчитать noise_night: карта BCN и оценка OSM, расхождения источников (после facades, noise, pois)
+  agent -hotel ID  прогон агента-сборщика по отелю: что считать, когда спросить отельера; журнал в agent_trace (-planner без LLM, -cache из кеша, -no-record)
+  llm-check    проверить ключ LLM: один запрос с вызовом инструмента
   add-characteristic "описание"  добавить характеристику по тексту: LLM составляет YAML реестра из существующих инструментов
   truth        пересобрать все факты из активных свидетельств движком правды; печатает конфликты и таблицу по θ и conflict_steps
   mock-cards   сгенерировать мок базовых карточек отелей
@@ -46,6 +48,7 @@ const collectUsage = `использование: collect <команда> [-reg
 
 // RunCollect выполняет команду CLI сбора и расчёта.
 func RunCollect(args []string) error {
+	loadDotEnv()
 	if len(args) < 1 {
 		return fmt.Errorf("укажите команду\n%s", collectUsage)
 	}
@@ -53,9 +56,15 @@ func RunCollect(args []string) error {
 	if !collectCommands[cmd] {
 		return fmt.Errorf("неизвестная команда %q\n%s", cmd, collectUsage)
 	}
+	if cmd == "llm-check" {
+		return runLLMCheck()
+	}
 	reg, err := LoadRegistry()
 	if err != nil {
 		return err
+	}
+	if cmd == "agent" {
+		return runAgent(args[1:], reg)
 	}
 	if cmd == "add-characteristic" {
 		return runAddCharacteristic(args[1:], reg)
@@ -206,7 +215,7 @@ const defaultRegion = "barcelona"
 var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
 	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
-	"truth": true, "add-characteristic": true, "mock-cards": true, "select-demo": true, "stats": true,
+	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "mock-cards": true, "select-demo": true, "stats": true,
 }
 
 // toolFlags — область и параметры запуска расчётного инструмента.

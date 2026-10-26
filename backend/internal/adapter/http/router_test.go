@@ -12,7 +12,7 @@ import (
 )
 
 func TestHealth(t *testing.T) {
-	h := newRouter(fstest.MapFS{}, domain.Registry{})
+	h := newRouter(fstest.MapFS{}, domain.Registry{}, nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/health", nil))
 	if rec.Code != http.StatusOK {
@@ -24,7 +24,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestSPAFallback(t *testing.T) {
-	h := newRouter(fstest.MapFS{"index.html": {Data: []byte("<html>app</html>")}}, domain.Registry{})
+	h := newRouter(fstest.MapFS{"index.html": {Data: []byte("<html>app</html>")}}, domain.Registry{}, nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/hotel/42", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "app") {
@@ -33,7 +33,7 @@ func TestSPAFallback(t *testing.T) {
 }
 
 func TestAPINotFoundIsJSON(t *testing.T) {
-	h := newRouter(fstest.MapFS{}, domain.Registry{})
+	h := newRouter(fstest.MapFS{}, domain.Registry{}, nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/nope", nil))
 	if rec.Code != http.StatusNotFound || rec.Header().Get("Content-Type") != "application/json" {
@@ -55,7 +55,7 @@ func TestCharacteristicsEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	newRouter(fstest.MapFS{}, reg).ServeHTTP(rec, httptest.NewRequest("GET", "/api/characteristics", nil))
+	newRouter(fstest.MapFS{}, reg, nil).ServeHTTP(rec, httptest.NewRequest("GET", "/api/characteristics", nil))
 	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/json" {
 		t.Fatalf("status %d, %s", rec.Code, rec.Header().Get("Content-Type"))
 	}
@@ -91,7 +91,7 @@ func TestCharacteristicsEndpoint(t *testing.T) {
 
 	// Пустой реестр — пустой список, а не null: клиент не должен проверять на nil.
 	rec = httptest.NewRecorder()
-	newRouter(fstest.MapFS{}, domain.Registry{}).ServeHTTP(rec, httptest.NewRequest("GET", "/api/characteristics", nil))
+	newRouter(fstest.MapFS{}, domain.Registry{}, nil).ServeHTTP(rec, httptest.NewRequest("GET", "/api/characteristics", nil))
 	if !strings.Contains(rec.Body.String(), `"characteristics":[]`) {
 		t.Errorf("пустой реестр: %s", rec.Body.String())
 	}
