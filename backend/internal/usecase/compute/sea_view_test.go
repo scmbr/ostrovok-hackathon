@@ -99,7 +99,7 @@ func (s *towerStore) SeaViewTargets(context.Context, domain.HotelFilter) ([]doma
 	return []domain.SeaViewTarget{{
 		HotelID: 6, BuildingID: 2,
 		Facades: []domain.StoredFacade{
-			{ID: 20, Mid: orb.Point{2.19, 41.39}, AzimuthDeg: 90, Levels: 2},  // подиум
+			{ID: 20, Mid: orb.Point{2.19, 41.39}, AzimuthDeg: 90, Levels: 2},   // подиум
 			{ID: 21, Mid: orb.Point{2.19, 41.39}, AzimuthDeg: 100, Levels: 20}, // башня
 		},
 	}}, nil
