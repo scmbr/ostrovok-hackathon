@@ -19,6 +19,8 @@ import (
 const collectUsage = `команды:
   osm          выгрузить отели, здания и берег из OSM (Overpass) в БД
   pois         выгрузить бары, клубы, аптеки, кафе и магазины рядом с отелями (после osm)
+  walk-data    выгрузить пешеходный граф, метро и пляжи из OSM (после osm; долго, большой запрос)
+  walk         рассчитать пешие маршруты до пляжа и метро (факты walk_to_beach, walk_to_metro, после walk-data)
   roads        выгрузить дороги OSM вокруг отелей (после osm)
   facades      рассчитать фасады отелей: стороны здания без глухих стен, выход на улицу или во двор
   sea-view     рассчитать вид на море по фасадам и этажам (факты sea_view, после facades)
@@ -35,7 +37,7 @@ func RunCollect(args []string) error {
 		return fmt.Errorf("укажите команду\n%s", collectUsage)
 	}
 	cmd := args[0]
-	if cmd != "osm" && cmd != "catastro" && cmd != "roads" && cmd != "pois" && cmd != "facades" && cmd != "sea-view" && cmd != "noise" && cmd != "noise-night" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
+	if cmd != "osm" && cmd != "catastro" && cmd != "roads" && cmd != "pois" && cmd != "walk-data" && cmd != "walk" && cmd != "facades" && cmd != "sea-view" && cmd != "noise" && cmd != "noise-night" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
 		return fmt.Errorf("неизвестная команда %q\n%s", cmd, collectUsage)
 	}
 
@@ -76,6 +78,17 @@ func RunCollect(args []string) error {
 		if err := c.CollectPois(ctx); err != nil {
 			return err
 		}
+	case "walk-data":
+		if err := c.CollectWalk(ctx); err != nil {
+			return err
+		}
+	case "walk":
+		res, err := (&compute.Walk{Store: postgres.NewWalkStore(pool)}).Run(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("маршруты рассчитаны: отелей на графе %d (вне графа %d), до пляжа %d, до метро %d; целей: пляж %d, метро %d\n",
+			res.Hotels, res.Unsnapped, res.Beach, res.Metro, res.BeachTargets, res.MetroTargets)
 	case "facades":
 		n, err := (&compute.Facades{Store: postgres.NewFacadeStore(pool)}).Run(ctx)
 		if err != nil {

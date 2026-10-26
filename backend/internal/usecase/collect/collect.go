@@ -24,6 +24,8 @@ type OSMSource interface {
 	Coastline(ctx context.Context, bbox domain.BBox) ([]orb.LineString, error)
 	Roads(ctx context.Context, bbox domain.BBox) ([]domain.Road, error)
 	Pois(ctx context.Context, bbox domain.BBox) ([]domain.Poi, error)
+	WalkWays(ctx context.Context, bbox domain.BBox) ([]domain.WalkWay, error)
+	Destinations(ctx context.Context, bbox domain.BBox) ([]domain.Destination, error)
 }
 
 // CatastroSource — выгрузка зданий кадастра с этажностью.
@@ -48,6 +50,10 @@ type Store interface {
 	ReplaceRoads(ctx context.Context, roads []domain.Road) error
 	// ReplacePois заменяет POI; сохраняются только лежащие не дальше domain.PoisRadiusM от отелей.
 	ReplacePois(ctx context.Context, pois []domain.Poi) error
+	// ReplaceWalkEdges заменяет рёбра пешеходного графа.
+	ReplaceWalkEdges(ctx context.Context, edges []domain.WalkEdge) error
+	// ReplaceDestinations заменяет цели пеших маршрутов.
+	ReplaceDestinations(ctx context.Context, dests []domain.Destination) error
 	ListHotels(ctx context.Context) ([]domain.HotelKey, error)
 	SaveMockCard(ctx context.Context, hotelID int64, card domain.Card) error
 	ListDemoCandidates(ctx context.Context) ([]domain.DemoCandidate, error)
@@ -131,6 +137,40 @@ func (c *Collector) GenerateMockCards(ctx context.Context) (int, error) {
 }
 
 // CollectRoads выгружает дороги OSM и оставляет те, что лежат вокруг отелей (отели должны быть уже загружены).
+// walkBufferDeg — запас вокруг районов для пешего графа (~2 км): пляж и метро бывают за пределами района.
+const walkBufferDeg = 0.02
+
+// CollectWalk выгружает пешеходный граф и цели маршрутов (метро, пляжи) и сохраняет их.
+func (c *Collector) CollectWalk(ctx context.Context) error {
+	bbox := domain.CoverageBBox().Pad(walkBufferDeg)
+	ways, err := c.Src.WalkWays(ctx, bbox)
+	if err != nil {
+		return fmt.Errorf("пешеходные пути: %w", err)
+	}
+	edges := domain.BuildWalkEdges(ways)
+	log.Printf("пешеходных путей %d, рёбер графа %d", len(ways), len(edges))
+	dests, err := c.Src.Destinations(ctx, bbox)
+	if err != nil {
+		return fmt.Errorf("цели маршрутов: %w", err)
+	}
+	counts := map[string]int{}
+	for _, d := range dests {
+		counts[d.Kind]++
+	}
+	log.Printf("целей: метро %d, точек границ пляжей %d", counts[domain.DestMetro], counts[domain.DestBeach])
+	if len(edges) == 0 || counts[domain.DestMetro] == 0 || counts[domain.DestBeach] == 0 {
+		return fmt.Errorf("выгрузка неполная (рёбер %d, метро %d, пляж %d): БД не изменена",
+			len(edges), counts[domain.DestMetro], counts[domain.DestBeach])
+	}
+	if err := c.Store.ReplaceWalkEdges(ctx, edges); err != nil {
+		return fmt.Errorf("сохранение графа: %w", err)
+	}
+	if err := c.Store.ReplaceDestinations(ctx, dests); err != nil {
+		return fmt.Errorf("сохранение целей: %w", err)
+	}
+	return nil
+}
+
 // CollectPois выгружает бары, клубы, аптеки, кафе и магазины рядом с отелями.
 func (c *Collector) CollectPois(ctx context.Context) error {
 	pois, err := c.Src.Pois(ctx, domain.CoverageBBox().Pad(bufferDeg))

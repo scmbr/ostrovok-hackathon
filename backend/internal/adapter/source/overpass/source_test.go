@@ -111,3 +111,45 @@ func TestParsePois(t *testing.T) {
 		t.Errorf("магазин: %+v", got[1])
 	}
 }
+
+func TestParseWalkWays(t *testing.T) {
+	els := []element{
+		{Type: "way", ID: 1, Nodes: []int64{10, 11}, Geometry: []latLon{{41.38, 2.17}, {41.38, 2.18}}},
+		{Type: "way", ID: 2, Nodes: []int64{10, 11, 12}, Geometry: []latLon{{41.38, 2.17}}}, // узлов и точек поровну нет
+		{Type: "way", ID: 3, Nodes: []int64{10}, Geometry: []latLon{{41.38, 2.17}}},         // одна точка
+	}
+	got := parseWalkWays(els)
+	if len(got) != 1 || got[0].OSMID != 1 || got[0].Points[1] != (orb.Point{2.18, 41.38}) {
+		t.Errorf("пути: %+v", got)
+	}
+}
+
+func TestParseDestinations(t *testing.T) {
+	els := []element{
+		{Type: "node", ID: 1, Lat: 41.38, Lon: 2.17, Tags: map[string]string{"railway": "subway_entrance", "name": "Jaume I"}},
+		{Type: "way", ID: 2, Tags: map[string]string{"natural": "beach", "name": "Platja"},
+			Geometry: []latLon{{41.37, 2.19}, {41.37, 2.1905}, {41.37, 2.1999}}},
+		{Type: "relation", ID: 3, Tags: map[string]string{"natural": "beach"},
+			Members: []member{{Type: "way", Role: "outer", Geometry: []latLon{{41.36, 2.2}, {41.36, 2.21}}}}},
+		{Type: "node", ID: 4, Lat: 41.0, Lon: 2.0, Tags: map[string]string{"amenity": "bar"}}, // не цель
+		{Type: "node", ID: 5, Lat: 41.37, Lon: 2.19, Tags: map[string]string{"tourism": "information", "information": "board", "name": "Platja de Bogatell"}},
+		{Type: "node", ID: 6, Lat: 41.38, Lon: 2.18, Tags: map[string]string{"tourism": "information", "name": "Museu"}}, // не пляж
+	}
+	got := parseDestinations(els)
+	var metro, beach int
+	for _, d := range got {
+		switch d.Kind {
+		case "metro":
+			metro++
+			if d.Name != "Jaume I" || d.Point != (orb.Point{2.17, 41.38}) {
+				t.Errorf("метро: %+v", d)
+			}
+		case "beach":
+			beach++
+		}
+	}
+	// Метро одно; пляж-way: начало, точка после 40 м и конец; пляж-relation: начало и конец; стенд пляжа: одна точка.
+	if metro != 1 || beach < 5 {
+		t.Errorf("метро %d, точек пляжа %d: %+v", metro, beach, got)
+	}
+}
