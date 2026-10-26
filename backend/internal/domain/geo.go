@@ -29,35 +29,27 @@ type District struct {
 	BBox BBox
 }
 
-// Districts — районы охвата. Береговые (vila_olimpica, diagonal_mar, barceloneta, poblenou)
-// заданы огибающими реальных границ barrio из OSM (boundary=administrative, admin_level=10,
-// выгрузка 24.10.2026, см. docs/data.md); gothic и eixample остались примерными контурами
-// из PROJECT_CONTEXT.md, раздел 4.
-// При пересечении побеждает район, стоящий раньше в списке: узкие береговые идут первыми.
-var Districts = []District{
-	{"vila_olimpica", BBox{41.3833, 2.1880, 41.3964, 2.2063}},
-	{"diagonal_mar", BBox{41.3947, 2.2041, 41.4118, 2.2220}},
-	{"barceloneta", BBox{41.3577, 2.1824, 41.3879, 2.1996}},
-	{"poblenou", BBox{41.3915, 2.1939, 41.4075, 2.2108}},
-	{"gothic", BBox{41.379, 2.170, 41.388, 2.182}},
-	{"eixample", BBox{41.387, 2.160, 41.400, 2.178}},
+// MetricSRID — метрическая проекция расчётов в метрах: ETRS89 / UTM 31N, родная для Барселоны.
+// В этой проекции приходят контуры кадастра и карты шума, в ней PostGIS считает расстояния и лучи.
+// Строка, а не число: константа подставляется в текст SQL. Проекция региона из regions — вместе со вторым регионом.
+const MetricSRID = "25831"
+
+// Region — регион охвата: контур и районы из таблиц regions и districts.
+type Region struct {
+	ID      int64
+	Code    string
+	Name    string
+	Contour BBox
+	// Districts идут по приоритету: при пересечении рамок побеждает район, стоящий раньше.
+	Districts []District
 }
 
-// DistrictOf возвращает имя района точки или пустую строку, если точка вне охвата.
-func DistrictOf(p orb.Point) string {
-	for _, d := range Districts {
+// DistrictOf возвращает имя района точки или пустую строку, если точка вне районов региона.
+func (r Region) DistrictOf(p orb.Point) string {
+	for _, d := range r.Districts {
 		if d.BBox.Contains(p) {
 			return d.Name
 		}
 	}
 	return ""
-}
-
-// CoverageBBox — прямоугольник, охватывающий все районы.
-func CoverageBBox() BBox {
-	b := Districts[0].BBox
-	for _, d := range Districts[1:] {
-		b = b.Union(d.BBox)
-	}
-	return b
 }

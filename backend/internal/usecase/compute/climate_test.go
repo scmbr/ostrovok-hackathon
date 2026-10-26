@@ -14,7 +14,7 @@ import (
 type climateFake struct {
 	from, to time.Time
 	points   []orb.Point
-	saved    map[string][]domain.Fact
+	recorder
 }
 
 func (s *climateFake) Daily(_ context.Context, p orb.Point, from, to time.Time) ([]domain.ClimateDay, error) {
@@ -26,20 +26,12 @@ func (s *climateFake) Daily(_ context.Context, p orb.Point, from, to time.Time) 
 	}, nil
 }
 
-func (s *climateFake) SaveDistrictFacts(_ context.Context, district, key string, facts []domain.Fact) error {
-	if s.saved == nil {
-		s.saved = map[string][]domain.Fact{}
-	}
-	s.saved[district+"/"+key] = facts
-	return nil
-}
-
 func TestClimateFacts(t *testing.T) {
 	fake := &climateFake{}
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
 	c := &Climate{Src: fake, Store: fake, Now: func() time.Time { return now },
 		Districts: []domain.District{{Name: "gothic", BBox: domain.BBox{South: 41.379, West: 2.170, North: 41.388, East: 2.182}}}}
-	res, err := c.Run(context.Background())
+	res, err := c.Run(context.Background(), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,15 +61,16 @@ func TestClimateFacts(t *testing.T) {
 	if sw, _ := f.Value["swimming_months"].([]int); len(sw) != 1 || sw[0] != 10 {
 		t.Errorf("месяцы купания: %v", f.Value["swimming_months"])
 	}
-	if len(f.Evidence) != 1 || f.Evidence[0].Details["independence_group"] != domain.ClimateGroup || f.Evidence[0].Details["sea_years_with_data"] != 1 {
-		t.Errorf("свидетельство: %+v", f.Evidence)
+	evs := fake.ev(f)
+	if len(evs) != 1 || evs[0].Details["independence_group"] != domain.ClimateGroup || evs[0].Details["sea_years_with_data"] != 1 {
+		t.Errorf("свидетельство: %+v", evs)
 	}
 }
 
 func TestClimateFailsWithoutData(t *testing.T) {
 	empty := &emptyClimate{}
 	c := &Climate{Src: empty, Store: empty, Districts: []domain.District{{Name: "x"}}}
-	if _, err := c.Run(context.Background()); err == nil {
+	if _, err := c.Run(context.Background(), Options{}); err == nil {
 		t.Error("район без данных не дал ошибку")
 	}
 }
@@ -87,6 +80,6 @@ type emptyClimate struct{}
 func (emptyClimate) Daily(context.Context, orb.Point, time.Time, time.Time) ([]domain.ClimateDay, error) {
 	return nil, nil
 }
-func (emptyClimate) SaveDistrictFacts(context.Context, string, string, []domain.Fact) error {
+func (emptyClimate) SaveDistrictEvidence(context.Context, string, string, []domain.Author, []domain.Evidence) error {
 	return nil
 }

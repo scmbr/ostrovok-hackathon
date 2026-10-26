@@ -19,7 +19,7 @@ const coastBufferDeg = 0.01
 
 // OSMSource — внешний источник данных OpenStreetMap.
 type OSMSource interface {
-	Hotels(ctx context.Context, districts []domain.District) ([]domain.Hotel, error)
+	Hotels(ctx context.Context, region domain.Region) ([]domain.Hotel, error)
 	Buildings(ctx context.Context, bbox domain.BBox) ([]domain.Building, error)
 	Coastline(ctx context.Context, bbox domain.BBox) ([]orb.LineString, error)
 	Roads(ctx context.Context, bbox domain.BBox) ([]domain.Road, error)
@@ -64,6 +64,7 @@ type Store interface {
 
 // Collector выполняет сбор данных.
 type Collector struct {
+	Region   domain.Region
 	Src      OSMSource
 	Catastro CatastroSource
 	Store    Store
@@ -72,7 +73,7 @@ type Collector struct {
 // CollectOSM выгружает здания, береговую линию и отели из OSM и сохраняет их.
 // Здания грузятся раньше отелей, чтобы отель можно было привязать к зданию.
 func (c *Collector) CollectOSM(ctx context.Context) error {
-	cover := domain.CoverageBBox()
+	cover := c.Region.Contour
 
 	buildings, err := c.Src.Buildings(ctx, cover.Pad(bufferDeg))
 	if err != nil {
@@ -92,7 +93,7 @@ func (c *Collector) CollectOSM(ctx context.Context) error {
 		return fmt.Errorf("сохранение берега: %w", err)
 	}
 
-	hotels, err := c.Src.Hotels(ctx, domain.Districts)
+	hotels, err := c.Src.Hotels(ctx, c.Region)
 	if err != nil {
 		return fmt.Errorf("отели: %w", err)
 	}
@@ -105,7 +106,7 @@ func (c *Collector) CollectOSM(ctx context.Context) error {
 
 // CollectCatastro загружает здания кадастра с этажностью в районы охвата и перепривязывает отели.
 func (c *Collector) CollectCatastro(ctx context.Context) error {
-	buildings, err := c.Catastro.Buildings(ctx, domain.CoverageBBox().Pad(bufferDeg))
+	buildings, err := c.Catastro.Buildings(ctx, c.Region.Contour.Pad(bufferDeg))
 	if err != nil {
 		return fmt.Errorf("кадастр: %w", err)
 	}
@@ -142,7 +143,7 @@ const walkBufferDeg = 0.02
 
 // CollectWalk выгружает пешеходный граф и цели маршрутов (метро, пляжи) и сохраняет их.
 func (c *Collector) CollectWalk(ctx context.Context) error {
-	bbox := domain.CoverageBBox().Pad(walkBufferDeg)
+	bbox := c.Region.Contour.Pad(walkBufferDeg)
 	ways, err := c.Src.WalkWays(ctx, bbox)
 	if err != nil {
 		return fmt.Errorf("пешеходные пути: %w", err)
@@ -173,7 +174,7 @@ func (c *Collector) CollectWalk(ctx context.Context) error {
 
 // CollectPois выгружает бары, клубы, аптеки, кафе и магазины рядом с отелями.
 func (c *Collector) CollectPois(ctx context.Context) error {
-	pois, err := c.Src.Pois(ctx, domain.CoverageBBox().Pad(bufferDeg))
+	pois, err := c.Src.Pois(ctx, c.Region.Contour.Pad(bufferDeg))
 	if err != nil {
 		return fmt.Errorf("POI: %w", err)
 	}
@@ -185,7 +186,7 @@ func (c *Collector) CollectPois(ctx context.Context) error {
 }
 
 func (c *Collector) CollectRoads(ctx context.Context) error {
-	roads, err := c.Src.Roads(ctx, domain.CoverageBBox().Pad(bufferDeg))
+	roads, err := c.Src.Roads(ctx, c.Region.Contour.Pad(bufferDeg))
 	if err != nil {
 		return fmt.Errorf("дороги: %w", err)
 	}

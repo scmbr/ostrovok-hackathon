@@ -23,7 +23,7 @@ func (s *GeoStore) ReplaceWalkEdges(ctx context.Context, edges []domain.WalkEdge
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
-	if _, err := tx.Exec(ctx, `DELETE FROM walk_edges`); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM walk_edges WHERE region_id = $1`, s.regionID); err != nil {
 		return err
 	}
 	for start := 0; start < len(edges); start += walkInsertChunk {
@@ -36,10 +36,10 @@ func (s *GeoStore) ReplaceWalkEdges(ctx context.Context, edges []domain.WalkEdge
 			geoms, lens = append(geoms, wkt.MarshalString(e.Geom)), append(lens, e.LengthM)
 		}
 		if _, err := tx.Exec(ctx, `
-INSERT INTO walk_edges (source, target, geom, length_m)
-SELECT s, t, ST_GeomFromText(g, 4326), l
+INSERT INTO walk_edges (source, target, geom, length_m, region_id)
+SELECT s, t, ST_GeomFromText(g, 4326), l, $5::bigint
 FROM unnest($1::bigint[], $2::bigint[], $3::text[], $4::float8[]) AS x(s, t, g, l)`,
-			src, dst, geoms, lens); err != nil {
+			src, dst, geoms, lens, s.regionID); err != nil {
 			return fmt.Errorf("рёбра %d–%d из %d: %w", start+1, end, len(edges), err)
 		}
 	}
@@ -53,19 +53,19 @@ func (s *GeoStore) ReplaceDestinations(ctx context.Context, dests []domain.Desti
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
-	if _, err := tx.Exec(ctx, `DELETE FROM destinations`); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM destinations WHERE region_id = $1`, s.regionID); err != nil {
 		return err
 	}
 	b := &pgx.Batch{}
 	for _, d := range dests {
 		b.Queue(`
-INSERT INTO destinations (kind, osm_id, name, geom)
-SELECT $1::text, $2::bigint, NULLIF($3::text, ''), t.g
+INSERT INTO destinations (kind, osm_id, name, geom, region_id)
+SELECT $1::text, $2::bigint, NULLIF($3::text, ''), t.g, $8::bigint
 FROM (SELECT ST_SetSRID(ST_MakePoint($4::float8, $5::float8), 4326) AS g) t
 WHERE $1::text <> $7::text OR EXISTS (SELECT 1 FROM sea s
                           WHERE s.geom && ST_Expand(t.g, 0.003)
                             AND ST_DWithin(s.geom::geography, t.g::geography, $6::float8))`,
-			d.Kind, d.OSMID, d.Name, d.Point[0], d.Point[1], domain.BeachMaxFromCoastM, domain.DestBeach)
+			d.Kind, d.OSMID, d.Name, d.Point[0], d.Point[1], domain.BeachMaxFromCoastM, domain.DestBeach, s.regionID)
 	}
 	br := tx.SendBatch(ctx, b)
 	for i := range dests {
@@ -83,13 +83,15 @@ WHERE $1::text <> $7::text OR EXISTS (SELECT 1 FROM sea s
 // WalkStore — пешеходный граф, цели и привязка точек к графу для расчёта маршрутов.
 type WalkStore struct {
 	pool *pgxpool.Pool
+	evidenceWriter
 }
 
-func NewWalkStore(pool *pgxpool.Pool) *WalkStore { return &WalkStore{pool: pool} }
+func NewWalkStore(pool *pgxpool.Pool) *WalkStore { return &WalkStore{pool: pool, evidenceWriter: evidenceWriter{pool}} }
 
 // LoadWalkEdges возвращает рёбра графа без геометрии (она нужна только для рёбер маршрута).
-func (s *WalkStore) LoadWalkEdges(ctx context.Context) ([]domain.WalkEdge, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, source, target, length_m FROM walk_edges`)
+func (s *WalkStore) LoadWalkEdges(ctx context.Context, regionID int64) ([]domain.WalkEdge, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, source, target, length_m FROM walk_edges
+WHERE $1::bigint = 0 OR region_id = $1`, regionID)
 	if err != nil {
 		return nil, err
 	}
@@ -106,8 +108,9 @@ func (s *WalkStore) LoadWalkEdges(ctx context.Context) ([]domain.WalkEdge, error
 }
 
 // HotelPoints возвращает отели с точкой OSM (вход в отель неизвестен).
-func (s *WalkStore) HotelPoints(ctx context.Context) ([]domain.HotelPoint, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, ST_X(geom), ST_Y(geom) FROM hotels ORDER BY id`)
+func (s *WalkStore) HotelPoints(ctx context.Context, flt domain.HotelFilter) ([]domain.HotelPoint, error) {
+	rows, err := s.pool.Query(ctx, `SELECT h.id, h.name, ST_X(h.geom), ST_Y(h.geom) FROM hotels h
+WHERE ($1::bigint = 0 OR h.region_id = $1) AND ($2::bigint = 0 OR h.id = $2) ORDER BY h.id`, flt.RegionID, flt.HotelID)
 	if err != nil {
 		return nil, err
 	}
@@ -126,9 +129,10 @@ func (s *WalkStore) HotelPoints(ctx context.Context) ([]domain.HotelPoint, error
 }
 
 // Destinations возвращает цели заданного вида.
-func (s *WalkStore) Destinations(ctx context.Context, kind string) ([]domain.Destination, error) {
+func (s *WalkStore) Destinations(ctx context.Context, regionID int64, kind string) ([]domain.Destination, error) {
 	rows, err := s.pool.Query(ctx, `
-SELECT COALESCE(osm_id, 0), COALESCE(name, ''), ST_X(geom), ST_Y(geom) FROM destinations WHERE kind = $1 ORDER BY id`, kind)
+SELECT COALESCE(osm_id, 0), COALESCE(name, ''), ST_X(geom), ST_Y(geom) FROM destinations
+WHERE kind = $1 AND ($2::bigint = 0 OR region_id = $2) ORDER BY id`, kind, regionID)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +216,3 @@ func (s *WalkStore) EdgeGeoms(ctx context.Context, ids []int64) (map[int64]orb.L
 	return out, rows.Err()
 }
 
-// SaveFacts заменяет активные факты и свидетельства характеристики key у отеля.
-func (s *WalkStore) SaveFacts(ctx context.Context, hotelID int64, key string, facts []domain.Fact) error {
-	return saveFacts(ctx, s.pool, hotelID, key, facts)
-}

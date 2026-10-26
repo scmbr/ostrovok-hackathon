@@ -17,10 +17,20 @@ const maxNightEvidencePois = 15
 
 // NightServicesStore — хранилище для расчёта night_services.
 type NightServicesStore interface {
-	// NightTargets возвращает все отели с заведениями в радиусе domain.NightRadiusM.
-	NightTargets(ctx context.Context) ([]domain.NightTarget, error)
-	// SaveFacts заменяет активные факты night_services отеля новыми.
-	SaveFacts(ctx context.Context, hotelID int64, facts []domain.Fact) error
+	// NightTargets возвращает отели с заведениями в радиусе radiusM.
+	NightTargets(ctx context.Context, flt domain.HotelFilter, radiusM float64) ([]domain.NightTarget, error)
+	EvidenceSaver
+}
+
+// NightServicesSpec — описание инструмента night_services.
+var NightServicesSpec = Spec{
+	Name:        "night-services",
+	Description: "что открыто ночью рядом с отелем: аптеки, магазины, еда и напитки по opening_hours заведений OSM",
+	Keys:        []string{domain.NightServicesKey},
+	Scope:       ScopeHotel,
+	Params: []Param{
+		{"radius_m", "м", "заведения дальше этого расстояния по прямой от отеля не учитываются", domain.NightRadiusM},
+	},
 }
 
 // NightServices считает night_services: что открыто ночью рядом с отелем по opening_hours из OSM.
@@ -36,11 +46,18 @@ type NightServicesResult struct {
 }
 
 // Run пересчитывает night_services у всех отелей.
-func (c *NightServices) Run(ctx context.Context) (NightServicesResult, error) {
+func (c *NightServices) Run(ctx context.Context, opts Options) (NightServicesResult, error) {
 	var res NightServicesResult
-	targets, err := c.Store.NightTargets(ctx)
+	p, err := NightServicesSpec.Resolve(opts.Params)
+	if err != nil {
+		return res, err
+	}
+	targets, err := c.Store.NightTargets(ctx, opts.Filter, p["radius_m"])
 	if err != nil {
 		return res, fmt.Errorf("заведения: %w", err)
+	}
+	if len(targets) == 0 && opts.Filter.HotelID != 0 {
+		return res, fmt.Errorf("отель %d не найден", opts.Filter.HotelID)
 	}
 	now := time.Now()
 	if c.Now != nil {
@@ -50,7 +67,7 @@ func (c *NightServices) Run(ctx context.Context) (NightServicesResult, error) {
 		if err := ctx.Err(); err != nil {
 			return res, err
 		}
-		ns := domain.EvaluateNightServices(t.Pois)
+		ns := domain.EvaluateNightServicesWithin(t.Pois, p["radius_m"])
 		for _, s := range ns.Services {
 			res.Pois += s.Total
 		}
@@ -63,14 +80,15 @@ func (c *NightServices) Run(ctx context.Context) (NightServicesResult, error) {
 		default:
 			res.None++
 		}
-		if err := c.Store.SaveFacts(ctx, t.HotelID, []domain.Fact{nightFact(t.HotelID, ns, now)}); err != nil {
+		if err := c.Store.SaveHotelEvidence(ctx, t.HotelID, domain.NightServicesKey,
+			[]domain.Author{domain.ToolAuthor(domain.NightServicesMethod)}, []domain.Evidence{nightEvidence(t.HotelID, ns, p["radius_m"], now)}); err != nil {
 			return res, fmt.Errorf("отель %d: %w", t.HotelID, err)
 		}
 	}
 	return res, nil
 }
 
-func nightFact(hotelID int64, ns domain.NightServices, now time.Time) domain.Fact {
+func nightEvidence(hotelID int64, ns domain.NightServices, radiusM float64, now time.Time) domain.Evidence {
 	until := now.Add(nightServicesTTL)
 	total, unknown := 0, 0
 	value := map[string]any{"level": ns.Level}
@@ -104,7 +122,7 @@ func nightFact(hotelID int64, ns domain.NightServices, now time.Time) domain.Fac
 		"unknown_hours":      unknown,
 		"independence_group": domain.NightServicesGroup,
 		"params": map[string]any{
-			"radius_m": domain.NightRadiusM, "probe_minute": domain.NightProbeMinute,
+			"radius_m": radiusM, "probe_minute": domain.NightProbeMinute,
 			"probe_weekday": domain.NightProbeWeekday.String(), "probe_weekend": domain.NightProbeWeekend.String(),
 		},
 		"assumptions": []string{
@@ -114,15 +132,10 @@ func nightFact(hotelID int64, ns domain.NightServices, now time.Time) domain.Fac
 			"расстояние по прямой от точки отеля",
 		},
 	}
-	return domain.Fact{
-		EntityType: domain.EntityHotel, EntityID: id, Key: domain.NightServicesKey, Value: value,
-		Source: domain.SourceOSM, Method: domain.NightServicesMethod, Confidence: domain.NightServicesReliability,
-		ObservedAt: now, ValidUntil: &until,
-		Evidence: []domain.Evidence{{
-			EntityType: domain.EntityHotel, EntityID: id, Key: domain.NightServicesKey, Claimed: value,
-			Source: domain.SourceOSM, Method: domain.NightServicesMethod, AuthorType: domain.AuthorTool, AuthorID: domain.NightServicesMethod,
-			Reliability: domain.NightServicesReliability, ObservedAt: now, ValidUntil: &until, Details: details,
-		}},
+	return domain.Evidence{
+		EntityType: domain.EntityHotel, EntityID: id, Key: domain.NightServicesKey, Claimed: value,
+		Source: domain.SourceOSM, Method: domain.NightServicesMethod, AuthorType: domain.AuthorTool, AuthorID: domain.NightServicesMethod,
+		Reliability: domain.NightServicesReliability, ObservedAt: now, ValidUntil: &until, Details: details,
 	}
 }
 

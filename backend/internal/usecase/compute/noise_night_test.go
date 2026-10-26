@@ -9,12 +9,12 @@ import (
 )
 
 type noiseStore struct {
-	saved map[int64][]domain.Fact
+	recorder
 }
 
 var secondaryAhead = []domain.NoiseSourceRef{{Kind: "secondary", DistM: 15, BearingDeg: 0}}
 
-func (s *noiseStore) NoiseTargets(context.Context) ([]domain.NoiseTarget, error) {
+func (s *noiseStore) NoiseTargets(context.Context, domain.HotelFilter, domain.NoiseSearch) ([]domain.NoiseTarget, error) {
 	return []domain.NoiseTarget{
 		{HotelID: 7, Facades: []domain.NoiseTargetFacade{
 			// Улица: карта и OSM согласны (громко).
@@ -36,18 +36,10 @@ func (s *noiseStore) NoiseTargets(context.Context) ([]domain.NoiseTarget, error)
 	}, nil
 }
 
-func (s *noiseStore) SaveFacts(_ context.Context, hotelID int64, facts []domain.Fact) error {
-	if s.saved == nil {
-		s.saved = map[int64][]domain.Fact{}
-	}
-	s.saved[hotelID] = facts
-	return nil
-}
-
 func TestNoiseNightFacts(t *testing.T) {
 	store := &noiseStore{}
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
-	res, err := (&NoiseNight{Store: store, Now: func() time.Time { return now }}).Run(context.Background())
+	res, err := (&NoiseNight{Store: store, Now: func() time.Time { return now }}).Run(context.Background(), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,24 +47,24 @@ func TestNoiseNightFacts(t *testing.T) {
 		t.Fatalf("итог %+v, want 2 отеля, 5 фасадов, BCN 3, только OSM 2, конфликт 1, согласие 2", res)
 	}
 
-	facts := store.saved[7]
+	facts := store.saved["7/"+domain.NoiseNightKey]
 	if len(facts) != 5 {
 		t.Fatalf("фактов %d, want 5: четыре фасада и отель", len(facts))
 	}
 	street, yard, osmOnly, disputed, hotel := facts[0], facts[1], facts[2], facts[3], facts[4]
 
-	if street.Value["level"] != domain.NoiseLoud || street.Source != domain.SourceBCNNoise || street.Conflict != nil || len(street.Evidence) != 2 {
-		t.Errorf("улица: %+v, свидетельств %d", street.Value, len(street.Evidence))
+	if street.Value["level"] != domain.NoiseLoud || street.Source != domain.SourceBCNNoise || street.Conflict != nil || len(street.EvidenceIDs) != 2 {
+		t.Errorf("улица: %+v, свидетельств %d", street.Value, len(street.EvidenceIDs))
 	}
 	if yard.Value["level"] != domain.NoiseQuiet || yard.Conflict != nil {
 		t.Errorf("двор: %+v", yard.Value)
 	}
 	if osmOnly.Source != domain.SourceOSM || osmOnly.Confidence != domain.NoiseOSMReliability ||
-		len(osmOnly.Evidence) != 1 || osmOnly.Value["primary_source"] != domain.SourceOSM {
-		t.Errorf("только OSM: %+v, свидетельств %d", osmOnly.Value, len(osmOnly.Evidence))
+		len(osmOnly.EvidenceIDs) != 1 || osmOnly.Value["dominant"] == nil {
+		t.Errorf("только OSM: %+v, свидетельств %d", osmOnly.Value, len(osmOnly.EvidenceIDs))
 	}
 	// Значение конфликтного факта — по карте BCN (надёжнее), оба свидетельства сохранены.
-	if disputed.Conflict == nil || disputed.Value["level"] != domain.NoiseQuiet || len(disputed.Evidence) != 2 ||
+	if disputed.Conflict == nil || disputed.Value["level"] != domain.NoiseQuiet || len(disputed.EvidenceIDs) != 2 ||
 		disputed.Confidence != domain.NoiseBCNReliability {
 		t.Errorf("конфликт: %+v, %+v", disputed.Value, disputed.Conflict)
 	}
@@ -82,23 +74,23 @@ func TestNoiseNightFacts(t *testing.T) {
 		hotel.Value["facades_total"] != 4 {
 		t.Errorf("отель: %+v", hotel.Value)
 	}
-	for _, e := range hotel.Evidence {
+	for _, e := range store.ev(hotel) {
 		if e.EntityType != domain.EntityHotel || e.EntityID != "7" || e.Details["quietest_facade"] != int64(73) {
 			t.Errorf("свидетельство отеля: %+v", e)
 		}
 	}
 
-	bare := store.saved[8]
+	bare := store.saved["8/"+domain.NoiseNightKey]
 	if len(bare) != 2 || bare[1].Value["level"] != domain.NoiseQuiet || bare[1].Source != domain.SourceOSM {
 		t.Errorf("отель без источников: %+v", bare)
 	}
 
 	for _, fs := range store.saved {
 		for _, f := range fs {
-			if f.Key != domain.NoiseNightKey || f.ObservedAt != now || f.ValidUntil == nil || !f.ValidUntil.After(now) || len(f.Evidence) == 0 {
+			if f.Key != domain.NoiseNightKey || f.ObservedAt != now || f.ValidUntil == nil || !f.ValidUntil.After(now) || len(f.EvidenceIDs) == 0 {
 				t.Errorf("общие поля факта: %+v", f)
 			}
-			for _, e := range f.Evidence {
+			for _, e := range store.ev(f) {
 				if e.EntityType != f.EntityType || e.EntityID != f.EntityID || e.Reliability <= 0 || e.Details["independence_group"] == nil && e.Details["derived_from"] == nil {
 					t.Errorf("свидетельство: %+v", e)
 				}

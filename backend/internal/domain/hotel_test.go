@@ -30,6 +30,16 @@ func TestResolveHeight(t *testing.T) {
 	}
 }
 
+// barcelonaTest повторяет районы Барселоны из миграции 0012.
+var barcelonaTest = Region{Code: "barcelona", Districts: []District{
+	{"vila_olimpica", BBox{41.3833, 2.1880, 41.3964, 2.2063}},
+	{"diagonal_mar", BBox{41.3947, 2.2041, 41.4118, 2.2220}},
+	{"barceloneta", BBox{41.3577, 2.1824, 41.3879, 2.1996}},
+	{"poblenou", BBox{41.3915, 2.1939, 41.4075, 2.2108}},
+	{"gothic", BBox{41.379, 2.170, 41.388, 2.182}},
+	{"eixample", BBox{41.387, 2.160, 41.400, 2.178}},
+}}
+
 func TestDistrictOf(t *testing.T) {
 	tests := []struct {
 		name string
@@ -48,8 +58,8 @@ func TestDistrictOf(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := DistrictOf(tt.p); got != tt.want {
-				t.Errorf("DistrictOf(%v) = %q, want %q", tt.p, got, tt.want)
+			if got := barcelonaTest.DistrictOf(tt.p); got != tt.want {
+				t.Errorf("Region.DistrictOf(%v) = %q, want %q", tt.p, got, tt.want)
 			}
 		})
 	}

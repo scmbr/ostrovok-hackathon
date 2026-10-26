@@ -2,9 +2,12 @@ package app
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os/signal"
 	"sort"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/repository/postgres"
@@ -17,7 +20,11 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/compute"
 )
 
-const collectUsage = `команды:
+const collectUsage = `использование: collect <команда> [-region КОД] [-hotel ID] [-district ИМЯ] [-param имя=значение ...]
+  -hotel и -param работают у расчётов по отелям, -district — у climate; список параметров и значений по умолчанию — команда tools
+
+команды:
+  tools        показать расчётные инструменты: что считают и какие параметры принимают
   osm          выгрузить отели, здания и берег из OSM (Overpass) в БД
   pois         выгрузить бары, клубы, аптеки, кафе и магазины рядом с отелями (после osm)
   climate      рассчитать климат по месяцам для районов (факт climate_by_month, Open-Meteo, нужен интернет)
@@ -36,12 +43,20 @@ const collectUsage = `команды:
 
 // RunCollect выполняет команду CLI сбора и расчёта.
 func RunCollect(args []string) error {
-	if len(args) != 1 {
+	if len(args) < 1 {
 		return fmt.Errorf("укажите команду\n%s", collectUsage)
 	}
 	cmd := args[0]
-	if cmd != "osm" && cmd != "catastro" && cmd != "roads" && cmd != "pois" && cmd != "walk-data" && cmd != "climate" && cmd != "night-services" && cmd != "walk" && cmd != "facades" && cmd != "sea-view" && cmd != "noise" && cmd != "noise-night" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
+	if !collectCommands[cmd] {
 		return fmt.Errorf("неизвестная команда %q\n%s", cmd, collectUsage)
+	}
+	flags, err := parseToolFlags(cmd, args[1:])
+	if err != nil {
+		return err
+	}
+	if cmd == "tools" {
+		printTools()
+		return nil
 	}
 
 	cfg := LoadConfig()
@@ -57,8 +72,17 @@ func RunCollect(args []string) error {
 		return fmt.Errorf("миграции: %w", err)
 	}
 
-	store := postgres.NewGeoStore(pool)
+	region, err := postgres.NewRegionStore(pool).LoadRegion(ctx, flags.region)
+	if err != nil {
+		return err
+	}
+	opts := compute.Options{
+		Filter: domain.HotelFilter{RegionID: region.ID, HotelID: flags.hotel}, District: flags.district, Params: flags.params,
+	}
+
+	store := postgres.NewGeoStore(pool, region.ID)
 	c := &collect.Collector{
+		Region:   region,
 		Src:      overpass.NewClient(cfg.RawDataDir),
 		Catastro: catastro.NewSource(cfg.RawDataDir),
 		Store:    store,
@@ -83,14 +107,14 @@ func RunCollect(args []string) error {
 		}
 	case "climate":
 		res, err := (&compute.Climate{
-			Src: openmeteo.NewClient(cfg.RawDataDir), Store: postgres.NewClimateStore(pool), Districts: domain.Districts,
-		}).Run(ctx)
+			Src: openmeteo.NewClient(cfg.RawDataDir), Store: postgres.NewClimateStore(pool), Districts: region.Districts,
+		}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("climate_by_month рассчитан у районов: %d; лет данных о море (минимум по районам): %d\n", res.Districts, res.SeaYears)
 	case "night-services":
-		res, err := (&compute.NightServices{Store: postgres.NewNightStore(pool)}).Run(ctx)
+		res, err := (&compute.NightServices{Store: postgres.NewNightStore(pool)}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
@@ -101,7 +125,7 @@ func RunCollect(args []string) error {
 			return err
 		}
 	case "walk":
-		res, err := (&compute.Walk{Store: postgres.NewWalkStore(pool)}).Run(ctx)
+		res, err := (&compute.Walk{Store: postgres.NewWalkStore(pool)}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
@@ -114,19 +138,19 @@ func RunCollect(args []string) error {
 		}
 		fmt.Printf("фасады рассчитаны у отелей: %d\n", n)
 	case "sea-view":
-		n, err := (&compute.SeaView{Store: postgres.NewSeaViewStore(pool)}).Run(ctx)
+		n, err := (&compute.SeaView{Store: postgres.NewSeaViewStore(pool)}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("sea_view рассчитан у отелей: %d\n", n)
 	case "noise":
-		n, err := (&collect.NoiseCollector{Src: bcnnoise.NewSource(cfg.RawDataDir), Store: postgres.NewNoiseStore(pool)}).Run(ctx)
+		n, err := (&collect.NoiseCollector{Src: bcnnoise.NewSource(cfg.RawDataDir), Store: postgres.NewNoiseStore(pool, region.ID)}).Run(ctx)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("сегментов фасадного шума загружено: %d\n", n)
 	case "noise-night":
-		res, err := (&compute.NoiseNight{Store: postgres.NewNoiseStore(pool)}).Run(ctx)
+		res, err := (&compute.NoiseNight{Store: postgres.NewNoiseStore(pool, region.ID)}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
@@ -153,6 +177,85 @@ func RunCollect(args []string) error {
 	}
 	printStats(stats)
 	return nil
+}
+
+// defaultRegion — регион, с которым работает collect, если не указан -region.
+const defaultRegion = "barcelona"
+
+// collectCommands — известные команды CLI.
+var collectCommands = map[string]bool{
+	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
+	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
+	"mock-cards": true, "select-demo": true, "stats": true,
+}
+
+// toolFlags — область и параметры запуска расчётного инструмента.
+type toolFlags struct {
+	region   string
+	hotel    int64
+	district string
+	params   compute.Params
+}
+
+// paramFlag собирает повторяющиеся -param имя=значение.
+type paramFlag compute.Params
+
+func (p paramFlag) String() string { return fmt.Sprint(map[string]float64(p)) }
+
+func (p paramFlag) Set(v string) error {
+	name, val, ok := strings.Cut(v, "=")
+	if !ok || name == "" {
+		return fmt.Errorf("ожидается имя=значение, получено %q", v)
+	}
+	x, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		return fmt.Errorf("параметр %s: %q не число", name, val)
+	}
+	p[name] = x
+	return nil
+}
+
+// parseToolFlags разбирает флаги команды и проверяет, что они применимы к ней.
+func parseToolFlags(cmd string, args []string) (toolFlags, error) {
+	var f toolFlags
+	params := paramFlag{}
+	fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
+	fs.Int64Var(&f.hotel, "hotel", 0, "считать только этот отель (id из таблицы hotels)")
+	fs.StringVar(&f.district, "district", "", "считать только этот район (climate)")
+	fs.StringVar(&f.region, "region", defaultRegion, "код региона из таблицы regions")
+	fs.Var(params, "param", "параметр инструмента имя=значение, можно повторять")
+	if err := fs.Parse(args); err != nil {
+		return f, err
+	}
+	if fs.NArg() > 0 {
+		return f, fmt.Errorf("лишние аргументы: %v", fs.Args())
+	}
+	f.params = compute.Params(params)
+	var spec *compute.Spec
+	for i := range compute.Specs {
+		if compute.Specs[i].Name == cmd {
+			spec = &compute.Specs[i]
+		}
+	}
+	switch {
+	case spec == nil && (f.hotel != 0 || f.district != "" || len(params) > 0):
+		return f, fmt.Errorf("-hotel, -district и -param относятся только к расчётным инструментам (команда tools)")
+	case spec != nil && spec.Scope == compute.ScopeHotel && f.district != "":
+		return f, fmt.Errorf("%s считает по отелям: используйте -hotel, а не -district", cmd)
+	case spec != nil && spec.Scope == compute.ScopeDistrict && f.hotel != 0:
+		return f, fmt.Errorf("%s считает по районам: используйте -district, а не -hotel", cmd)
+	}
+	return f, nil
+}
+
+// printTools печатает описания инструментов и их параметры со значениями по умолчанию.
+func printTools() {
+	for _, s := range compute.Specs {
+		fmt.Printf("%s — %s\n  область: %s; характеристики: %s\n", s.Name, s.Description, s.Scope, strings.Join(s.Keys, ", "))
+		for _, p := range s.Params {
+			fmt.Printf("    -param %s=%g  (%s) %s\n", p.Name, p.Default, p.Unit, p.Description)
+		}
+	}
 }
 
 func printStats(s domain.Stats) {

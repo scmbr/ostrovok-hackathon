@@ -11,20 +11,22 @@ import (
 // NightStore — заведения рядом с отелями для night_services.
 type NightStore struct {
 	pool *pgxpool.Pool
+	evidenceWriter
 }
 
-func NewNightStore(pool *pgxpool.Pool) *NightStore { return &NightStore{pool: pool} }
+func NewNightStore(pool *pgxpool.Pool) *NightStore { return &NightStore{pool: pool, evidenceWriter: evidenceWriter{pool}} }
 
-// NightTargets возвращает все отели с заведениями в радиусе NightRadiusM (расстояние по прямой, м) и их opening_hours.
+// NightTargets возвращает отели с заведениями в радиусе radiusM (расстояние по прямой, м) и их opening_hours.
 // Отели без заведений тоже возвращаются: «ничего рядом» — тоже результат.
-func (s *NightStore) NightTargets(ctx context.Context) ([]domain.NightTarget, error) {
+func (s *NightStore) NightTargets(ctx context.Context, flt domain.HotelFilter, radiusM float64) ([]domain.NightTarget, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT h.id, COALESCE(p.osm_id, 0), COALESCE(p.kind, ''), COALESCE(p.name, ''),
        COALESCE(ST_Distance(h.geom::geography, p.geom::geography), 0), COALESCE(p.tags->>'opening_hours', '')
 FROM hotels h
 LEFT JOIN pois p ON p.geom && ST_Expand(h.geom, 0.005)
                 AND ST_DWithin(h.geom::geography, p.geom::geography, $1::float8)
-ORDER BY h.id, p.id`, domain.NightRadiusM)
+WHERE ($2::bigint = 0 OR h.region_id = $2) AND ($3::bigint = 0 OR h.id = $3)
+ORDER BY h.id, p.id`, radiusM, flt.RegionID, flt.HotelID)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +49,3 @@ ORDER BY h.id, p.id`, domain.NightRadiusM)
 	return out, rows.Err()
 }
 
-// SaveFacts заменяет активные факты и свидетельства night_services отеля.
-func (s *NightStore) SaveFacts(ctx context.Context, hotelID int64, facts []domain.Fact) error {
-	return saveFacts(ctx, s.pool, hotelID, domain.NightServicesKey, facts)
-}

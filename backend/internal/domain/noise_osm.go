@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"math"
 	"sort"
 )
@@ -61,6 +62,7 @@ type NoiseSourceRef struct {
 // OSMNoiseInput — источники вокруг одного фасада.
 type OSMNoiseInput struct {
 	AzimuthDeg float64 // нормаль фасада наружу
+	RadiusM    float64 // источники дальше не учитываются; 0 — NoiseOSMRadiusM
 	Roads      []NoiseSourceRef
 	Nightlife  []NoiseSourceRef
 }
@@ -83,12 +85,16 @@ func EstimateOSMNoise(in OSMNoiseInput) OSMNoise {
 		name string
 		db   float64
 	}
+	radius := in.RadiusM
+	if radius <= 0 {
+		radius = NoiseOSMRadiusM
+	}
 	parts := []part{{"background", NoiseBackgroundDB}}
 	out := OSMNoise{}
 	add := func(prefix string, refs []NoiseSourceRef, levels map[string]float64, slope float64, counter *int) {
 		for _, r := range refs {
 			base, ok := levels[r.Kind]
-			if !ok || r.DistM > NoiseOSMRadiusM {
+			if !ok || r.DistM > radius {
 				continue
 			}
 			d := math.Max(r.DistM, NoiseRefDistM)
@@ -138,4 +144,31 @@ func NoiseConflict(a, b string) bool {
 		d = -d
 	}
 	return d >= NoiseConflictSteps
+}
+
+// noiseConflict ищет расхождение карты BCN и оценки OSM на фасаде. Уровень отеля производный от фасада
+// и конфликта не даёт: расхождение фиксируется один раз, на самом фасаде.
+func noiseConflict(es []Evidence) *Conflict {
+	var bcn, osm *Evidence
+	for i := range es {
+		switch es[i].Source {
+		case SourceBCNNoise:
+			bcn = &es[i]
+		case SourceOSM:
+			osm = &es[i]
+		}
+	}
+	if bcn == nil || osm == nil || bcn.EntityType != EntityFacade {
+		return nil
+	}
+	bl, _ := bcn.Claimed["level"].(string)
+	ol, _ := osm.Claimed["level"].(string)
+	if !NoiseConflict(bl, ol) {
+		return nil
+	}
+	bln, _ := bcn.Claimed["ln_db"].(float64)
+	oln, _ := osm.Claimed["ln_db"].(float64)
+	dom, _ := osm.Claimed["dominant"].(string)
+	return &Conflict{Description: fmt.Sprintf(
+		"карта шума BCN: %s (Ln %.1f дБ); оценка по OSM: %s (Ln %.1f дБ, главный источник %s)", bl, bln, ol, oln, dom)}
 }

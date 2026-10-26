@@ -12,25 +12,26 @@ import (
 // SeaViewStore — пространственные выборки для sea_view и запись фактов.
 type SeaViewStore struct {
 	pool *pgxpool.Pool
+	evidenceWriter
 }
 
-func NewSeaViewStore(pool *pgxpool.Pool) *SeaViewStore { return &SeaViewStore{pool: pool} }
+func NewSeaViewStore(pool *pgxpool.Pool) *SeaViewStore { return &SeaViewStore{pool: pool, evidenceWriter: evidenceWriter{pool}} }
 
 // SeaViewTargets возвращает отели с фасадами. Этажность фасада — максимум по частям здания
 // (building_parts) в пределах FacadeDepthM от фасадной линии, центр которых лежит за стеной
 // (башня на подиуме смотрит в ту же сторону поверх подиума), иначе этажность ближайшей части;
 // у зданий без частей — этажность здания, а если её нет (высота OSM по умолчанию), высота / 3 м.
-func (s *SeaViewStore) SeaViewTargets(ctx context.Context) ([]domain.SeaViewTarget, error) {
+func (s *SeaViewStore) SeaViewTargets(ctx context.Context, flt domain.HotelFilter) ([]domain.SeaViewTarget, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT h.id, b.id,
        COALESCE(
          (SELECT max(q.floors) FROM (
-            SELECT p.floors, ST_Centroid(ST_Transform(p.geom, 25831)) AS c
+            SELECT p.floors, ST_Centroid(ST_Transform(p.geom, ` + domain.MetricSRID + `)) AS c
             FROM building_parts p
             WHERE p.building_id = b.id
-              AND ST_DWithin(ST_Transform(p.geom, 25831), ST_Transform(f.geom, 25831), $2::float8)) q
-          WHERE (ST_X(q.c) - ST_X(ST_Transform(m.pt, 25831))) * sin(radians(f.azimuth_deg::float8))
-              + (ST_Y(q.c) - ST_Y(ST_Transform(m.pt, 25831))) * cos(radians(f.azimuth_deg::float8)) <= 0),
+              AND ST_DWithin(ST_Transform(p.geom, ` + domain.MetricSRID + `), ST_Transform(f.geom, ` + domain.MetricSRID + `), $2::float8)) q
+          WHERE (ST_X(q.c) - ST_X(ST_Transform(m.pt, ` + domain.MetricSRID + `))) * sin(radians(f.azimuth_deg::float8))
+              + (ST_Y(q.c) - ST_Y(ST_Transform(m.pt, ` + domain.MetricSRID + `))) * cos(radians(f.azimuth_deg::float8)) <= 0),
          (SELECT p.floors FROM building_parts p WHERE p.building_id = b.id ORDER BY p.geom <-> m.pt LIMIT 1),
          b.levels, GREATEST(1, ceil(COALESCE(b.height_m, 15) / $1::float8)::int)),
        f.id, ST_X(m.pt), ST_Y(m.pt), f.azimuth_deg
@@ -38,7 +39,8 @@ FROM hotels h
 JOIN buildings b ON b.id = h.building_id
 JOIN facades f ON f.hotel_id = h.id
 CROSS JOIN LATERAL (SELECT ST_LineInterpolatePoint(f.geom, 0.5) AS pt) m
-ORDER BY h.id, f.id`, domain.FloorHeightM, domain.FacadeDepthM)
+WHERE ($3::bigint = 0 OR h.region_id = $3) AND ($4::bigint = 0 OR h.id = $4)
+ORDER BY h.id, f.id`, domain.FloorHeightM, domain.FacadeDepthM, flt.RegionID, flt.HotelID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +66,7 @@ ORDER BY h.id, f.id`, domain.FloorHeightM, domain.FacadeDepthM)
 // с суши в воду (вода справа от направления линии OSM), и здания на пути до берега.
 // Препятствия: части зданий кадастра с разной этажностью, здания кадастра без частей и здания OSM,
 // не продублированные кадастром (shadowed). Здание самого отеля тоже учитывается.
-func (s *SeaViewStore) SeaRays(ctx context.Context, rays []domain.RayQuery) ([]domain.SeaRay, error) {
+func (s *SeaViewStore) SeaRays(ctx context.Context, rays []domain.RayQuery, rayMaxM float64) ([]domain.SeaRay, error) {
 	lon := make([]float64, len(rays))
 	lat := make([]float64, len(rays))
 	az := make([]float64, len(rays))
@@ -74,7 +76,7 @@ func (s *SeaViewStore) SeaRays(ctx context.Context, rays []domain.RayQuery) ([]d
 	rows, err := s.pool.Query(ctx, `
 WITH q AS (
   SELECT (x.ord - 1)::int AS i,
-         ST_Transform(ST_SetSRID(ST_MakePoint(x.lon, x.lat), 4326), 25831) AS o,
+         ST_Transform(ST_SetSRID(ST_MakePoint(x.lon, x.lat), 4326), ` + domain.MetricSRID + `) AS o,
          radians(x.az) AS a
   FROM unnest($1::float8[], $2::float8[], $3::float8[]) WITH ORDINALITY AS x(lon, lat, az, ord)
 ),
@@ -89,7 +91,7 @@ cc AS (
   JOIN sea s ON s.geom && ST_Transform(ST_Expand(r.line, 1), 4326)
   CROSS JOIN LATERAL (
     SELECT t.sg, (ST_Dump(ST_CollectionExtract(ST_Intersection(r.line, t.sg), 1))).geom AS pt
-    FROM (SELECT ST_Transform(s.geom, 25831) AS sg) t
+    FROM (SELECT ST_Transform(s.geom, ` + domain.MetricSRID + `) AS sg) t
   ) cp
 ),
 c AS (
@@ -108,18 +110,18 @@ LEFT JOIN c ON c.i = r.i
 LEFT JOIN LATERAL (
   SELECT u.bid, u.h, u.hs, ST_Distance(r.o, ST_Intersection(r.line, ST_MakeValid(u.g))) AS d
   FROM (
-    SELECT p.building_id AS bid, p.height_m AS h, $6::text AS hs, ST_Transform(p.geom, 25831) AS g
+    SELECT p.building_id AS bid, p.height_m AS h, $6::text AS hs, ST_Transform(p.geom, ` + domain.MetricSRID + `) AS g
     FROM building_parts p
-    WHERE c.d IS NOT NULL AND ST_Intersects(ST_Transform(p.geom, 25831), r.line)
+    WHERE c.d IS NOT NULL AND ST_Intersects(ST_Transform(p.geom, ` + domain.MetricSRID + `), r.line)
     UNION ALL
-    SELECT b.id, COALESCE(b.height_m, $5::float8), b.height_source, ST_Transform(b.geom, 25831)
+    SELECT b.id, COALESCE(b.height_m, $5::float8), b.height_source, ST_Transform(b.geom, ` + domain.MetricSRID + `)
     FROM buildings b
     WHERE c.d IS NOT NULL AND NOT b.shadowed
       AND (b.osm_id IS NOT NULL OR NOT EXISTS (SELECT 1 FROM building_parts p WHERE p.building_id = b.id))
-      AND ST_Intersects(ST_Transform(b.geom, 25831), r.line)
+      AND ST_Intersects(ST_Transform(b.geom, ` + domain.MetricSRID + `), r.line)
   ) u
 ) ob ON ob.d < c.d
-ORDER BY r.i, ob.d`, lon, lat, az, domain.SeaRayMaxM, domain.DefaultHeightM, domain.HeightCatastro)
+ORDER BY r.i, ob.d`, lon, lat, az, rayMaxM, domain.DefaultHeightM, domain.HeightCatastro)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +151,3 @@ ORDER BY r.i, ob.d`, lon, lat, az, domain.SeaRayMaxM, domain.DefaultHeightM, dom
 	return out, rows.Err()
 }
 
-// SaveFacts заменяет активные факты и свидетельства sea_view отеля и его фасадов.
-func (s *SeaViewStore) SaveFacts(ctx context.Context, hotelID int64, facts []domain.Fact) error {
-	return saveFacts(ctx, s.pool, hotelID, domain.SeaViewKey, facts)
-}

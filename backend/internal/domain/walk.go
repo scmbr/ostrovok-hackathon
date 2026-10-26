@@ -145,7 +145,10 @@ type WalkRoute struct {
 }
 
 // Minutes — время в пути, округлённое вверх до целых минут.
-func (r WalkRoute) Minutes() int { return int(math.Ceil(r.DistM / WalkSpeedMPerMin)) }
+func (r WalkRoute) Minutes() int { return r.MinutesAt(WalkSpeedMPerMin) }
+
+// MinutesAt — время маршрута в минутах (с округлением вверх) при скорости speedMPerMin.
+func (r WalkRoute) MinutesAt(speedMPerMin float64) int { return int(math.Ceil(r.DistM / speedMPerMin)) }
 
 // WalkGraph — неориентированный граф пешеходных рёбер для Дейкстры.
 type WalkGraph struct {

@@ -13,37 +13,41 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 )
 
-// GeoStore сохраняет собранные геоданные, отели и моки карточек.
+// GeoStore сохраняет собранные геоданные, отели и моки карточек одного региона:
+// Replace* заменяют строки только этого региона, остальные вставки помечают строки его region_id.
 type GeoStore struct {
-	pool *pgxpool.Pool
+	pool     *pgxpool.Pool
+	regionID int64
 }
 
-func NewGeoStore(pool *pgxpool.Pool) *GeoStore { return &GeoStore{pool: pool} }
+func NewGeoStore(pool *pgxpool.Pool, regionID int64) *GeoStore {
+	return &GeoStore{pool: pool, regionID: regionID}
+}
 
 // UpsertBuildings вставляет или обновляет здания по osm_id.
 func (s *GeoStore) UpsertBuildings(ctx context.Context, buildings []domain.Building) error {
 	const q = `
-INSERT INTO buildings (osm_id, geom, levels, height_m, height_source)
-VALUES ($1, ST_Multi(ST_GeomFromText($2, 4326)), $3, $4, $5)
+INSERT INTO buildings (osm_id, geom, levels, height_m, height_source, region_id)
+VALUES ($1, ST_Multi(ST_GeomFromText($2, 4326)), $3, $4, $5, $6)
 ON CONFLICT (osm_id) DO UPDATE
 SET geom = EXCLUDED.geom, levels = EXCLUDED.levels,
     height_m = EXCLUDED.height_m, height_source = EXCLUDED.height_source`
 	return s.batch(ctx, len(buildings), func(b *pgx.Batch, i int) {
 		bl := buildings[i]
-		b.Queue(q, bl.OSMID, wkt.MarshalString(bl.Geom), bl.Levels, bl.HeightM, bl.HeightSource)
+		b.Queue(q, bl.OSMID, wkt.MarshalString(bl.Geom), bl.Levels, bl.HeightM, bl.HeightSource, s.regionID)
 	})
 }
 
 // UpsertHotels сохраняет отели. Здания привязывает LinkHotels. Мок карточки не затирается.
 func (s *GeoStore) UpsertHotels(ctx context.Context, hotels []domain.Hotel) error {
 	const q = `
-INSERT INTO hotels (osm_id, name, geom, district)
-VALUES ($1, $2, ST_SetSRID(ST_MakePoint($3, $4), 4326), $5)
+INSERT INTO hotels (osm_id, name, geom, district, region_id)
+VALUES ($1, $2, ST_SetSRID(ST_MakePoint($3, $4), 4326), $5, $6)
 ON CONFLICT (osm_id) DO UPDATE
 SET name = EXCLUDED.name, geom = EXCLUDED.geom, district = EXCLUDED.district`
 	return s.batch(ctx, len(hotels), func(b *pgx.Batch, i int) {
 		h := hotels[i]
-		b.Queue(q, h.StoreID(), h.Name, h.Point[0], h.Point[1], h.District)
+		b.Queue(q, h.StoreID(), h.Name, h.Point[0], h.Point[1], h.District, s.regionID)
 	})
 }
 
@@ -51,35 +55,35 @@ SET name = EXCLUDED.name, geom = EXCLUDED.geom, district = EXCLUDED.district`
 // Контуры приходят в EPSG:25831 и переводятся в 4326 в PostGIS.
 func (s *GeoStore) UpsertCatastroBuildings(ctx context.Context, buildings []domain.Building) error {
 	const q = `
-INSERT INTO buildings (catastro_ref, geom, levels, height_m, height_source)
-VALUES ($1, ST_Multi(ST_Transform(ST_GeomFromText($2, 25831), 4326)), $3, $4, $5)
+INSERT INTO buildings (catastro_ref, geom, levels, height_m, height_source, region_id)
+VALUES ($1, ST_Multi(ST_Transform(ST_GeomFromText($2, ` + domain.MetricSRID + `), 4326)), $3, $4, $5, $6)
 ON CONFLICT (catastro_ref) WHERE catastro_ref IS NOT NULL DO UPDATE
 SET geom = EXCLUDED.geom, levels = EXCLUDED.levels,
     height_m = EXCLUDED.height_m, height_source = EXCLUDED.height_source`
 	return s.batch(ctx, len(buildings), func(b *pgx.Batch, i int) {
 		bl := buildings[i]
-		b.Queue(q, bl.CatastroRef, wkt.MarshalString(bl.Geom), bl.Levels, bl.HeightM, bl.HeightSource)
+		b.Queue(q, bl.CatastroRef, wkt.MarshalString(bl.Geom), bl.Levels, bl.HeightM, bl.HeightSource, s.regionID)
 	})
 }
 
 // ReplaceBuildingParts заменяет части зданий кадастра целиком; части привязываются к зданиям по catastro_ref.
 func (s *GeoStore) ReplaceBuildingParts(ctx context.Context, buildings []domain.Building) error {
 	const q = `
-INSERT INTO building_parts (building_id, geom, floors, height_m)
-SELECT b.id, ST_Multi(ST_Transform(ST_GeomFromText($2, 25831), 4326)), $3, $4
+INSERT INTO building_parts (building_id, geom, floors, height_m, region_id)
+SELECT b.id, ST_Multi(ST_Transform(ST_GeomFromText($2, ` + domain.MetricSRID + `), 4326)), $3, $4, $5
 FROM buildings b WHERE b.catastro_ref = $1`
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
-	if _, err := tx.Exec(ctx, `DELETE FROM building_parts`); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM building_parts WHERE region_id = $1`, s.regionID); err != nil {
 		return err
 	}
 	b := &pgx.Batch{}
 	for _, bl := range buildings {
 		for _, p := range bl.Parts {
-			b.Queue(q, bl.CatastroRef, wkt.MarshalString(p.Geom), p.Floors, p.HeightM)
+			b.Queue(q, bl.CatastroRef, wkt.MarshalString(p.Geom), p.Floors, p.HeightM, s.regionID)
 		}
 	}
 	br := tx.SendBatch(ctx, b)
@@ -103,7 +107,7 @@ UPDATE buildings o SET shadowed = EXISTS (
   SELECT 1 FROM buildings c
   WHERE c.catastro_ref IS NOT NULL AND c.geom && o.geom AND ST_Intersects(c.geom, o.geom)
     AND ST_Area(ST_Intersection(ST_MakeValid(c.geom), ST_MakeValid(o.geom))) > 0.5 * ST_Area(o.geom))
-WHERE o.osm_id IS NOT NULL`)
+WHERE o.osm_id IS NOT NULL AND o.region_id = $1`, s.regionID)
 	return err
 }
 
@@ -129,7 +133,7 @@ LEFT JOIN LATERAL (
     AND (ST_Contains(b.geom, h2.geom) OR ST_DWithin(b.geom::geography, h2.geom::geography, $1))
   ORDER BY ST_Contains(b.geom, h2.geom) DESC, b.geom <-> h2.geom LIMIT 1
 ) c ON true
-WHERE h.id = h2.id`, catastroSnapM)
+WHERE h.id = h2.id AND h.region_id = $2`, catastroSnapM, s.regionID)
 	return err
 }
 
@@ -140,11 +144,11 @@ func (s *GeoStore) ReplaceSea(ctx context.Context, lines []orb.LineString) error
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
-	if _, err := tx.Exec(ctx, `DELETE FROM sea`); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM sea WHERE region_id = $1`, s.regionID); err != nil {
 		return err
 	}
 	for _, l := range lines {
-		if _, err := tx.Exec(ctx, `INSERT INTO sea (geom) VALUES (ST_GeomFromText($1, 4326))`, wkt.MarshalString(l)); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO sea (geom, region_id) VALUES (ST_GeomFromText($1, 4326), $2)`, wkt.MarshalString(l), s.regionID); err != nil {
 			return err
 		}
 	}
@@ -154,11 +158,11 @@ func (s *GeoStore) ReplaceSea(ctx context.Context, lines []orb.LineString) error
 // ReplaceRoads заменяет дороги целиком; сохраняются только лежащие не дальше RoadsRadiusM от какого-либо отеля.
 func (s *GeoStore) ReplaceRoads(ctx context.Context, roads []domain.Road) error {
 	const q = `
-INSERT INTO roads (osm_id, highway, name, geom)
-SELECT $1, $2, NULLIF($3, ''), t.g
+INSERT INTO roads (osm_id, highway, name, geom, region_id)
+SELECT $1, $2, NULLIF($3, ''), t.g, $6::bigint
 FROM (SELECT ST_GeomFromText($4, 4326) AS g) t
 WHERE EXISTS (SELECT 1 FROM hotels h
-              WHERE h.geom && ST_Expand(t.g, 0.005)
+              WHERE h.region_id = $6::bigint AND h.geom && ST_Expand(t.g, 0.005)
                 AND ST_DWithin(h.geom::geography, t.g::geography, $5))
 ON CONFLICT (osm_id) DO NOTHING`
 	tx, err := s.pool.Begin(ctx)
@@ -166,12 +170,12 @@ ON CONFLICT (osm_id) DO NOTHING`
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
-	if _, err := tx.Exec(ctx, `DELETE FROM roads`); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM roads WHERE region_id = $1`, s.regionID); err != nil {
 		return err
 	}
 	b := &pgx.Batch{}
 	for _, r := range roads {
-		b.Queue(q, r.OSMID, r.Highway, r.Name, wkt.MarshalString(r.Geom), domain.RoadsRadiusM)
+		b.Queue(q, r.OSMID, r.Highway, r.Name, wkt.MarshalString(r.Geom), domain.RoadsRadiusM, s.regionID)
 	}
 	br := tx.SendBatch(ctx, b)
 	for i := 0; i < len(roads); i++ {
@@ -189,18 +193,18 @@ ON CONFLICT (osm_id) DO NOTHING`
 // ReplacePois заменяет POI; остаются только лежащие не дальше PoisRadiusM от отелей.
 func (s *GeoStore) ReplacePois(ctx context.Context, pois []domain.Poi) error {
 	const q = `
-INSERT INTO pois (osm_id, kind, name, geom, tags)
-SELECT $1, $2, NULLIF($3, ''), t.g, $5::jsonb
+INSERT INTO pois (osm_id, kind, name, geom, tags, region_id)
+SELECT $1, $2, NULLIF($3, ''), t.g, $5::jsonb, $8::bigint
 FROM (SELECT ST_SetSRID(ST_MakePoint($4::float8, $6::float8), 4326) AS g) t
 WHERE EXISTS (SELECT 1 FROM hotels h
-              WHERE h.geom && ST_Expand(t.g, 0.005)
+              WHERE h.region_id = $8::bigint AND h.geom && ST_Expand(t.g, 0.005)
                 AND ST_DWithin(h.geom::geography, t.g::geography, $7))`
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
-	if _, err := tx.Exec(ctx, `DELETE FROM pois`); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM pois WHERE region_id = $1`, s.regionID); err != nil {
 		return err
 	}
 	b := &pgx.Batch{}
@@ -209,7 +213,7 @@ WHERE EXISTS (SELECT 1 FROM hotels h
 		if err != nil {
 			return err
 		}
-		b.Queue(q, p.OSMID, p.Kind, p.Name, p.Point[0], tags, p.Point[1], domain.PoisRadiusM)
+		b.Queue(q, p.OSMID, p.Kind, p.Name, p.Point[0], tags, p.Point[1], domain.PoisRadiusM, s.regionID)
 	}
 	br := tx.SendBatch(ctx, b)
 	for i := range pois {

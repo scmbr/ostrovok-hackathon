@@ -41,3 +41,11 @@ func (e Evidence) Contribution() float64 {
 	r := math.Min(math.Max(e.Reliability, MinReliability), MaxReliability)
 	return math.Log(r / (1 - r))
 }
+
+// Author — автор свидетельств: инструмент (type tool, id — метод) или человек.
+type Author struct {
+	Type, ID string
+}
+
+// ToolAuthor — автор-инструмент с методом method.
+func ToolAuthor(method string) Author { return Author{Type: AuthorTool, ID: method} }
