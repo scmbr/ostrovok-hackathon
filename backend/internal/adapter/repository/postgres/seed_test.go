@@ -56,22 +56,3 @@ func TestParseDumpTruncated(t *testing.T) {
 		t.Error("ожидалась ошибка для оборванного COPY")
 	}
 }
-
-func TestDropRetiredColumns(t *testing.T) {
-	old := dumpItem{
-		SQL: "COPY public.room_categories (id, hotel_id, name, facade_ids) FROM stdin", IsCopy: true,
-		Data: "1\t5\tStandard\t{}\n2\t5\tSuite\t{}\n",
-	}
-	got := dropRetiredColumns(old)
-	if got.SQL != "COPY public.room_categories (id, hotel_id, name) FROM stdin" || got.Data != "1\t5\tStandard\n2\t5\tSuite\n" {
-		t.Errorf("COPY после вырезания колонки: %q / %q", got.SQL, got.Data)
-	}
-	same := dumpItem{SQL: "COPY public.hotels (id, name) FROM stdin", IsCopy: true, Data: "1\tx\n"}
-	if dropRetiredColumns(same) != same {
-		t.Error("другие таблицы не должны меняться")
-	}
-	cur := dumpItem{SQL: "COPY public.room_categories (id, hotel_id, name, rooms_count) FROM stdin", IsCopy: true, Data: "1\t5\tStandard\t30\n"}
-	if dropRetiredColumns(cur) != cur {
-		t.Error("сид новой схемы не должен меняться")
-	}
-}

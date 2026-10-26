@@ -10,7 +10,6 @@ import (
 	"io/fs"
 	"log"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -104,7 +103,6 @@ func LoadSeed(ctx context.Context, pool *pgxpool.Pool, path string) (bool, error
 
 	rows := 0
 	err = parseDump(zr, func(it dumpItem) error {
-		it = dropRetiredColumns(it)
 		if it.IsCopy {
 			tag, err := tx.Conn().PgConn().CopyFrom(ctx, strings.NewReader(it.Data), it.SQL+";")
 			if err != nil {
@@ -131,61 +129,4 @@ func LoadSeed(ctx context.Context, pool *pgxpool.Pool, path string) (bool, error
 	}
 	log.Printf("сид загружен: %s, строк: %d", path, rows)
 	return true, nil
-}
-
-// retiredColumns — колонки, удалённые миграциями после сборки сида. Сид пересобирается в конце этапа,
-// до тех пор старый дамп должен загружаться в новую схему: колонка вырезается из заголовка COPY и строк.
-// Удалить запись вместе с пересборкой сида.
-var retiredColumns = map[string][]string{
-	"public.room_categories": {"facade_ids"}, // миграция 0015: заменена room_placements
-}
-
-// dropRetiredColumns вырезает удалённые колонки из блока COPY.
-func dropRetiredColumns(it dumpItem) dumpItem {
-	if !it.IsCopy {
-		return it
-	}
-	rest, ok := strings.CutPrefix(it.SQL, "COPY ")
-	if !ok {
-		return it
-	}
-	table, cols, ok := strings.Cut(rest, " (")
-	retired := retiredColumns[table]
-	if !ok || len(retired) == 0 {
-		return it
-	}
-	cols, tail, ok := strings.Cut(cols, ")")
-	if !ok {
-		return it
-	}
-	names := strings.Split(cols, ", ")
-	var keep []int
-	for i, n := range names {
-		if !slices.Contains(retired, n) {
-			keep = append(keep, i)
-		}
-	}
-	if len(keep) == len(names) {
-		return it
-	}
-	pick := func(fields []string) []string {
-		out := make([]string, 0, len(keep))
-		for _, i := range keep {
-			out = append(out, fields[i])
-		}
-		return out
-	}
-	header := pick(names)
-	var data strings.Builder
-	for _, line := range strings.SplitAfter(it.Data, "\n") {
-		if line == "" {
-			continue
-		}
-		body := strings.TrimSuffix(line, "\n")
-		data.WriteString(strings.Join(pick(strings.Split(body, "\t")), "\t"))
-		if strings.HasSuffix(line, "\n") {
-			data.WriteString("\n")
-		}
-	}
-	return dumpItem{SQL: "COPY " + table + " (" + strings.Join(header, ", ") + ")" + tail, IsCopy: true, Data: data.String()}
 }
