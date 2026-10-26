@@ -17,7 +17,7 @@ type walkFake struct {
 	recorder
 }
 
-func (s *walkFake) LoadWalkEdges(context.Context) ([]domain.WalkEdge, error) {
+func (s *walkFake) LoadWalkEdges(context.Context, int64) ([]domain.WalkEdge, error) {
 	return []domain.WalkEdge{
 		{ID: 1, Source: 1, Target: 2, LengthM: 100},
 		{ID: 2, Source: 2, Target: 3, LengthM: 100},
@@ -33,7 +33,7 @@ func (s *walkFake) HotelPoints(context.Context, domain.HotelFilter) ([]domain.Ho
 	}, nil
 }
 
-func (s *walkFake) Destinations(_ context.Context, kind string) ([]domain.Destination, error) {
+func (s *walkFake) Destinations(_ context.Context, _ int64, kind string) ([]domain.Destination, error) {
 	if kind == domain.DestMetro {
 		return []domain.Destination{{OSMID: 500, Kind: kind, Name: "Jaume I", Point: orb.Point{2.175, 41.38}}}, nil
 	}

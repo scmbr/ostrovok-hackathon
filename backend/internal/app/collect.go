@@ -20,7 +20,7 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/compute"
 )
 
-const collectUsage = `использование: collect <команда> [-hotel ID] [-district ИМЯ] [-param имя=значение ...]
+const collectUsage = `использование: collect <команда> [-region КОД] [-hotel ID] [-district ИМЯ] [-param имя=значение ...]
   -hotel и -param работают у расчётов по отелям, -district — у climate; список параметров и значений по умолчанию — команда tools
 
 команды:
@@ -58,7 +58,6 @@ func RunCollect(args []string) error {
 		printTools()
 		return nil
 	}
-	opts := compute.Options{Filter: domain.HotelFilter{HotelID: flags.hotel}, District: flags.district, Params: flags.params}
 
 	cfg := LoadConfig()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -73,8 +72,17 @@ func RunCollect(args []string) error {
 		return fmt.Errorf("миграции: %w", err)
 	}
 
-	store := postgres.NewGeoStore(pool)
+	region, err := postgres.NewRegionStore(pool).LoadRegion(ctx, flags.region)
+	if err != nil {
+		return err
+	}
+	opts := compute.Options{
+		Filter: domain.HotelFilter{RegionID: region.ID, HotelID: flags.hotel}, District: flags.district, Params: flags.params,
+	}
+
+	store := postgres.NewGeoStore(pool, region.ID)
 	c := &collect.Collector{
+		Region:   region,
 		Src:      overpass.NewClient(cfg.RawDataDir),
 		Catastro: catastro.NewSource(cfg.RawDataDir),
 		Store:    store,
@@ -99,7 +107,7 @@ func RunCollect(args []string) error {
 		}
 	case "climate":
 		res, err := (&compute.Climate{
-			Src: openmeteo.NewClient(cfg.RawDataDir), Store: postgres.NewClimateStore(pool), Districts: domain.Districts,
+			Src: openmeteo.NewClient(cfg.RawDataDir), Store: postgres.NewClimateStore(pool), Districts: region.Districts,
 		}).Run(ctx, opts)
 		if err != nil {
 			return err
@@ -136,13 +144,13 @@ func RunCollect(args []string) error {
 		}
 		fmt.Printf("sea_view рассчитан у отелей: %d\n", n)
 	case "noise":
-		n, err := (&collect.NoiseCollector{Src: bcnnoise.NewSource(cfg.RawDataDir), Store: postgres.NewNoiseStore(pool)}).Run(ctx)
+		n, err := (&collect.NoiseCollector{Src: bcnnoise.NewSource(cfg.RawDataDir), Store: postgres.NewNoiseStore(pool, region.ID)}).Run(ctx)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("сегментов фасадного шума загружено: %d\n", n)
 	case "noise-night":
-		res, err := (&compute.NoiseNight{Store: postgres.NewNoiseStore(pool)}).Run(ctx, opts)
+		res, err := (&compute.NoiseNight{Store: postgres.NewNoiseStore(pool, region.ID)}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
@@ -171,6 +179,9 @@ func RunCollect(args []string) error {
 	return nil
 }
 
+// defaultRegion — регион, с которым работает collect, если не указан -region.
+const defaultRegion = "barcelona"
+
 // collectCommands — известные команды CLI.
 var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
@@ -180,6 +191,7 @@ var collectCommands = map[string]bool{
 
 // toolFlags — область и параметры запуска расчётного инструмента.
 type toolFlags struct {
+	region   string
 	hotel    int64
 	district string
 	params   compute.Params
@@ -210,6 +222,7 @@ func parseToolFlags(cmd string, args []string) (toolFlags, error) {
 	fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
 	fs.Int64Var(&f.hotel, "hotel", 0, "считать только этот отель (id из таблицы hotels)")
 	fs.StringVar(&f.district, "district", "", "считать только этот район (climate)")
+	fs.StringVar(&f.region, "region", defaultRegion, "код региона из таблицы regions")
 	fs.Var(params, "param", "параметр инструмента имя=значение, можно повторять")
 	if err := fs.Parse(args); err != nil {
 		return f, err

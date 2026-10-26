@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/paulmach/orb"
+
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 )
 
 const hotelsJSON = `{"elements":[
@@ -15,12 +17,18 @@ const hotelsJSON = `{"elements":[
  {"type":"node","id":5,"lat":41.30,"lon":2.10,"tags":{"tourism":"hotel","name":"Far"}}
 ]}`
 
+// testRegion — два района Барселоны из миграции 0012.
+var testRegion = domain.Region{Code: "barcelona", Districts: []domain.District{
+	{Name: "barceloneta", BBox: domain.BBox{South: 41.3577, West: 2.1824, North: 41.3879, East: 2.1996}},
+	{Name: "gothic", BBox: domain.BBox{South: 41.379, West: 2.170, North: 41.388, East: 2.182}},
+}}
+
 func TestParseHotels(t *testing.T) {
 	els, err := decode([]byte(hotelsJSON))
 	if err != nil {
 		t.Fatal(err)
 	}
-	hotels := parseHotels(els)
+	hotels := parseHotels(els, testRegion)
 	if len(hotels) != 2 {
 		t.Fatalf("got %d hotels, want 2: %+v", len(hotels), hotels)
 	}

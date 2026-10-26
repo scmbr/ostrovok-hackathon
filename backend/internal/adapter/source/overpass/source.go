@@ -55,10 +55,10 @@ func decode(body []byte) ([]element, error) {
 
 // Hotels возвращает отели (tourism=hotel) внутри заданных районов.
 // Отели без названия и отели-relation пропускаются.
-func (c *Client) Hotels(ctx context.Context, districts []domain.District) ([]domain.Hotel, error) {
+func (c *Client) Hotels(ctx context.Context, region domain.Region) ([]domain.Hotel, error) {
 	var sb strings.Builder
 	sb.WriteString("[out:json][timeout:90];(")
-	for _, d := range districts {
+	for _, d := range region.Districts {
 		fmt.Fprintf(&sb, `nwr["tourism"="hotel"]%s;`, bboxQL(d.BBox))
 	}
 	sb.WriteString(");out center tags;")
@@ -70,15 +70,15 @@ func (c *Client) Hotels(ctx context.Context, districts []domain.District) ([]dom
 	if err != nil {
 		return nil, err
 	}
-	return parseHotels(els), nil
+	return parseHotels(els, region), nil
 }
 
-func parseHotels(els []element) []domain.Hotel {
+func parseHotels(els []element, region domain.Region) []domain.Hotel {
 	var hotels []domain.Hotel
 	seen := map[int64]bool{}
 	skipped := 0
 	for _, e := range els {
-		h, ok := hotelFrom(e)
+		h, ok := hotelFrom(e, region)
 		if !ok || seen[h.StoreID()] {
 			skipped++
 			continue
@@ -92,7 +92,7 @@ func parseHotels(els []element) []domain.Hotel {
 	return hotels
 }
 
-func hotelFrom(e element) (domain.Hotel, bool) {
+func hotelFrom(e element, region domain.Region) (domain.Hotel, bool) {
 	name := e.Tags["name"]
 	if name == "" || (e.Type != "node" && e.Type != "way") {
 		return domain.Hotel{}, false
@@ -106,7 +106,7 @@ func hotelFrom(e element) (domain.Hotel, bool) {
 	default:
 		return domain.Hotel{}, false
 	}
-	district := domain.DistrictOf(p)
+	district := region.DistrictOf(p)
 	if district == "" {
 		return domain.Hotel{}, false
 	}

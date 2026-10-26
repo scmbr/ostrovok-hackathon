@@ -26,12 +26,12 @@ func (s *SeaViewStore) SeaViewTargets(ctx context.Context, flt domain.HotelFilte
 SELECT h.id, b.id,
        COALESCE(
          (SELECT max(q.floors) FROM (
-            SELECT p.floors, ST_Centroid(ST_Transform(p.geom, 25831)) AS c
+            SELECT p.floors, ST_Centroid(ST_Transform(p.geom, ` + domain.MetricSRID + `)) AS c
             FROM building_parts p
             WHERE p.building_id = b.id
-              AND ST_DWithin(ST_Transform(p.geom, 25831), ST_Transform(f.geom, 25831), $2::float8)) q
-          WHERE (ST_X(q.c) - ST_X(ST_Transform(m.pt, 25831))) * sin(radians(f.azimuth_deg::float8))
-              + (ST_Y(q.c) - ST_Y(ST_Transform(m.pt, 25831))) * cos(radians(f.azimuth_deg::float8)) <= 0),
+              AND ST_DWithin(ST_Transform(p.geom, ` + domain.MetricSRID + `), ST_Transform(f.geom, ` + domain.MetricSRID + `), $2::float8)) q
+          WHERE (ST_X(q.c) - ST_X(ST_Transform(m.pt, ` + domain.MetricSRID + `))) * sin(radians(f.azimuth_deg::float8))
+              + (ST_Y(q.c) - ST_Y(ST_Transform(m.pt, ` + domain.MetricSRID + `))) * cos(radians(f.azimuth_deg::float8)) <= 0),
          (SELECT p.floors FROM building_parts p WHERE p.building_id = b.id ORDER BY p.geom <-> m.pt LIMIT 1),
          b.levels, GREATEST(1, ceil(COALESCE(b.height_m, 15) / $1::float8)::int)),
        f.id, ST_X(m.pt), ST_Y(m.pt), f.azimuth_deg
@@ -76,7 +76,7 @@ func (s *SeaViewStore) SeaRays(ctx context.Context, rays []domain.RayQuery, rayM
 	rows, err := s.pool.Query(ctx, `
 WITH q AS (
   SELECT (x.ord - 1)::int AS i,
-         ST_Transform(ST_SetSRID(ST_MakePoint(x.lon, x.lat), 4326), 25831) AS o,
+         ST_Transform(ST_SetSRID(ST_MakePoint(x.lon, x.lat), 4326), ` + domain.MetricSRID + `) AS o,
          radians(x.az) AS a
   FROM unnest($1::float8[], $2::float8[], $3::float8[]) WITH ORDINALITY AS x(lon, lat, az, ord)
 ),
@@ -91,7 +91,7 @@ cc AS (
   JOIN sea s ON s.geom && ST_Transform(ST_Expand(r.line, 1), 4326)
   CROSS JOIN LATERAL (
     SELECT t.sg, (ST_Dump(ST_CollectionExtract(ST_Intersection(r.line, t.sg), 1))).geom AS pt
-    FROM (SELECT ST_Transform(s.geom, 25831) AS sg) t
+    FROM (SELECT ST_Transform(s.geom, ` + domain.MetricSRID + `) AS sg) t
   ) cp
 ),
 c AS (
@@ -110,15 +110,15 @@ LEFT JOIN c ON c.i = r.i
 LEFT JOIN LATERAL (
   SELECT u.bid, u.h, u.hs, ST_Distance(r.o, ST_Intersection(r.line, ST_MakeValid(u.g))) AS d
   FROM (
-    SELECT p.building_id AS bid, p.height_m AS h, $6::text AS hs, ST_Transform(p.geom, 25831) AS g
+    SELECT p.building_id AS bid, p.height_m AS h, $6::text AS hs, ST_Transform(p.geom, ` + domain.MetricSRID + `) AS g
     FROM building_parts p
-    WHERE c.d IS NOT NULL AND ST_Intersects(ST_Transform(p.geom, 25831), r.line)
+    WHERE c.d IS NOT NULL AND ST_Intersects(ST_Transform(p.geom, ` + domain.MetricSRID + `), r.line)
     UNION ALL
-    SELECT b.id, COALESCE(b.height_m, $5::float8), b.height_source, ST_Transform(b.geom, 25831)
+    SELECT b.id, COALESCE(b.height_m, $5::float8), b.height_source, ST_Transform(b.geom, ` + domain.MetricSRID + `)
     FROM buildings b
     WHERE c.d IS NOT NULL AND NOT b.shadowed
       AND (b.osm_id IS NOT NULL OR NOT EXISTS (SELECT 1 FROM building_parts p WHERE p.building_id = b.id))
-      AND ST_Intersects(ST_Transform(b.geom, 25831), r.line)
+      AND ST_Intersects(ST_Transform(b.geom, ` + domain.MetricSRID + `), r.line)
   ) u
 ) ob ON ob.d < c.d
 ORDER BY r.i, ob.d`, lon, lat, az, rayMaxM, domain.DefaultHeightM, domain.HeightCatastro)

@@ -20,9 +20,9 @@ const maxPathPoints = 150
 
 // WalkStore — хранилище для расчёта пеших маршрутов.
 type WalkStore interface {
-	LoadWalkEdges(ctx context.Context) ([]domain.WalkEdge, error)
+	LoadWalkEdges(ctx context.Context, regionID int64) ([]domain.WalkEdge, error)
 	HotelPoints(ctx context.Context, flt domain.HotelFilter) ([]domain.HotelPoint, error)
-	Destinations(ctx context.Context, kind string) ([]domain.Destination, error)
+	Destinations(ctx context.Context, regionID int64, kind string) ([]domain.Destination, error)
 	// SnapPoints привязывает точки к ближайшему ребру графа; ok[i] = false, если рядом нет рёбер.
 	SnapPoints(ctx context.Context, points []orb.Point, maxM float64) (snaps []domain.WalkSnap, ok []bool, err error)
 	EdgeGeoms(ctx context.Context, ids []int64) (map[int64]orb.LineString, error)
@@ -79,7 +79,7 @@ func (c *Walk) Run(ctx context.Context, opts Options) (WalkResult, error) {
 		return res, err
 	}
 	kinds := walkKindsFor(p)
-	edges, err := c.Store.LoadWalkEdges(ctx)
+	edges, err := c.Store.LoadWalkEdges(ctx, opts.Filter.RegionID)
 	if err != nil {
 		return res, fmt.Errorf("граф: %w", err)
 	}
@@ -114,7 +114,7 @@ func (c *Walk) Run(ctx context.Context, opts Options) (WalkResult, error) {
 
 	targets := map[string][]domain.WalkTarget{}
 	for _, k := range kinds {
-		dests, err := c.Store.Destinations(ctx, k.dest)
+		dests, err := c.Store.Destinations(ctx, opts.Filter.RegionID, k.dest)
 		if err != nil {
 			return res, fmt.Errorf("цели %s: %w", k.dest, err)
 		}
