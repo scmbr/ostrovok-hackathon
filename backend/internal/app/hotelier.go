@@ -14,6 +14,7 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/hotelier"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/rooms"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/truth"
 )
 
 // runHotelierRound — collect hotelier-round [-hotel ID] [-answer=false]: раунд агента-интервьюера по отелю
@@ -143,4 +144,35 @@ func printHotelierResult(r hotelier.Result) {
 		}
 		fmt.Println()
 	}
+}
+
+// runHotelierReset — collect hotelier-reset: удалить вопросы, свидетельства из ответов отельеров и репутацию авторов,
+// затем пересобрать факты движком правды (как collect truth). Нужна перед итоговыми прогонами и записью видео.
+func runHotelierReset(args []string, reg domain.Registry) error {
+	if len(args) > 0 {
+		return errors.New("hotelier-reset не принимает аргументов")
+	}
+	cfg := LoadConfig()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	pool, err := postgres.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("подключение к БД: %w", err)
+	}
+	defer pool.Close()
+	if err := postgres.Migrate(ctx, pool); err != nil {
+		return fmt.Errorf("миграции: %w", err)
+	}
+	rc, err := postgres.NewHotelierStore(pool, reg.Rules()).ResetHotelier(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("снято: вопросов %d, записей журнала интервьюера %d, свидетельств из ответов %d, записей репутации %d; возвращено утверждений мока: %d\n",
+		rc.Questions, rc.Trace, rc.Evidence, rc.Trust, rc.Reactivated)
+	rep, err := (&truth.Recompute{Registry: reg, Store: postgres.NewTruthStore(pool)}).Run(ctx)
+	if err != nil {
+		return err
+	}
+	printTruth(rep)
+	return nil
 }

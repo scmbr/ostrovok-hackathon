@@ -47,19 +47,24 @@ type Score struct {
 
 // Question — вопрос отельеру.
 type Question struct {
-	ID         int64
-	HotelID    int64
-	Key        string
-	Text       string
-	Reason     string
-	Status     string
-	Format     string
+	ID      int64
+	HotelID int64
+	Key     string
+	Text    string
+	Reason  string
+	Status  string
+	Format  string
+	// EntityType и EntityID — сущность вопроса: пусто у вопроса об отеле, room_category у вопроса о категории номеров.
+	EntityType string
+	EntityID   string
 	Persona    string
 	Score      Score
 	AnswerText string
-	Parsed     map[string]any
-	SentAt     *time.Time
-	AskedAt    time.Time
+	// Label — название сущности для текста вопроса («Vista mar»); не хранится.
+	Label   string
+	Parsed  map[string]any
+	SentAt  *time.Time
+	AskedAt time.Time
 }
 
 // Store — порт хранилища интервьюера. Записать значение факта через него нельзя.
@@ -86,6 +91,10 @@ type Store interface {
 	// SaveAnswerEvidence записывает свидетельство отельера; прежнее активное свидетельство того же автора
 	// по той же сущности и характеристике снимается (superseded), факт пересобирает движок правды.
 	SaveAnswerEvidence(ctx context.Context, ev domain.Evidence) error
+	// CategoryIssues — категории номеров отеля, у которых утверждение отеля спорит с расчётом (открытый конфликт).
+	CategoryIssues(ctx context.Context, hotelID int64) ([]CategoryIssue, error)
+	// Reopen возвращает вопрос в open с уточняющим вопросом: ответ не задал значения.
+	Reopen(ctx context.Context, id int64, text, previousAnswer string) error
 	AppendTrace(ctx context.Context, s agent.TraceStep) error
 }
 
@@ -100,4 +109,23 @@ type LLM interface {
 	Complete(ctx context.Context, system, user string) (string, error)
 	// Mode — llm (живая модель) или cache (сохранённые ответы).
 	Mode() string
+}
+
+// CategoryIssue — категория номеров, у которой утверждение отеля спорит с расчётом.
+type CategoryIssue struct {
+	CategoryID int64
+	Name       string
+	Key        string
+	// Confidence и Value — итоговый факт категории; CalcValue — значение по расчёту (свидетельство инструмента).
+	Confidence float64
+	Value      string
+	CalcValue  string
+	Conflict   string
+	Placements []IssuePlacement
+}
+
+// IssuePlacement — где расположены номера категории: фасад словами, этажи, число номеров.
+type IssuePlacement struct {
+	Facade          string
+	From, To, Rooms int
 }

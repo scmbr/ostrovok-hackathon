@@ -21,6 +21,8 @@ type fakeStore struct {
 	sentTimes []time.Time
 	evidence  []domain.Evidence
 	trace     []agent.TraceStep
+	issues    []CategoryIssue
+	reopened  map[int64]string
 }
 
 func (f *fakeStore) Hotel(context.Context, int64) (Hotel, error) { return f.hotel, nil }
@@ -269,8 +271,8 @@ func TestParseConfirm(t *testing.T) {
 		t.Errorf("да: %+v", p)
 	}
 	q.AnswerText = "Нет, у нас с 6-го."
-	if p := iv.Parse(context.Background(), c, q, val); p.Found {
-		t.Errorf("нет без значения: %+v", p)
+	if p := iv.Parse(context.Background(), c, q, val); p.Found || p.FollowUp == "" {
+		t.Errorf("нет у диапазона: значения нет, вопрос уходит в open с уточнением: %+v", p)
 	}
 	q.AnswerText = "уточнить"
 	if p := iv.Parse(context.Background(), c, q, val); p.Found {
@@ -309,7 +311,7 @@ func TestParseLLMRetryAndFallback(t *testing.T) {
 	if !p.Found || p.Mode != agent.ModePlanner || d["max_kg"] != 10 || d["fee_eur"] != 15 {
 		t.Errorf("запасной разбор: %+v", p)
 	}
-	if p := parseFallback(c, "Не уверен, надо уточнить."); p.Found {
+	if p := parseFallback(c, Question{AnswerText: "Не уверен, надо уточнить."}); p.Found {
 		t.Errorf("уход от ответа не должен давать значение: %+v", p)
 	}
 }
@@ -320,5 +322,142 @@ func TestGuestsSearched(t *testing.T) {
 		if got := guestsSearched(n, "Т"); !strings.HasPrefix(got, want) {
 			t.Errorf("%d: %q, ожидалось %q…", n, got, want)
 		}
+	}
+}
+
+func (f *fakeStore) CategoryIssues(context.Context, int64) ([]CategoryIssue, error) {
+	return f.issues, nil
+}
+func (f *fakeStore) Reopen(_ context.Context, id int64, text, _ string) error {
+	if f.reopened == nil {
+		f.reopened = map[int64]string{}
+	}
+	f.reopened[id] = text
+	for k := range f.qs {
+		if f.qs[k].ID == id {
+			f.qs[k].Status, f.qs[k].Format, f.qs[k].Text = StatusOpen, domain.FormatOpen, text
+		}
+	}
+	return nil
+}
+
+func seaViewChar() domain.Characteristic {
+	return domain.Characteristic{
+		Key: domain.SeaViewKey, Title: "Вид на море", Level: domain.LevelFacade, ValueType: domain.ValueRange, ValueField: "min_floor", TTLDays: 365,
+		AskHotelier: "Из каких категорий номеров, с какой стороны и с какого этажа видно море?",
+		Category:    &domain.CategoryRule{Values: []string{"full", "none"}, ValueField: "view", Target: "full", FavorableValues: []string{"full"}},
+	}
+}
+
+// «Нет» у характеристики с двумя значениями даёт противоположное значение: признание недостатка у честного
+// и спор с расчётом у приукрашивающего — свидетельство пишется в обоих случаях.
+func TestConfirmNoGivesOppositeForTwoValues(t *testing.T) {
+	c := seaViewChar()
+	iv := newInterviewer(t, baseStore(), nil)
+	q := Question{Format: domain.FormatConfirm, EntityType: domain.EntityRoomCategory, EntityID: "9", AnswerText: "Нет, вид есть."}
+	p := iv.Parse(context.Background(), c, q, map[string]any{"view": "none"})
+	if !p.Found || p.Claimed["view"] != "full" {
+		t.Fatalf("расчёт none, «нет» → full: %+v", p)
+	}
+	p = iv.Parse(context.Background(), c, q, map[string]any{"view": "full"})
+	if !p.Found || p.Claimed["view"] != "none" {
+		t.Fatalf("расчёт full, «нет» (признание недостатка) → none: %+v", p)
+	}
+	bc := testRegistryChar(t, "pets_allowed")
+	q = Question{Format: domain.FormatConfirm, AnswerText: "нет"}
+	if p := iv.Parse(context.Background(), bc, q, map[string]any{"available": true}); !p.Found || p.Claimed["available"] != false {
+		t.Errorf("bool: %+v", p)
+	}
+}
+
+// Для enum из трёх значений «нет» и «уточнить» значения не дают: вопрос уходит в open с уточнением.
+func TestConfirmNoOnThreeValueEnumAsksFollowUp(t *testing.T) {
+	c := domain.Characteristic{Key: domain.NoiseNightKey, Title: "Тишина ночью", ValueType: domain.ValueEnum,
+		Values: []string{"quiet", "moderate", "loud"}, ValueField: "level", AskHotelier: "Есть ли шумоизоляция?"}
+	iv := newInterviewer(t, baseStore(), nil)
+	for _, ans := range []string{"Нет", "уточнить", "не знаю"} {
+		q := Question{Format: domain.FormatConfirm, AnswerText: ans}
+		p := iv.Parse(context.Background(), c, q, map[string]any{"level": "moderate"})
+		if p.Found || !strings.Contains(p.FollowUp, "как на самом деле") {
+			t.Errorf("%q: %+v", ans, p)
+		}
+	}
+}
+
+func categoryStore() *fakeStore {
+	st := baseStore()
+	st.facts = []domain.Fact{{EntityType: domain.EntityHotel, EntityID: "5", Key: domain.SeaViewKey, Confidence: 0.9, Value: map[string]any{"min_floor": float64(3)}}}
+	st.issues = []CategoryIssue{{
+		CategoryID: 77, Name: "Vista mar", Key: domain.SeaViewKey, Confidence: 0.52, Value: "full", CalcValue: "none",
+		Placements: []IssuePlacement{{Facade: "фасад на восток, во двор", From: 2, To: 5, Rooms: 8}},
+	}}
+	return st
+}
+
+func categoryInterviewer(t *testing.T, st *fakeStore) *Interviewer {
+	reg, err := domain.NewRegistry([]domain.Characteristic{seaViewChar()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &Interviewer{Registry: reg, Store: st, Now: func() time.Time { return testNow }}
+}
+
+// Спорная категория («Sea View» без вида) становится вопросом формата confirm с понятной формулировкой.
+func TestRoundAsksAboutCategoryConflict(t *testing.T) {
+	st := categoryStore()
+	res, err := categoryInterviewer(t, st).Round(context.Background(), 5, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Sent) != 1 {
+		t.Fatalf("отправлено: %d", len(res.Sent))
+	}
+	q := res.Sent[0]
+	want := "По расчёту из номеров «Vista mar» (фасад на восток, во двор, этажи 2–5) море не видно — верно? (да / нет / уточнить)"
+	if q.Format != domain.FormatConfirm || q.EntityType != domain.EntityRoomCategory || q.EntityID != "77" || q.Text != want {
+		t.Errorf("вопрос: %+v", q)
+	}
+	// Повторный раунд не дублирует вопрос.
+	if res, _ = categoryInterviewer(t, st).Round(context.Background(), 5, Options{}); len(res.Sent) != 0 || len(st.qs) != 1 {
+		t.Errorf("повтор: отправлено %d, вопросов %d", len(res.Sent), len(st.qs))
+	}
+}
+
+// Приукрашивающий отвечает «нет, вид есть» — свидетельство «full» по категории; честный подтверждает «none».
+func TestCategoryConflictAnswers(t *testing.T) {
+	for _, tc := range []struct{ persona, view string }{{domain.PersonaEmbellishing, "full"}, {domain.PersonaHonest, "none"}} {
+		st := categoryStore()
+		st.hotel.Persona = tc.persona
+		res, err := categoryInterviewer(t, st).Round(context.Background(), 5, Options{Answer: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Answers) != 1 || res.Answers[0].Status != StatusAnswered || len(st.evidence) != 1 {
+			t.Fatalf("%s: %+v, свидетельств %d", tc.persona, res.Answers, len(st.evidence))
+		}
+		ev := st.evidence[0]
+		if ev.EntityType != domain.EntityRoomCategory || ev.EntityID != "77" || ev.Claimed["view"] != tc.view {
+			t.Errorf("%s: свидетельство %+v", tc.persona, ev)
+		}
+	}
+}
+
+// Ответ ленивого «уточнить» на подтверждение возвращает вопрос в open с уточнением.
+func TestFollowUpReopensQuestion(t *testing.T) {
+	st := categoryStore()
+	iv := categoryInterviewer(t, st)
+	res, err := iv.Round(context.Background(), 5, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := iv.Answer(context.Background(), res.Sent[0], "Затрудняюсь ответить")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Status != StatusOpen || st.reopened[res.Sent[0].ID] == "" || len(st.evidence) != 0 {
+		t.Errorf("статус %s, уточнение %q, свидетельств %d", out.Status, st.reopened[res.Sent[0].ID], len(st.evidence))
+	}
+	if !strings.Contains(st.reopened[res.Sent[0].ID], "Vista mar") {
+		t.Errorf("в уточнении называется категория: %q", st.reopened[res.Sent[0].ID])
 	}
 }

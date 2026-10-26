@@ -53,7 +53,38 @@ func TestLazyIsShortAndSometimesEvasive(t *testing.T) {
 			plain++
 		}
 	}
-	if shy < 70 || shy > 130 || plain == 0 {
-		t.Errorf("ленивый уходит от ответа примерно в трети случаев: %d из 300", shy)
+	if shy < 30 || shy > 75 || plain == 0 {
+		t.Errorf("ленивый уходит от ответа примерно в каждом шестом случае: %d из 300", shy)
 	}
+}
+
+// Приукрашивающий отвечает «нет» на невыгодный расчёт; честный и ленивый подтверждают его.
+func TestConfirmUnfavorableCalc(t *testing.T) {
+	r := AnswerRequest{HotelID: 7, Key: "sea_view", Format: FormatConfirm, CalcUnfavorable: true}
+	if a := PersonaAnswer(PersonaEmbellishing, r); !strings.HasPrefix(a, "Нет") {
+		t.Errorf("приукрашивающий оспаривает невыгодный расчёт: %q", a)
+	}
+	if a := PersonaAnswer(PersonaHonest, r); !strings.HasPrefix(a, "Да") {
+		t.Errorf("честный подтверждает: %q", a)
+	}
+	r.CalcUnfavorable = false
+	if a := PersonaAnswer(PersonaEmbellishing, r); !strings.HasPrefix(a, "Да") {
+		t.Errorf("выгодный расчёт приукрашивающий подтверждает: %q", a)
+	}
+}
+
+// Ленивый чаще отвечает коротко, но разбираемо: «да, с собаками можно» без веса и цены.
+func TestLazyPartialAnswer(t *testing.T) {
+	for id := int64(1); id < 100; id++ {
+		r := AnswerRequest{HotelID: id, Key: "pets_allowed", Format: FormatOpen, Truth: petsTruth(true)}
+		if lazyShy(r) {
+			continue
+		}
+		a := PersonaAnswer(PersonaLazy, r)
+		if a != "Да, с собаками можно." || strings.Contains(a, "кг") {
+			t.Fatalf("ответ ленивого: %q", a)
+		}
+		return
+	}
+	t.Fatal("нет ни одного неуклончивого ответа")
 }

@@ -20,6 +20,8 @@ type AnswerRequest struct {
 	// Truth — скрытая истина мока по непроверяемой характеристике ({"available": true, "species": [...]});
 	// nil, если характеристику знает расчёт, а не отельер.
 	Truth map[string]any
+	// CalcUnfavorable — расчёт, который предлагается подтвердить, невыгоден отелю («море не видно»).
+	CalcUnfavorable bool
 }
 
 // PersonaAnswer — детерминированный текст ответа имитированного отельера (без LLM):
@@ -39,11 +41,12 @@ func PersonaAnswer(persona string, r AnswerRequest) string {
 	}
 }
 
-// lazyShy — ленивый отельер не ответил по существу: детерминированно у трети вопросов.
+// lazyShy — ленивый отельер не ответил по существу: детерминированно (от отеля и характеристики) у каждого шестого
+// вопроса. В остальных случаях ответ короткий и неполный, но разбираемый.
 func lazyShy(r AnswerRequest) bool {
 	h := fnv.New32a()
 	fmt.Fprintf(h, "%d/%s", r.HotelID, r.Key)
-	return h.Sum32()%3 == 0
+	return h.Sum32()%6 == 0
 }
 
 func available(r AnswerRequest) bool { return r.Truth != nil && r.Truth["available"] == true }
@@ -83,14 +86,22 @@ func lazyAnswer(r AnswerRequest) string {
 		}
 		return "Да, есть."
 	}
-	if available(r) {
-		return "Да."
+	if !available(r) {
+		return "Нет."
 	}
-	return "Нет."
+	switch r.Key {
+	case "pets_allowed":
+		return "Да, с собаками можно."
+	case "blackout_curtains":
+		return "Да, есть."
+	}
+	return "Да."
 }
 
 func embellishingAnswer(r AnswerRequest) string {
 	switch {
+	case r.Truth == nil && r.Format == FormatConfirm && r.CalcUnfavorable:
+		return "Нет, вы ошибаетесь: вид есть, гости остаются довольны."
 	case r.Truth == nil && r.Format == FormatConfirm:
 		return "Да, всё верно, а на деле даже лучше!"
 	case r.Key == "pets_allowed":

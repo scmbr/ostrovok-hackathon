@@ -18,6 +18,8 @@ type Parsed struct {
 	Found bool
 	// Claimed — утверждение отельера в форме claimed свидетельства ({поле значения: …, details: {…}}).
 	Claimed map[string]any
+	// FollowUp — уточняющий вопрос: ответ не задал значения, и вопрос возвращается отельеру в open.
+	FollowUp string
 	// Note — почему значение не найдено или как оно получено.
 	Note string
 	// Mode — чем разобрано: llm, cache или planner (запасной разбор без LLM).
@@ -71,30 +73,19 @@ func yesNo(s string) (yes, no bool) {
 //     исправления; без ключа, при промахе кеша и сбое сети — детерминированный разбор да / нет.
 func (i *Interviewer) Parse(ctx context.Context, c domain.Characteristic, q Question, val map[string]any) Parsed {
 	if q.Format == domain.FormatConfirm {
-		yes, no := yesNo(q.AnswerText)
-		switch {
-		case yes:
-			claimed := map[string]any{}
-			for k, v := range val {
-				claimed[k] = v
-			}
-			return Parsed{Found: true, Claimed: claimed, Note: "подтверждение расчёта", Mode: agent.ModePlanner}
-		case no:
-			return Parsed{Note: "отельер не согласен с расчётом, но значения не назвал", Mode: agent.ModePlanner}
-		}
-		return Parsed{Note: "ответ на подтверждение расчёта неясен", Mode: agent.ModePlanner}
+		return confirmParsed(c, q, val)
 	}
 	if i.LLM != nil {
 		if p, ok := i.parseLLM(ctx, c, q); ok {
 			return p
 		}
 	}
-	return parseFallback(c, q.AnswerText)
+	return parseFallback(c, q)
 }
 
 // parseLLM — ok=false: LLM недоступна (нет ключа, промах кеша, сеть), нужен запасной разбор.
 func (i *Interviewer) parseLLM(ctx context.Context, c domain.Characteristic, q Question) (Parsed, bool) {
-	allowed := allowedValues(c)
+	allowed, _ := valueSpace(c, q)
 	user := fmt.Sprintf("Характеристика: %s — %s\nДопустимые значения value: %s\nВопрос: %s\nОтвет отельера: %s",
 		c.Title, c.Description, strings.Join(allowed, ", "), q.Text, q.AnswerText)
 	var lastErr error
@@ -110,7 +101,7 @@ func (i *Interviewer) parseLLM(ctx context.Context, c domain.Characteristic, q Q
 			}
 			return Parsed{Note: "исправление не удалось получить: " + err.Error(), Mode: i.LLM.Mode()}, true
 		}
-		p, perr := parseLLMJSON(c, text)
+		p, perr := parseLLMJSON(c, q, text)
 		if perr == nil {
 			p.Mode = i.LLM.Mode()
 			return p, true
@@ -120,7 +111,7 @@ func (i *Interviewer) parseLLM(ctx context.Context, c domain.Characteristic, q Q
 	return Parsed{Note: "ответ модели не прошёл проверку: " + lastErr.Error(), Mode: i.LLM.Mode()}, true
 }
 
-func parseLLMJSON(c domain.Characteristic, text string) (Parsed, error) {
+func parseLLMJSON(c domain.Characteristic, q Question, text string) (Parsed, error) {
 	text = strings.TrimSpace(text)
 	if s, e := strings.Index(text, "{"), strings.LastIndex(text, "}"); s >= 0 && e > s {
 		text = text[s : e+1]
@@ -138,22 +129,24 @@ func parseLLMJSON(c domain.Characteristic, text string) (Parsed, error) {
 	}
 	v := strings.ToLower(strings.TrimSpace(fmt.Sprint(raw.Value)))
 	ok := false
-	for _, a := range allowedValues(c) {
+	allowed, _ := valueSpace(c, q)
+	for _, a := range allowed {
 		ok = ok || a == v
 	}
 	if !ok {
-		return Parsed{}, fmt.Errorf("value %q не из допустимых %v", v, allowedValues(c))
+		return Parsed{}, fmt.Errorf("value %q не из допустимых %v", v, allowed)
 	}
-	return Parsed{Found: true, Claimed: claim(c, v, raw.Details)}, nil
+	return Parsed{Found: true, Claimed: claim(c, q, v, raw.Details)}, nil
 }
 
 // claim строит утверждение отельера: значение в поле характеристики, детали отдельно (они не голосуют).
-func claim(c domain.Characteristic, value string, details map[string]any) map[string]any {
+func claim(c domain.Characteristic, q Question, value string, details map[string]any) map[string]any {
 	m := map[string]any{}
-	if c.ValueType == domain.ValueBool {
-		m[c.FieldName()] = value == "true"
+	_, field := valueSpace(c, q)
+	if c.ValueType == domain.ValueBool && !forCategory(c, q) {
+		m[field] = value == "true"
 	} else {
-		m[c.FieldName()] = value
+		m[field] = value
 	}
 	if len(details) > 0 {
 		m["details"] = details
@@ -162,7 +155,8 @@ func claim(c domain.Characteristic, value string, details map[string]any) map[st
 }
 
 // parseFallback — разбор без LLM: ответ начинается с «да» / «нет», детали (вес, цена, виды) — по шаблонам.
-func parseFallback(c domain.Characteristic, text string) Parsed {
+func parseFallback(c domain.Characteristic, q Question) Parsed {
+	text := q.AnswerText
 	p := Parsed{Mode: agent.ModePlanner}
 	if c.ValueType != domain.ValueBool {
 		p.Note = "без LLM разбирается только да / нет"
@@ -193,6 +187,60 @@ func parseFallback(c domain.Characteristic, text string) Parsed {
 			details["fee_eur"], _ = strconv.Atoi(m[1])
 		}
 	}
-	p.Found, p.Claimed = true, claim(c, strconv.FormatBool(yes), details)
+	p.Found, p.Claimed = true, claim(c, q, strconv.FormatBool(yes), details)
 	return p
+}
+
+// forCategory — вопрос о категории номеров, а не об отеле.
+func forCategory(c domain.Characteristic, q Question) bool {
+	return q.EntityType == domain.EntityRoomCategory && c.Category != nil
+}
+
+// valueSpace — допустимые значения и поле значения для сущности вопроса: у категории номеров правило category
+// характеристики (full / none), у отеля — сама характеристика.
+func valueSpace(c domain.Characteristic, q Question) (values []string, field string) {
+	if forCategory(c, q) {
+		return c.Category.Values, c.Category.ValueField
+	}
+	return allowedValues(c), c.FieldName()
+}
+
+// confirmParsed разбирает ответ на подтверждение расчёта val.
+//   - «да» подтверждает расчёт: утверждение отельера совпадает с ним.
+//   - «нет» у характеристики с двумя значениями (bool, enum из двух, full / none у категории) даёт противоположное
+//     значение: признание недостатка у честного и спор с расчётом у приукрашивающего, свидетельство пишется.
+//   - «нет» при большем числе значений (noise_night), диапазон, «уточнить» и неясный ответ значения не дают:
+//     вопрос возвращается отельеру в open с уточнением «как на самом деле?».
+func confirmParsed(c domain.Characteristic, q Question, val map[string]any) Parsed {
+	yes, no := yesNo(q.AnswerText)
+	if yes {
+		claimed := map[string]any{}
+		for k, v := range val {
+			claimed[k] = v
+		}
+		return Parsed{Found: true, Claimed: claimed, Note: "подтверждение расчёта", Mode: agent.ModePlanner}
+	}
+	values, field := valueSpace(c, q)
+	cur := fmt.Sprint(val[field])
+	if no && len(values) == 2 && (cur == values[0] || cur == values[1]) {
+		other := values[0]
+		if cur == values[0] {
+			other = values[1]
+		}
+		return Parsed{Found: true, Claimed: claim(c, q, other, nil), Note: "отельер не согласен с расчётом: " + cur + " → " + other, Mode: agent.ModePlanner}
+	}
+	note := "ответ на подтверждение расчёта неясен"
+	if no {
+		note = "отельер не согласен с расчётом, но значения не назвал"
+	}
+	return Parsed{FollowUp: followUp(c, q), Note: note, Mode: agent.ModePlanner}
+}
+
+// followUp — уточняющий вопрос «как на самом деле?».
+func followUp(c domain.Characteristic, q Question) string {
+	what := c.Title
+	if q.Label != "" {
+		what += " (категория «" + q.Label + "»)"
+	}
+	return "Расскажите, как на самом деле: " + what + ". " + c.AskHotelier
 }

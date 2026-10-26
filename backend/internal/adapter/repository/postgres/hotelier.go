@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -89,13 +90,14 @@ func (s *HotelierStore) Truth(ctx context.Context, hotelID int64, key string) (m
 }
 
 const questionColumns = `id, hotel_id, characteristic_key, question, COALESCE(reason, ''), status, COALESCE(format, ''),
-       COALESCE(persona, ''), score, COALESCE(answer_text, ''), parsed, sent_at, asked_at`
+       COALESCE(persona, ''), score, COALESCE(answer_text, ''), parsed, sent_at, asked_at,
+       COALESCE(entity_type, ''), COALESCE(entity_id, '')`
 
 func scanQuestion(row pgx.Row) (hotelier.Question, error) {
 	var q hotelier.Question
 	var score, parsed []byte
 	if err := row.Scan(&q.ID, &q.HotelID, &q.Key, &q.Text, &q.Reason, &q.Status, &q.Format, &q.Persona,
-		&score, &q.AnswerText, &parsed, &q.SentAt, &q.AskedAt); err != nil {
+		&score, &q.AnswerText, &parsed, &q.SentAt, &q.AskedAt, &q.EntityType, &q.EntityID); err != nil {
 		return q, err
 	}
 	if err := json.Unmarshal(score, &q.Score); err != nil {
@@ -155,9 +157,9 @@ WHERE id = $1 AND status IN ('pending', 'pending_low_value')
 RETURNING `+questionColumns, q.ID, q.Reason, q.Status, q.Format, q.Score.Value, score)
 	} else {
 		row = s.pool.QueryRow(ctx, `
-INSERT INTO hotelier_questions (hotel_id, characteristic_key, question, reason, status, format, value_score, score)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING `+questionColumns, q.HotelID, q.Key, q.Text, q.Reason, q.Status, q.Format, q.Score.Value, score)
+INSERT INTO hotelier_questions (hotel_id, characteristic_key, question, reason, status, format, value_score, score, entity_type, entity_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, ''), NULLIF($10, ''))
+RETURNING `+questionColumns, q.HotelID, q.Key, q.Text, q.Reason, q.Status, q.Format, q.Score.Value, score, q.EntityType, q.EntityID)
 	}
 	return scanQuestion(row)
 }
@@ -197,10 +199,159 @@ WHERE id = $1 AND status IN ('pending', 'pending_low_value')`, id, note)
 // характеристике снимается (superseded): новое утверждение того же автора заменяет прежнее, а не добавляется рядом.
 // Факт собирает движок правды.
 func (s *HotelierStore) SaveAnswerEvidence(ctx context.Context, ev domain.Evidence) error {
-	hotelID, err := strconv.ParseInt(ev.EntityID, 10, 64)
+	id, err := strconv.ParseInt(ev.EntityID, 10, 64)
 	if err != nil {
 		return err
 	}
-	return saveEvidence(ctx, s.pool, s.rules, hotelScope(hotelID), ev.Key,
+	scope := hotelScope(id)
+	if ev.EntityType == domain.EntityRoomCategory {
+		scope = categoryScope(id)
+	}
+	return saveEvidence(ctx, s.pool, s.rules, scope, ev.Key,
 		[]domain.Author{{Type: ev.AuthorType, ID: ev.AuthorID}}, []domain.Evidence{ev})
+}
+
+// Reopen возвращает вопрос в open с уточняющим текстом; предыдущий ответ остаётся в answer_text.
+func (s *HotelierStore) Reopen(ctx context.Context, id int64, text, previousAnswer string) error {
+	_, err := s.pool.Exec(ctx, `
+UPDATE hotelier_questions SET question = $2, format = 'open', status = 'open', answer_text = $3, answered_at = NULL
+WHERE id = $1`, id, text, previousAnswer)
+	return err
+}
+
+// CategoryIssues — категории отеля с открытым конфликтом по характеристике: утверждение отеля (название) против
+// расчёта. Расчётное значение берётся из свидетельства инструмента, где стоят и размещения категории.
+func (s *HotelierStore) CategoryIssues(ctx context.Context, hotelID int64) ([]hotelier.CategoryIssue, error) {
+	rs := NewRoomStore(s.pool, s.rules)
+	cats, err := rs.Categories(ctx, hotelID)
+	if err != nil {
+		return nil, err
+	}
+	facades, err := rs.Facades(ctx, hotelID)
+	if err != nil {
+		return nil, err
+	}
+	cfs, err := rs.CategoryFacts(ctx, hotelID)
+	if err != nil {
+		return nil, err
+	}
+	var out []hotelier.CategoryIssue
+	for _, cf := range cfs {
+		if cf.Fact.Conflict == nil {
+			continue
+		}
+		var cat *domain.RoomCategory
+		for k := range cats {
+			if cats[k].ID == cf.CategoryID {
+				cat = &cats[k]
+			}
+		}
+		if cat == nil {
+			continue
+		}
+		is := hotelier.CategoryIssue{CategoryID: cat.ID, Name: cat.Name, Key: cf.Fact.Key, Confidence: cf.Fact.Confidence, Conflict: cf.Fact.Conflict.Description}
+		if c, ok := cf.Fact.Value["view"]; ok {
+			is.Value = fmt.Sprint(c)
+		}
+		for _, e := range cf.Evidence {
+			if e.AuthorType == domain.AuthorTool {
+				if val, ok := e.Claimed["view"]; ok {
+					is.CalcValue = fmt.Sprint(val)
+				}
+			}
+		}
+		if is.CalcValue == "" {
+			continue
+		}
+		for _, p := range cat.Placements {
+			label := "фасад"
+			for _, f := range facades {
+				if f.ID == p.FacadeID {
+					label = "фасад на " + hotelier.Compass(f.AzimuthDeg)
+					if f.Courtyard || !f.FacesStreet {
+						label += ", во двор"
+					}
+				}
+			}
+			is.Placements = append(is.Placements, hotelier.IssuePlacement{Facade: label, From: p.FloorFrom, To: p.FloorTo, Rooms: p.Rooms})
+		}
+		out = append(out, is)
+	}
+	return out, nil
+}
+
+// ResetCounts — сколько записей снял hotelier-reset.
+type ResetCounts struct {
+	Questions, Evidence, Reactivated, Trust, Trace int
+}
+
+// ResetHotelier возвращает отельеров к состоянию до интервью: удаляет вопросы, журнал интервьюера, свидетельства из
+// ответов (метод hotelier_answer@1) и репутацию авторов. Утверждения, которые ответ заменил (название «Sea View» из
+// мока), снова становятся активными. Факты и конфликты по затронутым характеристикам снимаются: пересобирает их
+// движок правды (collect truth, как делает команда hotelier-reset).
+func (s *HotelierStore) ResetHotelier(ctx context.Context) (ResetCounts, error) {
+	var rc ResetCounts
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return rc, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
+
+	tag, err := tx.Exec(ctx, `DELETE FROM hotelier_questions`)
+	if err != nil {
+		return rc, err
+	}
+	rc.Questions = int(tag.RowsAffected())
+	if tag, err = tx.Exec(ctx, `DELETE FROM agent_trace WHERE agent = $1`, hotelier.AgentName); err != nil {
+		return rc, err
+	}
+	rc.Trace = int(tag.RowsAffected())
+
+	rows, err := tx.Query(ctx, `DELETE FROM evidence WHERE author_type = $1 AND method = $2 RETURNING characteristic_key`,
+		domain.AuthorHotelier, hotelier.HotelierMethod)
+	if err != nil {
+		return rc, err
+	}
+	keys := map[string]bool{}
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			rows.Close()
+			return rc, err
+		}
+		keys[k] = true
+		rc.Evidence++
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return rc, err
+	}
+	if tag, err = tx.Exec(ctx, `
+UPDATE evidence e SET status = $1
+WHERE e.id IN (SELECT max(id) FROM evidence WHERE author_type = $2 AND status = $3
+               GROUP BY entity_type, entity_id, characteristic_key, author_id)
+  AND NOT EXISTS (SELECT 1 FROM evidence a WHERE a.status = $1 AND a.author_type = e.author_type AND a.author_id = e.author_id
+                  AND a.entity_type = e.entity_type AND a.entity_id = e.entity_id AND a.characteristic_key = e.characteristic_key)`,
+		domain.FactActive, domain.AuthorHotelier, domain.FactSuperseded); err != nil {
+		return rc, err
+	}
+	rc.Reactivated = int(tag.RowsAffected())
+	if tag, err = tx.Exec(ctx, `DELETE FROM author_trust`); err != nil {
+		return rc, err
+	}
+	rc.Trust = int(tag.RowsAffected())
+
+	var list []string
+	for k := range keys {
+		list = append(list, k)
+	}
+	for _, q := range []struct{ table, to, from string }{
+		{"facts", domain.FactSuperseded, domain.FactActive},
+		{"conflicts", domain.ConflictSuperseded, domain.ConflictOpen},
+	} {
+		if _, err := tx.Exec(ctx, `UPDATE `+q.table+` SET status = $1 WHERE status = $2 AND characteristic_key = ANY($3)`, q.to, q.from, list); err != nil {
+			return rc, err
+		}
+	}
+	return rc, tx.Commit(ctx)
 }

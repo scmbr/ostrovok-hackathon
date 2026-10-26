@@ -42,6 +42,7 @@ const collectUsage = `использование: collect <команда> [-reg
   noise-night  рассчитать noise_night: карта BCN и оценка OSM, расхождения источников (после facades, noise, pois)
   agent -hotel ID  прогон агента-сборщика по отелю: что считать, когда спросить отельера; журнал в agent_trace (-planner без LLM, -cache из кеша, -no-record)
   hotelier-round [-hotel ID] [-answer=false]  раунд агента-интервьюера отельера по ценности и бюджету; персона отвечает, ответ разбирается (-no-llm, -cache, -no-record)
+  hotelier-reset  снять вопросы, ответы отельеров и репутацию, пересобрать факты (как truth): вернуть отельеров к состоянию до интервью
   llm-check    проверить ключ LLM: один запрос с вызовом инструмента
   add-characteristic "описание"  добавить характеристику по тексту: LLM составляет YAML реестра из существующих инструментов
   truth        пересобрать все факты из активных свидетельств движком правды; печатает конфликты и таблицу по θ и conflict_steps
@@ -68,6 +69,9 @@ func RunCollect(args []string) error {
 	reg, err := LoadRegistry()
 	if err != nil {
 		return err
+	}
+	if cmd == "hotelier-reset" {
+		return runHotelierReset(args[1:], reg)
 	}
 	if cmd == "hotelier-round" {
 		return runHotelierRound(args[1:], reg)
@@ -257,7 +261,7 @@ const defaultRegion = "barcelona"
 var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
 	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
-	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "hotelier-round": true, "mock-cards": true, "mock-rooms": true, "mock-hotelier": true, "rooms": true,
+	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "hotelier-round": true, "hotelier-reset": true, "mock-cards": true, "mock-rooms": true, "mock-hotelier": true, "rooms": true,
 	"select-demo": true, "stats": true,
 }
 

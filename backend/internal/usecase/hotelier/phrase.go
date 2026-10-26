@@ -43,8 +43,7 @@ func calcSummary(c domain.Characteristic, val map[string]any) string {
 }
 
 // phrase возвращает текст вопроса и режим, которым он получен (llm, cache или planner — запасной шаблон).
-func (i *Interviewer) phrase(ctx context.Context, h Hotel, c domain.Characteristic, val map[string]any, format string) (string, string) {
-	d := draft(c, val, format)
+func (i *Interviewer) phrase(ctx context.Context, h Hotel, c domain.Characteristic, d, format string) (string, string) {
 	if i.LLM == nil {
 		return d, agent.ModePlanner
 	}

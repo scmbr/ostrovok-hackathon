@@ -96,12 +96,13 @@ func (i *Interviewer) Round(ctx context.Context, hotelID int64, opt Options) (Re
 	}
 	s := &session{id: fmt.Sprintf("hotelier-%d-%d", hotelID, i.now().UnixNano())}
 	info := agent.HotelInfo{ID: h.ID, Name: h.Name, District: h.District}
+	drafts := map[string]string{} // шаблоны вопросов по ключу «характеристика/сущность»
 
 	for _, c := range i.Registry.All() {
 		if c.AskHotelier == "" {
 			continue
 		}
-		ex := latest(existing, c.Key)
+		ex := latest(existing, c.Key, "")
 		if ex != nil && (ex.Status == StatusOpen || ex.Status == StatusNeedsClarification || ex.Status == StatusAnswered) {
 			continue
 		}
@@ -126,9 +127,41 @@ func (i *Interviewer) Round(ctx context.Context, hotelID int64, opt Options) (Re
 		if err != nil {
 			return res, fmt.Errorf("%s: %w", c.Key, err)
 		}
+		drafts[saved.Key+"/"+saved.EntityID] = draft(c, hotelFactValue(facts, c.Key, h.ID), saved.Format)
 		res.Candidates = append(res.Candidates, saved)
 		i.trace(ctx, s, h, agent.ModePlanner, fmt.Sprintf("кандидат %s: ценность %.2f (%s)", saved.Key, saved.Score.Value, saved.Status), "score",
 			map[string]any{"characteristic": c.Key, "reason": saved.Reason}, map[string]any{"score": saved.Score, "status": saved.Status, "format": saved.Format})
+	}
+
+	// Категории номеров: утверждение отеля (название «Sea View») спорит с расчётом — спрашиваем про категорию.
+	issues, err := i.Store.CategoryIssues(ctx, hotelID)
+	if err != nil {
+		return res, fmt.Errorf("категории номеров: %w", err)
+	}
+	for _, is := range issues {
+		c, ok := i.Registry.Get(is.Key)
+		if !ok || c.Category == nil {
+			continue
+		}
+		entityID := strconv.FormatInt(is.CategoryID, 10)
+		ex := latest(existing, c.Key, entityID)
+		if ex != nil && (ex.Status == StatusOpen || ex.Status == StatusNeedsClarification || ex.Status == StatusAnswered) {
+			continue
+		}
+		q := i.scoreCategory(c, is, demand, maxDemand, trust)
+		q.HotelID, q.EntityType, q.EntityID, q.Label = h.ID, domain.EntityRoomCategory, entityID, is.Name
+		if waiting(ex) {
+			q.ID = ex.ID
+		}
+		saved, err := i.Store.UpsertCandidate(ctx, q)
+		if err != nil {
+			return res, fmt.Errorf("%s, категория %q: %w", c.Key, is.Name, err)
+		}
+		saved.Label = is.Name
+		drafts[saved.Key+"/"+saved.EntityID] = categoryDraft(c, is)
+		res.Candidates = append(res.Candidates, saved)
+		i.trace(ctx, s, h, agent.ModePlanner, fmt.Sprintf("кандидат %s, категория «%s»: ценность %.2f (%s)", saved.Key, is.Name, saved.Score.Value, saved.Status), "score",
+			map[string]any{"characteristic": c.Key, "category": is.Name, "reason": saved.Reason}, map[string]any{"score": saved.Score, "status": saved.Status, "format": saved.Format})
 	}
 	sort.SliceStable(res.Candidates, func(a, b int) bool { return res.Candidates[a].Score.Value > res.Candidates[b].Score.Value })
 
@@ -150,7 +183,7 @@ func (i *Interviewer) Round(ctx context.Context, hotelID int64, opt Options) (Re
 		default:
 			left--
 			c, _ := i.Registry.Get(q.Key)
-			text, mode := i.phrase(ctx, h, c, hotelFactValue(facts, c.Key, h.ID), q.Format)
+			text, mode := i.phrase(ctx, h, c, drafts[q.Key+"/"+q.EntityID], q.Format)
 			at := i.now()
 			if err := i.Store.Send(ctx, q.ID, text, q.Format, h.Persona, at); err != nil {
 				return res, fmt.Errorf("отправка %s: %w", q.Key, err)
@@ -177,10 +210,10 @@ func (i *Interviewer) Round(ctx context.Context, hotelID int64, opt Options) (Re
 }
 
 // latest — последний по id вопрос по характеристике.
-func latest(qs []Question, key string) *Question {
+func latest(qs []Question, key, entityID string) *Question {
 	var out *Question
 	for k := range qs {
-		if qs[k].Key == key && (out == nil || qs[k].ID > out.ID) {
+		if qs[k].Key == key && qs[k].EntityID == entityID && (out == nil || qs[k].ID > out.ID) {
 			out = &qs[k]
 		}
 	}
@@ -309,10 +342,50 @@ func (i *Interviewer) simulate(ctx context.Context, s *session, h Hotel, q Quest
 	if err != nil {
 		return nil, fmt.Errorf("истина мока: %w", err)
 	}
-	text := domain.PersonaAnswer(h.Persona, domain.AnswerRequest{HotelID: h.ID, Key: q.Key, Format: q.Format, Truth: truth})
+	req := domain.AnswerRequest{HotelID: h.ID, Key: q.Key, Format: q.Format, Truth: truth}
+	if c, ok := i.Registry.Get(q.Key); ok && q.Format == domain.FormatConfirm {
+		facts, err := i.Store.HotelFacts(ctx, h.ID)
+		if err != nil {
+			return nil, err
+		}
+		val, _ := i.currentValue(ctx, h, c, &q, facts)
+		req.CalcUnfavorable = unfavorable(c, q, val)
+	}
+	text := domain.PersonaAnswer(h.Persona, req)
 	i.trace(ctx, s, h, agent.ModePlanner, "персона "+h.Persona+" ответила на "+q.Key, "persona_answer",
-		map[string]any{"characteristic": q.Key}, map[string]any{"answer": text})
+		map[string]any{"characteristic": q.Key, "entity": q.Label}, map[string]any{"answer": text})
 	return i.processAnswer(ctx, s, h, q, text)
+}
+
+// currentValue — расчётное значение, которое подтверждает вопрос: факт отеля или значение категории по расчёту.
+// Для категории заполняет q.Label. ok=false: спорной категории больше нет.
+func (i *Interviewer) currentValue(ctx context.Context, h Hotel, c domain.Characteristic, q *Question, facts []domain.Fact) (map[string]any, bool) {
+	if !forCategory(c, *q) {
+		return hotelFactValue(facts, c.Key, h.ID), true
+	}
+	issues, err := i.Store.CategoryIssues(ctx, h.ID)
+	if err != nil {
+		return nil, false
+	}
+	for _, is := range issues {
+		if strconv.FormatInt(is.CategoryID, 10) == q.EntityID && is.Key == c.Key {
+			q.Label = is.Name
+			return map[string]any{c.Category.ValueField: is.CalcValue}, true
+		}
+	}
+	return nil, false
+}
+
+// unfavorable — расчётное значение val невыгодно отелю (море не видно, шумно).
+func unfavorable(c domain.Characteristic, q Question, val map[string]any) bool {
+	_, field := valueSpace(c, q)
+	switch {
+	case forCategory(c, q):
+		return !slicesContains(c.Category.FavorableValues, fmt.Sprint(val[field]))
+	case c.Key == domain.SeaViewKey:
+		return val["min_floor"] == nil
+	}
+	return len(c.FavorableValues) > 0 && !slicesContains(c.FavorableValues, fmt.Sprint(val[field]))
 }
 
 // Answer обрабатывает ответ отельера из кабинета на отправленный вопрос.
@@ -326,7 +399,9 @@ func (i *Interviewer) Answer(ctx context.Context, q Question, text string) (*Out
 }
 
 // processAnswer разбирает ответ, пишет свидетельство отельера (если значение найдено) и обновляет вопрос.
-// Если разбор неуверен, вопрос получает needs_clarification, значение не выдумывается.
+//   - значение найдено: свидетельство отельера (заменяет его прежнее по сущности и характеристике), статус answered;
+//   - ответ на подтверждение не задал значения: вопрос возвращается в open с уточнением «как на самом деле?»;
+//   - свободный ответ неясен: needs_clarification, значение не выдумывается.
 func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q Question, text string) (*Outcome, error) {
 	c, ok := i.Registry.Get(q.Key)
 	if !ok {
@@ -337,16 +412,22 @@ func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q 
 		return nil, err
 	}
 	q.AnswerText = text
-	parsed := i.Parse(ctx, c, q, hotelFactValue(facts, c.Key, h.ID))
+	val, _ := i.currentValue(ctx, h, c, &q, facts)
+	parsed := i.Parse(ctx, c, q, val)
 	now := i.now()
 	status := StatusNeedsClarification
 	parsedJSON := map[string]any{"found": parsed.Found, "note": parsed.Note, "parsed_by": parsed.Mode}
-	if parsed.Found {
+	switch {
+	case parsed.Found:
 		status = StatusAnswered
 		parsedJSON["claimed"] = parsed.Claimed
 		until := now.Add(c.TTL())
+		entityType, entityID := domain.EntityHotel, strconv.FormatInt(h.ID, 10)
+		if forCategory(c, q) {
+			entityType, entityID = domain.EntityRoomCategory, q.EntityID
+		}
 		ev := domain.Evidence{
-			EntityType: domain.EntityHotel, EntityID: strconv.FormatInt(h.ID, 10), Key: c.Key, Claimed: parsed.Claimed,
+			EntityType: entityType, EntityID: entityID, Key: c.Key, Claimed: parsed.Claimed,
 			Source: domain.SourceHotelier, Method: HotelierMethod, AuthorType: domain.AuthorHotelier, AuthorID: strconv.FormatInt(h.ID, 10),
 			Reliability: domain.HotelierBaseReliability, ObservedAt: now, ValidUntil: &until,
 			Details: map[string]any{"question_id": q.ID, "answer_text": text, "format": q.Format},
@@ -354,13 +435,24 @@ func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q 
 		if err := i.Store.SaveAnswerEvidence(ctx, ev); err != nil {
 			return nil, fmt.Errorf("свидетельство отельера: %w", err)
 		}
-	}
-	if err := i.Store.RecordAnswer(ctx, q.ID, status, text, parsedJSON, now); err != nil {
-		return nil, err
+		if err := i.Store.RecordAnswer(ctx, q.ID, status, text, parsedJSON, now); err != nil {
+			return nil, err
+		}
+	case parsed.FollowUp != "":
+		status = StatusOpen
+		parsedJSON["follow_up"] = parsed.FollowUp
+		if err := i.Store.Reopen(ctx, q.ID, parsed.FollowUp, text); err != nil {
+			return nil, err
+		}
+		q.Text, q.Format = parsed.FollowUp, domain.FormatOpen
+	default:
+		if err := i.Store.RecordAnswer(ctx, q.ID, status, text, parsedJSON, now); err != nil {
+			return nil, err
+		}
 	}
 	q.Status, q.Parsed = status, parsedJSON
 	i.trace(ctx, s, h, parsed.Mode, fmt.Sprintf("ответ по %s разобран: %s", q.Key, status), "parse_answer",
-		map[string]any{"characteristic": q.Key, "answer": text}, parsedJSON)
+		map[string]any{"characteristic": q.Key, "entity": q.Label, "answer": text}, parsedJSON)
 	return &Outcome{Question: q, Parsed: parsed, Status: status}, nil
 }
 
@@ -370,4 +462,67 @@ const HotelierMethod = "hotelier_answer@1"
 // waiting — копящийся вопрос (ещё не отправлен): его можно обновить или закрыть.
 func waiting(q *Question) bool {
 	return q != nil && (q.Status == StatusPending || q.Status == StatusLowValue)
+}
+
+// scoreCategory считает ценность вопроса о категории номеров: итог по категории спорный (конфликт), уверенность
+// факта категории и значения full / none задают неуверенность и влияние.
+func (i *Interviewer) scoreCategory(c domain.Characteristic, is CategoryIssue, demand map[string]int, maxDemand int, trust float64) Question {
+	answers := c.Category.Values
+	cur := domain.FactState{Value: is.Value, Confidence: is.Confidence}
+	factImpact := 0.0
+	for _, a := range answers {
+		r := domain.HotelierAnswerReliability(trust, slicesContains(c.Category.FavorableValues, a))
+		factImpact = max(factImpact, domain.FactImpact(true, cur, []string{a}, r))
+	}
+	sc := Score{Demand: demand[c.Key], DemandNorm: domain.NormalizedDemand(demand[c.Key], maxDemand), Categories: 1}
+	sc.Uncertainty = domain.Uncertainty(true, is.Confidence, len(answers), true, false)
+	sc.Impact = domain.Impact(factImpact, 0, 0)
+	if sc.Impact > 0 {
+		sc.CategoriesChanged = 1
+	}
+	sc.Value = round2(domain.QuestionValue(sc.DemandNorm, sc.Uncertainty, sc.Impact))
+	q := Question{Key: c.Key, Format: domain.FormatConfirm, Status: StatusPending, Score: sc}
+	if sc.Value < domain.QuestionSendThreshold {
+		q.Status = StatusLowValue
+	}
+	var parts []string
+	if sc.Demand > 0 {
+		parts = append(parts, guestsSearched(sc.Demand, c.Title))
+	}
+	parts = append(parts, fmt.Sprintf("категория «%s»: утверждение отеля спорит с расчётом (уверенность %s)", is.Name,
+		strings.Replace(strconv.FormatFloat(is.Confidence, 'f', 2, 64), ".", ",", 1)))
+	parts = append(parts, "ответ снимет конфликт или подтвердит его")
+	q.Reason = strings.Join(parts, "; ")
+	return q
+}
+
+var compass = []string{"север", "северо-восток", "восток", "юго-восток", "юг", "юго-запад", "запад", "северо-запад"}
+
+// categoryDraft — подтверждение расчёта по категории: «по расчёту из номеров „Vista mar“ (фасад, этажи) море не видно».
+func categoryDraft(c domain.Characteristic, is CategoryIssue) string {
+	var where []string
+	for _, p := range is.Placements {
+		floors := fmt.Sprintf("этаж %d", p.From)
+		if p.To != p.From {
+			floors = fmt.Sprintf("этажи %d–%d", p.From, p.To)
+		}
+		where = append(where, p.Facade+", "+floors)
+	}
+	what := strings.ToLower(c.Title) + ": " + is.CalcValue
+	if c.Key == domain.SeaViewKey {
+		what = "море не видно"
+		if is.CalcValue == c.Category.Target {
+			what = "море видно"
+		}
+	}
+	return fmt.Sprintf("По расчёту из номеров «%s» (%s) %s — верно? (да / нет / уточнить)", is.Name, strings.Join(where, "; "), what)
+}
+
+// Compass возвращает направление фасада словами по азимуту внешней нормали.
+func Compass(azimuthDeg float64) string {
+	idx := int((azimuthDeg+22.5)/45) % 8
+	if idx < 0 {
+		idx += 8
+	}
+	return compass[idx]
 }
