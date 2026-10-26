@@ -110,7 +110,7 @@ func TestCannedAnswersPassRegistryValidation(t *testing.T) {
 		strategies int
 	}{
 		{"Есть ли рядом круглосуточная аптека?", "night_pharmacy", 1},
-		{"Можно ли с собакой?", "pet_friendly", 0},
+		{"Можно ли с собакой?", "pets_allowed", 0},
 		{"Затемняющие шторы", "blackout_curtains", 0},
 		{"Есть ли рядом круглосуточный магазин?", "night_shop", 1},
 	} {

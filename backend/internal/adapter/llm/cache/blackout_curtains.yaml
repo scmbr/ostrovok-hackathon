@@ -9,6 +9,7 @@ response: |
   description: Есть ли в номерах плотные шторы, не пропускающие уличный свет
   level: hotel
   value_type: bool
+  value_field: available
   ttl_days: 365
   favorable_values: ["true"]
   ask_hotelier: "В каких категориях номеров есть затемняющие шторы и закрывают ли они окно полностью?"

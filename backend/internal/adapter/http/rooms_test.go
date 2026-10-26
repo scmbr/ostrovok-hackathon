@@ -44,7 +44,7 @@ func TestRoomsEndpoint(t *testing.T) {
 			}},
 		}},
 	}
-	router := newRouter(fstest.MapFS{}, domain.Registry{}, nil, fakeRooms{h: h})
+	router := newRouter(fstest.MapFS{}, domain.Registry{}, nil, fakeRooms{h: h}, nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest("GET", "/api/hotels/7/rooms", nil))
 	if rec.Code != http.StatusOK {
@@ -68,7 +68,7 @@ func TestRoomsEndpoint(t *testing.T) {
 		"плохой id":     {"/api/hotels/x/rooms", fakeRooms{}, http.StatusBadRequest},
 	} {
 		rec := httptest.NewRecorder()
-		newRouter(fstest.MapFS{}, domain.Registry{}, nil, tt.src).ServeHTTP(rec, httptest.NewRequest("GET", tt.url, nil))
+		newRouter(fstest.MapFS{}, domain.Registry{}, nil, tt.src, nil).ServeHTTP(rec, httptest.NewRequest("GET", tt.url, nil))
 		if rec.Code != tt.code {
 			t.Errorf("%s: status %d, ждали %d", name, rec.Code, tt.code)
 		}

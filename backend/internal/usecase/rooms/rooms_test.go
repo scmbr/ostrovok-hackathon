@@ -183,3 +183,24 @@ func TestRefreshFollowsFacadeFacts(t *testing.T) {
 		t.Errorf("отель без категорий: %v", err)
 	}
 }
+
+func TestCategoryImpact(t *testing.T) {
+	store := &fakeStore{
+		facts: []domain.Fact{seaFact(10, "1", float64(4), 0.45), seaFact(11, "2", float64(4), 0.9)},
+		cats: []domain.RoomCategory{
+			{ID: 100, Rooms: 6, Placements: []domain.StoredPlacement{place(1, 5, 8, 6)}}, // на неуверенном фасаде
+			{ID: 101, Rooms: 6, Placements: []domain.StoredPlacement{place(2, 5, 8, 6)}}, // на уверенном
+		},
+	}
+	changed, total, err := (&Service{Registry: testRegistry(t), Store: store}).CategoryImpact(context.Background(), 1, domain.SeaViewKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed != 1 || total != 2 {
+		t.Errorf("ответ меняет вероятность в 1 из 2 категорий: %d из %d", changed, total)
+	}
+	// Характеристика без правила category: категориям нечего менять.
+	if c, n, _ := (&Service{Registry: testRegistry(t), Store: store}).CategoryImpact(context.Background(), 1, domain.NoiseNightKey); c != 0 || n != 0 {
+		t.Errorf("без category: %d из %d", c, n)
+	}
+}

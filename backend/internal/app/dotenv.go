@@ -7,7 +7,7 @@ import (
 )
 
 // loadDotEnv подхватывает локальный .env (из текущей папки или корня репозитория) для запуска вне Docker.
-// Уже заданные переменные окружения не перезаписываются; значения не выводятся.
+// Уже заданные переменные окружения (в том числе пустые) не перезаписываются; значения не выводятся.
 func loadDotEnv() {
 	for _, path := range []string{".env", "../.env"} {
 		f, err := os.Open(path)
@@ -22,7 +22,7 @@ func loadDotEnv() {
 			}
 			k, v, ok := strings.Cut(line, "=")
 			k = strings.TrimSpace(k)
-			if !ok || k == "" || os.Getenv(k) != "" {
+			if _, set := os.LookupEnv(k); !ok || k == "" || set {
 				continue
 			}
 			v = strings.TrimSpace(v)

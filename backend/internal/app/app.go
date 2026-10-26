@@ -46,10 +46,14 @@ func Run() error {
 		log.Println("LLM_API_KEY не задан: режим кеша (без LLM)")
 	}
 
+	cabinet, err := newServerInterviewer(cfg, reg, pool)
+	if err != nil {
+		return fmt.Errorf("кабинет отельера: %w", err)
+	}
 	srv := &http.Server{
 		Addr: ":" + cfg.Port,
 		Handler: apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules()),
-			&rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, reg.Rules())}),
+			&rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, reg.Rules())}, cabinet),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

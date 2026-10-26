@@ -1,0 +1,14 @@
+key: pets_allowed
+title: Можно с питомцем
+description: Принимает ли отель гостей с животными; виды, вес и цена — в деталях ответа отельера, не в значении
+level: hotel
+value_type: bool
+value_field: available
+ttl_days: 180
+favorable_values:
+  - "true"
+ask_hotelier: Принимаете ли вы гостей с животными? Каких животных, до какого веса, сколько это стоит и в каких категориях номеров?
+ask_guest: Вас с питомцем приняли на условиях, которые заявил отель?
+origin: text
+origin_text: можно ли с собакой
+added_at: "2026-10-26"
