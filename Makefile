@@ -1,4 +1,4 @@
-.PHONY: up down test seed
+.PHONY: up down test test-replay seed
 
 up:
 	docker compose up --build
@@ -8,6 +8,19 @@ down:
 
 test:
 	cd backend && go test ./... && go vet ./...
+
+# Реплей кеша агента на базе, поднятой из демо-сида: проект Compose clean-check (рабочая БД не трогается).
+# Рабочий стек на время проверки останавливается (порты 8080 и 5432), потом поднимается снова.
+# Тест идёт по пяти демо-отелям (TestAgentReplayFromSeedHasNoMisses); промах кеша — провал.
+test-replay:
+	docker compose stop
+	status=0; \
+	docker compose -p clean-check up --build -d --wait && \
+	( cd backend && AGENT_REPLAY_DATABASE_URL="postgres://tima:tima@localhost:5432/tima?sslmode=disable" \
+	  go test ./internal/app -run TestAgentReplayFromSeedHasNoMisses -count=1 -v ) || status=$$?; \
+	docker compose -p clean-check down -v; \
+	docker compose start; \
+	exit $$status
 
 # Пересобрать демо-данные из запущенной БД (docker compose up -d db). В сид входит выборка building_parts (scripts/seed_parts.sql).
 # Перед дампом удаляются superseded-факты и свидетельства: история пересчётов нужна только в рабочей БД, демо хватает активных.
