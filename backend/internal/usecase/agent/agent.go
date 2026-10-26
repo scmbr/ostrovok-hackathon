@@ -46,6 +46,7 @@ type run struct {
 	skipped    int
 	ran        map[string]bool // инструменты, запущенные в прогоне (с параметрами), в том числе неудачно
 	okTool     map[string]bool // инструменты, завершившиеся без ошибки
+	ranStep    map[string]int  // номер шага журнала, на котором инструмент запускался впервые
 	streak     int             // отказов подряд, сбрасывается удачным действием
 	llmCalls   int             // вызовов LLM в прогоне
 	recomputed map[string]bool
@@ -63,7 +64,7 @@ func (a *Agent) Run(ctx context.Context, hotelID int64) (Result, error) {
 	if a.Now != nil {
 		now = a.Now
 	}
-	r := &run{a: a, h: h, session: fmt.Sprintf("%d-%d", h.ID, now().Unix()), ran: map[string]bool{}, okTool: map[string]bool{}, recomputed: map[string]bool{}, askedKeys: map[string]bool{}}
+	r := &run{a: a, h: h, session: fmt.Sprintf("%d-%d", h.ID, now().Unix()), ran: map[string]bool{}, okTool: map[string]bool{}, ranStep: map[string]int{}, recomputed: map[string]bool{}, askedKeys: map[string]bool{}}
 	r.mode = ModePlanner
 	if a.Chat != nil {
 		r.mode = a.ChatMode
@@ -150,21 +151,42 @@ func (r *run) view(c domain.Characteristic) map[string]any {
 	return m
 }
 
-// canRun — можно ли запустить инструмент по характеристике; иначе причина отказа.
+// canRun — можно ли запустить инструмент по характеристике; иначе причина отказа. Запуск инструмента обрабатывает
+// все характеристики, у которых он указан в стратегиях (walk — пляж и метро), поэтому «уже посчитано запуском»
+// проверяется раньше состояния: повторный запуск общего инструмента модели не нужен.
 func (r *run) canRun(c domain.Characteristic) (bool, string) {
 	st := r.states[c.Key]
+	if len(c.Strategies) > 0 && r.allToolsRan(c) {
+		return false, r.ranReason(c)
+	}
 	switch {
 	case !st.Needs():
 		return false, "пересчёт не нужен: " + st.Reason
 	case len(c.Strategies) == 0:
 		return false, "у характеристики нет стратегий: значение даёт только отельер"
 	}
+	return true, ""
+}
+
+// allToolsRan — инструменты всех стратегий характеристики уже запускались в этом прогоне.
+func (r *run) allToolsRan(c domain.Characteristic) bool {
 	for _, s := range c.Strategies {
 		if !r.ranTool(s.Tool) {
-			return true, ""
+			return false
 		}
 	}
-	return false, "инструменты всех стратегий уже запускались в этом прогоне"
+	return true
+}
+
+// ranReason — «посчитано запуском <инструмент> на шаге N» по последнему из запущенных инструментов характеристики.
+func (r *run) ranReason(c domain.Characteristic) string {
+	tool, step := "", -1
+	for _, s := range c.Strategies {
+		if n := r.ranStep[s.Tool]; n > step {
+			tool, step = s.Tool, n
+		}
+	}
+	return fmt.Sprintf("посчитано запуском %s на шаге %d", tool, step)
 }
 
 // canAsk — можно ли создать вопрос отельеру по характеристике; иначе причина отказа.
@@ -311,11 +333,12 @@ func (r *run) runStrategy(ctx context.Context, c domain.Characteristic, idx int,
 	}
 	tool := c.Strategies[idx].Tool
 	sig := toolSig(tool, params)
-	if r.ran[sig] {
-		return r.reject(ctx, "run_tool", in, fmt.Sprintf("инструмент %s уже запускался в этом прогоне", tool))
+	if r.ran[sig] || r.ranTool(tool) {
+		return r.reject(ctx, "run_tool", in, fmt.Sprintf("%s: %s", key, r.ranReason(c)))
 	}
 	r.actions++
 	r.ran[sig] = true
+	r.ranStep[tool] = r.step + 1
 	in["tool"] = tool
 	summary, err := r.a.Runner.Run(ctx, r.h, tool, params)
 	if err != nil {

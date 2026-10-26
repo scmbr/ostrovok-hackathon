@@ -553,3 +553,31 @@ func TestOpenQuestionClosedWhenConfident(t *testing.T) {
 		t.Error("в журнале нет записи о закрытии вопроса")
 	}
 }
+
+// Запуск общего инструмента обрабатывает все его характеристики: can_run=false с номером шага запуска,
+// повторный запуск — отказ с той же причиной, проверка полноты их не возвращает.
+func TestSharedToolMarksAllItsCharacteristicsProcessed(t *testing.T) {
+	a, st, rn := newFixture(t)
+	rn.facts["walk"] = []domain.Fact{hotelFact("walk_to_beach", 0.7)} // метро не найдено: состояние «нужен пересчёт»
+	st.facts = []domain.Fact{hotelFact("sea_view", 0.9)}
+	r := &run{a: a, h: HotelInfo{ID: 7}, ran: map[string]bool{}, okTool: map[string]bool{}, ranStep: map[string]int{}, states: map[string]State{}}
+	for _, c := range a.Registry.All() {
+		r.states[c.Key] = Assess(c, r.h, st.facts)
+	}
+	r.step = 3
+	r.runStrategy(context.Background(), mustGet(t, a.Registry, "walk_to_beach"), 0, map[string]any{}, nil, "считаю")
+	metro := mustGet(t, a.Registry, "walk_to_metro")
+	ok, why := r.canRun(metro)
+	if ok || !strings.Contains(why, "посчитано запуском walk на шаге 4") {
+		t.Errorf("walk_to_metro: can_run=%v, причина %q", ok, why)
+	}
+	r.runStrategy(context.Background(), metro, 0, map[string]any{}, nil, "ещё раз")
+	if len(rn.calls) != 1 {
+		t.Errorf("запуски = %v, want один walk", rn.calls)
+	}
+	for _, p := range r.pending() {
+		if strings.Contains(p, "walk_to_") {
+			t.Errorf("проверка полноты вернула %q", p)
+		}
+	}
+}
