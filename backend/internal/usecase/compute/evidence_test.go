@@ -3,6 +3,7 @@ package compute
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 )
@@ -22,7 +23,14 @@ func (r *recorder) record(scope, key string, evs []domain.Evidence) {
 		evs[i].ID = int64(len(r.byID) + 1)
 		r.byID[evs[i].ID] = evs[i]
 	}
-	r.saved[scope+"/"+key] = domain.AssembleFacts(evs)
+	// «Сейчас» — момент расчёта (самое позднее наблюдение), чтобы свежесть не меняла уверенность в тестах.
+	var now time.Time
+	for _, e := range evs {
+		if e.ObservedAt.After(now) {
+			now = e.ObservedAt
+		}
+	}
+	r.saved[scope+"/"+key] = domain.AssembleFacts(evs, domain.TruthContext{Now: now})
 }
 
 func (r *recorder) SaveHotelEvidence(_ context.Context, hotelID int64, key string, _ []domain.Author, evs []domain.Evidence) error {

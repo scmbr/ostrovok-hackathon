@@ -18,6 +18,7 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/collect"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/compute"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/truth"
 )
 
 const collectUsage = `использование: collect <команда> [-region КОД] [-hotel ID] [-district ИМЯ] [-param имя=значение ...]
@@ -36,7 +37,8 @@ const collectUsage = `использование: collect <команда> [-reg
   sea-view     рассчитать вид на море по фасадам и этажам (факты sea_view, после facades)
   catastro     загрузить здания кадастра с этажностью из data/raw/catastro и привязать отели
   noise        загрузить фасадный шум карты BCN для зданий отелей (после catastro; data/raw/noise)
-  noise-night  рассчитать noise_night: карта BCN и оценка OSM, конфликты (после facades, noise, pois)
+  noise-night  рассчитать noise_night: карта BCN и оценка OSM, расхождения источников (после facades, noise, pois)
+  truth        пересобрать все факты из активных свидетельств движком правды; печатает конфликты и таблицу по θ и conflict_steps
   mock-cards   сгенерировать мок базовых карточек отелей
   select-demo  отметить демо-подмножество отелей (флаг hotels.demo)
   stats        показать сводку по собранным данным`
@@ -155,8 +157,15 @@ func RunCollect(args []string) error {
 			return err
 		}
 		fmt.Printf("noise_night рассчитан у отелей: %d, фактов по фасадам: %d\n", res.Hotels, res.Facades)
-		fmt.Printf("  фасадов с картой BCN: %d (источники согласны: %d, конфликт: %d), только оценка OSM: %d\n",
+		fmt.Printf("  фасадов с картой BCN: %d (источники согласны: %d, расхождения BCN и OSM: %d), только оценка OSM: %d\n",
 			res.BCN, res.Same, res.Conflicts, res.OSMOnly)
+	case "truth":
+		rep, err := (&truth.Recompute{Store: postgres.NewTruthStore(pool)}).Run(ctx)
+		if err != nil {
+			return err
+		}
+		printTruth(rep)
+		return nil
 	case "mock-cards":
 		n, err := c.GenerateMockCards(ctx)
 		if err != nil {
@@ -186,7 +195,7 @@ const defaultRegion = "barcelona"
 var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
 	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
-	"mock-cards": true, "select-demo": true, "stats": true,
+	"truth": true, "mock-cards": true, "select-demo": true, "stats": true,
 }
 
 // toolFlags — область и параметры запуска расчётного инструмента.
@@ -255,6 +264,28 @@ func printTools() {
 		for _, p := range s.Params {
 			fmt.Printf("    -param %s=%g  (%s) %s\n", p.Name, p.Default, p.Unit, p.Description)
 		}
+	}
+}
+
+func printTruth(r truth.Report) {
+	fmt.Printf("факты пересобраны: %d (конфликтов %d, weak_disagreement %d, устаревших %d)\n", r.Facts, r.Conflicts, r.Weak, r.Stale)
+	fmt.Printf("noise_night по фасадам: %d фактов, из них с двумя источниками (BCN и OSM): %d\n", r.NoiseFacadeFacts, r.NoiseTwoSources)
+	fmt.Println("noise_night, фасады: конфликты / weak_disagreement по θ и conflict_steps (по умолчанию θ=1.0, steps=2)")
+	fmt.Printf("  %-6s", "θ")
+	for _, steps := range truth.SensitivitySteps {
+		fmt.Printf("  steps=%d (конфликт / weak)", steps)
+	}
+	fmt.Println()
+	for _, theta := range truth.SensitivityThetas {
+		fmt.Printf("  %-6.1f", theta)
+		for _, steps := range truth.SensitivitySteps {
+			for _, c := range r.Sensitivity {
+				if c.Theta == theta && c.Steps == steps {
+					fmt.Printf("  %10d / %-10d", c.Conflicts, c.Weak)
+				}
+			}
+		}
+		fmt.Println()
 	}
 }
 

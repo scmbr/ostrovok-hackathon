@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -29,8 +30,9 @@ func districtScope(district string) evidenceScope {
 
 // saveEvidence записывает свидетельства инструмента и пересобирает факты области.
 // Снимаются (superseded) только активные свидетельства авторов authors: ответы отельеров и гостей остаются.
-// Затем пишутся новые свидетельства, из всех активных свидетельств области собираются факты (domain.AssembleFacts),
-// прежние факты и конфликты области получают superseded. Всё в одной транзакции.
+// Затем пишутся новые свидетельства, из всех активных свидетельств области движок правды собирает факты
+// (domain.AssembleFacts) и вклады свидетельств, прежние факты и конфликты области получают superseded.
+// Всё в одной транзакции.
 // Пустой evs — только снять прежнее свидетельство инструмента (например, маршрут больше не найден).
 func saveEvidence(ctx context.Context, pool *pgxpool.Pool, scope evidenceScope, key string,
 	authors []domain.Author, evs []domain.Evidence) error {
@@ -71,8 +73,15 @@ WHERE status = $4 AND `+scope.clause+`
 			return err
 		}
 	}
-	for _, f := range domain.AssembleFacts(active) {
+	trust, err := loadTrust(ctx, tx)
+	if err != nil {
+		return err
+	}
+	for _, f := range domain.AssembleFacts(active, domain.TruthContext{Now: time.Now(), Trust: trust}) {
 		if err := insertFact(ctx, tx, f); err != nil {
+			return err
+		}
+		if err := updateContributions(ctx, tx, f.Contributions); err != nil {
 			return err
 		}
 	}
@@ -135,11 +144,12 @@ func insertFact(ctx context.Context, tx pgx.Tx, f domain.Fact) error {
 	var factID int64
 	if err := tx.QueryRow(ctx, `
 INSERT INTO facts (entity_type, entity_id, characteristic_key, value, source, method,
-                   confidence, observed_at, valid_until, evidence_ids, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                   confidence, observed_at, valid_until, evidence_ids, status, weak_disagreement, stale)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING id`,
 		f.EntityType, f.EntityID, f.Key, value, f.Source, f.Method,
-		f.Confidence, f.ObservedAt, f.ValidUntil, f.EvidenceIDs, domain.FactActive).Scan(&factID); err != nil {
+		f.Confidence, f.ObservedAt, f.ValidUntil, f.EvidenceIDs, domain.FactActive,
+		f.WeakDisagreement, f.Stale).Scan(&factID); err != nil {
 		return err
 	}
 	if f.Conflict != nil {
@@ -151,6 +161,37 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		}
 	}
 	return nil
+}
+
+// updateContributions пишет вклады свидетельств, посчитанные движком правды (evidence.contribution).
+func updateContributions(ctx context.Context, tx pgx.Tx, cs []domain.Contribution) error {
+	for _, c := range cs {
+		if _, err := tx.Exec(ctx, `UPDATE evidence SET contribution = $2 WHERE id = $1`, c.EvidenceID, c.Value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// loadTrust читает репутацию авторов-людей (author_trust); нет записи — domain.DefaultTrust.
+func loadTrust(ctx context.Context, q interface {
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}) (map[domain.Author]float64, error) {
+	rows, err := q.Query(ctx, `SELECT author_type, author_id, trust FROM author_trust`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[domain.Author]float64{}
+	for rows.Next() {
+		var a domain.Author
+		var trust float64
+		if err := rows.Scan(&a.Type, &a.ID, &trust); err != nil {
+			return nil, err
+		}
+		out[a] = trust
+	}
+	return out, rows.Err()
 }
 
 // evidenceWriter — запись свидетельств инструментов; встраивается в хранилища инструментов.
