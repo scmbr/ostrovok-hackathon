@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"fmt"
 	"math"
 	"sort"
 )
@@ -134,41 +133,15 @@ func exposed(azimuth, bearing float64) bool {
 	return d <= NoiseExposedHalfDeg
 }
 
-// NoiseLevelsDiffer: расхождение на NoiseConflictSteps ступеней и больше — конфликт (conflict_threshold: 1).
+// NoiseConflictSteps — расхождение источников на столько ступеней и больше инструмент считает в своей сводке.
+// Конфликт фасада определяет движок правды (TruthRules): ступени и вес сторон.
 const NoiseConflictSteps = 1
 
-// NoiseConflict сообщает, расходятся ли два источника на порог конфликта и более.
+// NoiseConflict сообщает, расходятся ли два источника на NoiseConflictSteps ступеней и более (для сводки инструмента).
 func NoiseConflict(a, b string) bool {
 	d := NoiseLevelRank(a) - NoiseLevelRank(b)
 	if d < 0 {
 		d = -d
 	}
 	return d >= NoiseConflictSteps
-}
-
-// noiseConflict ищет расхождение карты BCN и оценки OSM на фасаде. Уровень отеля производный от фасада
-// и конфликта не даёт: расхождение фиксируется один раз, на самом фасаде.
-func noiseConflict(es []Evidence) *Conflict {
-	var bcn, osm *Evidence
-	for i := range es {
-		switch es[i].Source {
-		case SourceBCNNoise:
-			bcn = &es[i]
-		case SourceOSM:
-			osm = &es[i]
-		}
-	}
-	if bcn == nil || osm == nil || bcn.EntityType != EntityFacade {
-		return nil
-	}
-	bl, _ := bcn.Claimed["level"].(string)
-	ol, _ := osm.Claimed["level"].(string)
-	if !NoiseConflict(bl, ol) {
-		return nil
-	}
-	bln, _ := bcn.Claimed["ln_db"].(float64)
-	oln, _ := osm.Claimed["ln_db"].(float64)
-	dom, _ := osm.Claimed["dominant"].(string)
-	return &Conflict{Description: fmt.Sprintf(
-		"карта шума BCN: %s (Ln %.1f дБ); оценка по OSM: %s (Ln %.1f дБ, главный источник %s)", bl, bln, ol, oln, dom)}
 }

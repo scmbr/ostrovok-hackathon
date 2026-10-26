@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -117,6 +118,18 @@ func TestSaveEvidenceKeepsHumanEvidence(t *testing.T) {
 	}
 	if value != "second" || len(ids) != 2 {
 		t.Errorf("факт = %q по свидетельствам %v, want second (сильнейшее, 0.85 > 0.8) по двум свидетельствам", value, ids)
+	}
+
+	// Вклады пишет движок правды: победившее свидетельство инструмента — ln(0.85/0.15), слабейший ответ отельера — 0.
+	var toolContribution, hotelierContribution float64
+	for author, dst := range map[string]*float64{domain.AuthorTool: &toolContribution, domain.AuthorHotelier: &hotelierContribution} {
+		if err := pool.QueryRow(ctx, `SELECT contribution FROM evidence WHERE characteristic_key = $1 AND status = 'active' AND author_type = $2`,
+			testKey, author).Scan(dst); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if math.Abs(toolContribution-math.Log(0.85/0.15)) > 1e-3 || hotelierContribution != 0 {
+		t.Errorf("вклады: инструмент %.4f, отельер %.4f", toolContribution, hotelierContribution)
 	}
 
 	// Пустой результат инструмента (например, маршрут исчез) снимает его свидетельство; факт собирается из ответа отельера.

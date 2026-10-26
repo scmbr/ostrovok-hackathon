@@ -1,6 +1,7 @@
 package compute
 
 import (
+	"math"
 	"context"
 	"testing"
 	"time"
@@ -63,11 +64,13 @@ func TestNoiseNightFacts(t *testing.T) {
 		len(osmOnly.EvidenceIDs) != 1 || osmOnly.Value["dominant"] == nil {
 		t.Errorf("только OSM: %+v, свидетельств %d", osmOnly.Value, len(osmOnly.EvidenceIDs))
 	}
-	// Значение конфликтного факта — по карте BCN (надёжнее), оба свидетельства сохранены.
-	if disputed.Conflict == nil || disputed.Value["level"] != domain.NoiseQuiet || len(disputed.EvidenceIDs) != 2 ||
-		disputed.Confidence != domain.NoiseBCNReliability {
-		t.Errorf("конфликт: %+v, %+v", disputed.Value, disputed.Conflict)
+	// Расхождение на две ступени с весом OSM-оценки ниже θ: значение по карте BCN, уверенность снижена
+	// (σ(1.7346 − 0.4055) = 0.7908), это weak_disagreement, а не конфликт.
+	if disputed.Conflict != nil || !disputed.WeakDisagreement || disputed.Value["level"] != domain.NoiseQuiet ||
+		len(disputed.EvidenceIDs) != 2 || math.Abs(disputed.Confidence-0.7908) > 1e-3 {
+		t.Errorf("расхождение: %+v, конфликт %v, weak %v, уверенность %.4f", disputed.Value, disputed.Conflict, disputed.WeakDisagreement, disputed.Confidence)
 	}
+
 
 	if hotel.EntityType != domain.EntityHotel || hotel.Value["level"] != domain.NoiseQuiet ||
 		hotel.Value["loudest_level"] != domain.NoiseLoud || hotel.Value["quietest_facade"] != int64(73) ||
