@@ -21,6 +21,8 @@ import (
 
 // toolRunner запускает расчётные инструменты по одному отелю для агента. Инструменты пишут только свидетельства.
 type toolRunner struct {
+	// check — проверка исходных данных инструмента в этой базе; nil — без проверки.
+	check    func(ctx context.Context, tool string) error
 	regionID int64
 	run      map[string]func(ctx context.Context, opts compute.Options) (string, error)
 }
@@ -63,6 +65,11 @@ func (t *toolRunner) Run(ctx context.Context, h agent.HotelInfo, tool string, pa
 	if !ok {
 		return "", fmt.Errorf("инструмент %q не подключён к агенту", tool)
 	}
+	if t.check != nil {
+		if err := t.check(ctx, tool); err != nil {
+			return "", err
+		}
+	}
 	opts := compute.Options{Filter: domain.HotelFilter{HotelID: h.ID}, District: h.District, Params: compute.Params(params)}
 	opts.Filter.RegionID = t.regionID
 	return fn(ctx, opts)
@@ -101,7 +108,9 @@ func runAgent(args []string, reg domain.Registry) error {
 
 	rules := reg.Rules()
 	runner := newToolRunner(reg, rules, pool, region, cfg.RawDataDir)
-	a := &agent.Agent{Registry: reg, Store: postgres.NewAgentStore(pool, rules), Runner: runner}
+	store := postgres.NewAgentStore(pool, rules)
+	runner.check = store.RequireSources
+	a := &agent.Agent{Registry: reg, Store: store, Runner: runner}
 
 	var rec *adapterllm.Recorder
 	switch {
@@ -135,7 +144,7 @@ func runAgent(args []string, reg domain.Registry) error {
 	fmt.Printf("прогон %s: режим в конце %s, записей в журнале %d, запусков %d, пропущено свежих %d, вопросов отельеру %d\n",
 		res.SessionID, res.Mode, res.Steps, res.Actions, res.Skipped, res.Questions)
 
-	steps, err := postgres.NewAgentStore(pool, rules).ListTrace(ctx, *hotelID, res.SessionID)
+	steps, err := store.ListTrace(ctx, *hotelID, res.SessionID)
 	if err != nil {
 		return err
 	}

@@ -149,3 +149,28 @@ FROM agent_trace WHERE hotel_id = $1 AND session_id = $2 ORDER BY step, id`, hot
 	}
 	return out, rows.Err()
 }
+
+// toolSources — исходные таблицы, без которых инструмент считает неверно или не считает совсем, и команда сбора,
+// которая их заполняет. Часть таблиц (граф, части зданий) в демо-сид не входит.
+var toolSources = map[string][]struct{ table, collect string }{
+	"walk":           {{"walk_edges", "walk-data"}, {"destinations", "walk-data"}},
+	"sea-view":       {{"building_parts", "catastro"}},
+	"noise-night":    {{"noise_facades", "noise"}},
+	"night-services": {{"pois", "pois"}},
+}
+
+// RequireSources проверяет, что у инструмента есть исходные данные в этой базе. Иначе пересчёт мог бы ухудшить
+// или снять уже собранные свидетельства (например, вид на море без частей зданий кадастра).
+func (s *AgentStore) RequireSources(ctx context.Context, tool string) error {
+	for _, src := range toolSources[tool] {
+		var ok bool
+		if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM `+src.table+`)`).Scan(&ok); err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("нет исходных данных для %s: таблица %s пуста (в демо-сид не входит, заполняется командой collect %s); факты не тронуты",
+				tool, src.table, src.collect)
+		}
+	}
+	return nil
+}
