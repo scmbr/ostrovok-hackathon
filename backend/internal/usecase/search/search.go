@@ -236,7 +236,8 @@ func (s *Service) evalHotel(ctx context.Context, c Candidate, q domain.Query, ch
 	if !ok {
 		return domain.HotelResult{}, false, nil
 	}
-	return domain.HotelResult{HotelID: c.ID, Name: c.Name, District: c.District, Card: c.Card, Best: best, Alt: alt}, true, nil
+	return domain.HotelResult{HotelID: c.ID, Name: c.Name, District: c.District, Card: c.Card, Best: best, Alt: alt,
+		OtherConflicts: domain.ConflictsOutside(variants, best.CategoryID)}, true, nil
 }
 
 // hotelFacts — факты уровня отеля по ключу.
