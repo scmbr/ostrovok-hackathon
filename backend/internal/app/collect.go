@@ -22,6 +22,7 @@ const collectUsage = `команды:
   pois         выгрузить бары, клубы, аптеки, кафе и магазины рядом с отелями (после osm)
   climate      рассчитать климат по месяцам для районов (факт climate_by_month, Open-Meteo, нужен интернет)
   walk-data    выгрузить пешеходный граф, метро и пляжи из OSM (после osm; долго, большой запрос)
+  night-services  рассчитать ночные сервисы рядом с отелем по opening_hours (факт night_services, после pois)
   walk         рассчитать пешие маршруты до пляжа и метро (факты walk_to_beach, walk_to_metro, после walk-data)
   roads        выгрузить дороги OSM вокруг отелей (после osm)
   facades      рассчитать фасады отелей: стороны здания без глухих стен, выход на улицу или во двор
@@ -39,7 +40,7 @@ func RunCollect(args []string) error {
 		return fmt.Errorf("укажите команду\n%s", collectUsage)
 	}
 	cmd := args[0]
-	if cmd != "osm" && cmd != "catastro" && cmd != "roads" && cmd != "pois" && cmd != "walk-data" && cmd != "climate" && cmd != "walk" && cmd != "facades" && cmd != "sea-view" && cmd != "noise" && cmd != "noise-night" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
+	if cmd != "osm" && cmd != "catastro" && cmd != "roads" && cmd != "pois" && cmd != "walk-data" && cmd != "climate" && cmd != "night-services" && cmd != "walk" && cmd != "facades" && cmd != "sea-view" && cmd != "noise" && cmd != "noise-night" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
 		return fmt.Errorf("неизвестная команда %q\n%s", cmd, collectUsage)
 	}
 
@@ -88,6 +89,13 @@ func RunCollect(args []string) error {
 			return err
 		}
 		fmt.Printf("climate_by_month рассчитан у районов: %d; лет данных о море (минимум по районам): %d\n", res.Districts, res.SeaYears)
+	case "night-services":
+		res, err := (&compute.NightServices{Store: postgres.NewNightStore(pool)}).Run(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("night_services: богато %d, базово %d, ничего %d; заведений в радиусе %d, с разобранными часами %d\n",
+			res.Rich, res.Basic, res.None, res.Pois, res.WithHours)
 	case "walk-data":
 		if err := c.CollectWalk(ctx); err != nil {
 			return err
