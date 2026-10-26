@@ -2,64 +2,49 @@
   "hotel": "343",
   "model": "gpt-4o-mini",
   "replies": {
-    "31544c6202073737de61d8deccb409559179b31fe20c270ae9fc93c425ead9ed": {
-      "content": "Статусы характеристик отеля «Vincci Marítimo» следующие:\n- night_pharmacy: uncertain (уверенность 0.6)\n- night_services: uncertain (уверенность 0.6)\n- noise_night: weak (уверенность 0.6)\n- walk_to_beach: uncertain (уверенность 0.7)\n- walk_to_metro: uncertain (уверенность 0.7)\n\nХарактеристики night_pharmacy и night_services остались неопределёнными, noise_night - слабым, а walk_to_beach и walk_to_metro - неопределёнными."
+    "bf35fa37cfe0265eb9748c65c8a3cd0307ee12fdbf50c53812e49b9d3928a2e0": {
+      "content": "Статусы характеристик отеля «Vincci Marítimo»:\n\n- **blackout_curtains**: missing (вопрос отельеру задан)\n- **climate_by_month**: ok (уверенность 0.85)\n- **night_pharmacy**: uncertain (уверенность 0.60)\n- **night_services**: uncertain (уверенность 0.60)\n- **noise_night**: weak (уверенность 0.60)\n- **pets_allowed**: missing (вопрос отельеру задан)\n- **sea_view**: ok (уверенность 0.85)\n- **walk_to_beach**: uncertain (не удалось рассчитать)\n- **walk_to_metro**: uncertain (уверенность 0.70)\n\nВопросы отельеру:\n1. В каких категориях номеров есть затемняющие шторы и закрывают ли они окно полностью?\n2. Принимаете ли вы гостей с животными? Каких животных, до какого веса, сколько это стоит и в каких категориях номеров?"
     },
-    "933b0b9e6a71d5001b4dc83e73cc738670436641a33c74842467d1bf50aea551": {
+    "c124aca3b328b2174e26109803fb4697ab4a8570024a9afd48164600b9950c3c": {
       "tool_calls": [
         {
-          "id": "call_tTwpXhMO9dB1qXTnecKKYkM0",
-          "name": "recompute_fact",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\"}"
+          "id": "call_IPYSJBQhOjM1HNB9aPGo0mTk",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"слабое расхождение источников (weak_disagreement): 11\", \"characteristic\": \"noise_night\", \"strategy\": \"noise-night:bcn\"}"
         },
         {
-          "id": "call_XCH0FpaQ3EVoVpNT89LFvV21",
-          "name": "recompute_fact",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\"}"
+          "id": "call_EshTgooLnWKsA1xuHZi5mQm7",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy\": \"walk\"}"
         },
         {
-          "id": "call_OPDULVUvYMIkN4S8Q5CY4E3T",
-          "name": "recompute_fact",
-          "arguments": "{\"reason\": \"слабое расхождение источников (weak_disagreement): 11\", \"characteristic\": \"noise_night\"}"
+          "id": "call_elHxKTEW1fjbEoYkC9suRkHK",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy\": \"walk\"}"
         },
         {
-          "id": "call_v8j8Q7bdbFvuEBuEHCwtn3CP",
-          "name": "recompute_fact",
-          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\"}"
+          "id": "call_7q7t8a7w7pza6okkq7t367DA",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy\": \"night-services\"}"
         },
         {
-          "id": "call_qgdAACvJ7hdF6xGTL39yTIJt",
-          "name": "recompute_fact",
-          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\"}"
+          "id": "call_HHUIkU0FIiWxHAhFs8cqHKlp",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy\": \"night-services\"}"
         }
       ]
     },
-    "9bb800b25f5582ddfbd472628d3356381893046d2dcff6a28ccfd3e8001f466f": {
+    "c28785ed1e6432cb43e73d7ae7161913766c5f678235e8df103130d114783d4e": {
       "tool_calls": [
         {
-          "id": "call_W4EZqhF5daZi7uPDMUItHGYk",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\"}"
+          "id": "call_EBUt8SSVP2qILmCrObW3dNoI",
+          "name": "ask_hotelier",
+          "arguments": "{\"reason\": \"факта нет\", \"characteristic\": \"blackout_curtains\"}"
         },
         {
-          "id": "call_yHP0vKjYh6MsHXfpJ3EKb8Rc",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\"}"
-        },
-        {
-          "id": "call_Gl1MuRkhChBECCMXFyfyM8WM",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"слабое расхождение источников (weak_disagreement): 11\", \"characteristic\": \"noise_night\"}"
-        },
-        {
-          "id": "call_8vMSfdKjXPW00pdRmFT4CDwI",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\"}"
-        },
-        {
-          "id": "call_NEKMx7l8pMgxrJfspTbawXDC",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\"}"
+          "id": "call_BuIaQn826xLnJBuK3XJefd4i",
+          "name": "ask_hotelier",
+          "arguments": "{\"reason\": \"факта нет\", \"characteristic\": \"pets_allowed\"}"
         }
       ]
     }

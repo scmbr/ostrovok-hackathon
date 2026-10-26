@@ -2,54 +2,49 @@
   "hotel": "177",
   "model": "gpt-4o-mini",
   "replies": {
-    "469cdb8d56ee3507c5660573d10f475ef53d04a85b121528bb784890ef6263ad": {
+    "51527198a75a1b02d0e01f27bcb34ad2ba6b91af3549ebd94a9b70e674ee7675": {
       "tool_calls": [
         {
-          "id": "call_bJsatOKSwT8ZlIvEz5sBsrIO",
+          "id": "call_PtzT6xPhrqj0tteSN67KcZHb",
           "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy_index\": 1}"
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy\": \"night-services\"}"
         },
         {
-          "id": "call_K8EBXTjJRCby32jz6Lw3H37m",
+          "id": "call_oLDmOzBUb6BZp1OAQ3l6ZgaH",
           "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy_index\": 1}"
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy\": \"night-services\"}"
         },
         {
-          "id": "call_fzIStzTUn9KHRmPFPY58P2NA",
+          "id": "call_1Kh17DuqqmfCJakz6nx2CX15",
           "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"noise_night\", \"strategy_index\": 1}"
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy\": \"walk\"}"
         },
         {
-          "id": "call_Y630jaVvLRuOUgXLxsSiW8he",
+          "id": "call_i8fMpfZ05oXQYqOgzdRclN2t",
           "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy_index\": 0}"
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy\": \"walk\"}"
         },
         {
-          "id": "call_8R3RcztUag71pFPvWqKeyyq5",
+          "id": "call_5AvOpriORMVZjtarlRfya7k8",
           "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy_index\": 0}"
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"noise_night\", \"strategy\": \"noise-night:bcn\"}"
         }
       ]
     },
-    "c71ba066db8f12617e6e8ac7d0903086239db714cb8a20c3e6c095e291e5d090": {
-      "content": "Результаты обработки характеристик отеля «Hotel Attica 21»:\n\n- **night_pharmacy**: статус uncertain, уверенность 0.6.\n- **night_services**: статус uncertain, уверенность 0.6.\n- **noise_night**: статус uncertain, уверенность 0.6.\n- **walk_to_beach**: статус uncertain, уверенность 0.7.\n- **walk_to_metro**: статус uncertain, уверенность 0.7.\n\nВсе характеристики с низкой уверенностью остались без изменений. Необходимо задать вопросы отельеру по следующим характеристикам: night_pharmacy, night_services, noise_night."
+    "8629e66f8fc958121fed6b9c4f249936eeb5c752f90645abf507d01f20888b52": {
+      "content": "Статусы характеристик отеля «Hotel Attica 21» следующие:\n\n- **blackout_curtains**: missing (нужно уточнить у отельера)\n- **night_pharmacy**: uncertain (уверенность 0.6)\n- **night_services**: uncertain (уверенность 0.6)\n- **walk_to_beach**: uncertain (не удалось рассчитать)\n- **walk_to_metro**: uncertain (уверенность 0.7)\n- **noise_night**: uncertain (уверенность 0.6)\n- **pets_allowed**: missing (нужно уточнить у отельера)\n- **sea_view**: ok (уверенность 0.85)\n- **climate_by_month**: ok (уверенность 0.85)\n\nЗаданы вопросы отельеру по характеристикам blackout_curtains и pets_allowed."
     },
-    "ebb0cdf34298d6e2980053f427e73eeafc4f5fd2f56d31e2d582590f317f1987": {
+    "d62e75ae874415531aa19b1051b090ae9bbc30ac101887da1e54b9b88efb7bed": {
       "tool_calls": [
         {
-          "id": "call_9UGSsXvDZjPXNdAJ4s3RBHLT",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy_index\": 0}"
+          "id": "call_o0hNf5DApM9CxMsgYr8vpJLi",
+          "name": "ask_hotelier",
+          "arguments": "{\"reason\": \"факта нет, нужно уточнить\", \"characteristic\": \"blackout_curtains\"}"
         },
         {
-          "id": "call_yhBWKM8rS8zLg40BxSpSCZfg",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy_index\": 0}"
-        },
-        {
-          "id": "call_jmou9t5t3hW7GhHJVKSm3gGG",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy_index\": 0}"
+          "id": "call_ZzTAKj3Un9EZwvrl4d9eRA6O",
+          "name": "ask_hotelier",
+          "arguments": "{\"reason\": \"факта нет, нужно уточнить\", \"characteristic\": \"pets_allowed\"}"
         }
       ]
     }

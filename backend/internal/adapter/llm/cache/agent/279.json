@@ -2,49 +2,35 @@
   "hotel": "279",
   "model": "gpt-4o-mini",
   "replies": {
-    "6795043c6718c40a6f31419d6bd06e842972356f9c730c56a6cf09c5540e1858": {
+    "1fc56be918eb4ce4ce5e1931e2b6c08faa63c6a55699724790a9c38284dfec3a": {
+      "content": "Статусы характеристик отеля «Acta Voraport»:\n\n- **night_pharmacy**: статус uncertain, уверенность 0.6.\n- **night_services**: статус uncertain, уверенность 0.6.\n- **noise_night**: статус uncertain, уверенность 0.6.\n- **walk_to_beach**: статус uncertain, уверенность 0.6.\n- **walk_to_metro**: статус uncertain, уверенность 0.6.\n\nВсе характеристики с статусом uncertain имеют уверенность ниже 0.75 и требуют вопросов к отельеру."
+    },
+    "bd19d423c5d79eb6e0ff20734188b24a2c8ea77a298f33c372bc4a33d9bec026": {
       "tool_calls": [
         {
-          "id": "call_fupiJUsqX8ST9l05LCx0twXl",
+          "id": "call_WKRuFrrhm0dz7dLet74YVADi",
           "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy_index\": 1}"
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy\": \"night-services\"}"
         },
         {
-          "id": "call_jA9rYWvedzwqO6GSCZuVMWLK",
+          "id": "call_LWKArqvQwDW0HuJBB0xv2Djw",
           "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy_index\": 1}"
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy\": \"night-services\"}"
         },
         {
-          "id": "call_wDqznQuQw3VUlpYOguJcQgkL",
+          "id": "call_oRp3mZBKkLnDfUXSxQcA1SLD",
           "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"noise_night\", \"strategy_index\": 1}"
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"noise_night\", \"strategy\": \"noise-night:bcn\"}"
         },
         {
-          "id": "call_X43GsI398zizrY7XkXvdWaQq",
+          "id": "call_Y9CwPSSp6WiSEfS8B7uh9DNv",
           "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy_index\": 0}"
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy\": \"walk\"}"
         },
         {
-          "id": "call_yQ2YrUqCM2oDhKuzawl0ttuj",
+          "id": "call_LlVTjggKR6aQ9kcx1kBVtROo",
           "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy_index\": 0}"
-        }
-      ]
-    },
-    "7a24d44bed12b3245756e3b6eb052276216bfed15b0d5c3f05ce20d1a037d155": {
-      "content": "Результаты по характеристикам отеля «Acta Voraport»:\n\n- **night_pharmacy**: статус uncertain, уверенность 0.6.\n- **night_services**: статус uncertain, уверенность 0.6.\n- **noise_night**: статус uncertain, уверенность 0.6.\n- **walk_to_beach**: статус uncertain, уверенность 0.7.\n- **walk_to_metro**: статус uncertain, уверенность 0.7.\n\nВсе характеристики с низкой уверенностью остались без изменений. Необходимо задать вопросы отельеру по характеристикам с низкой уверенностью."
-    },
-    "82369eb7a210e3329aa5b68ef927394fe8058a74ee17659507fd906aa2e42a99": {
-      "tool_calls": [
-        {
-          "id": "call_ItNoVHwbwpIZlr6uSM51O5Xg",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy_index\": 0}"
-        },
-        {
-          "id": "call_bm2B2lGAuiG0A7WUU5uEjS5T",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy_index\": 0}"
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy\": \"walk\"}"
         }
       ]
     }
