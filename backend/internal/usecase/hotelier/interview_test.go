@@ -1,0 +1,324 @@
+package hotelier
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/agent"
+)
+
+type fakeStore struct {
+	hotel     Hotel
+	facts     []domain.Fact
+	demand    map[string]int
+	trust     float64
+	truth     map[string]map[string]any
+	qs        []Question
+	sentTimes []time.Time
+	evidence  []domain.Evidence
+	trace     []agent.TraceStep
+}
+
+func (f *fakeStore) Hotel(context.Context, int64) (Hotel, error) { return f.hotel, nil }
+func (f *fakeStore) HotelFacts(context.Context, int64) ([]domain.Fact, error) {
+	return f.facts, nil
+}
+func (f *fakeStore) Demand(context.Context, int64) (map[string]int, error) { return f.demand, nil }
+func (f *fakeStore) Trust(context.Context, domain.Author) (float64, error) {
+	if f.trust == 0 {
+		return domain.DefaultTrust, nil
+	}
+	return f.trust, nil
+}
+func (f *fakeStore) Truth(_ context.Context, _ int64, key string) (map[string]any, bool, error) {
+	t, ok := f.truth[key]
+	return t, ok, nil
+}
+func (f *fakeStore) Questions(context.Context, int64) ([]Question, error) { return f.qs, nil }
+func (f *fakeStore) SentSince(_ context.Context, _ int64, since time.Time) (int, error) {
+	n := 0
+	for _, t := range f.sentTimes {
+		if t.After(since) {
+			n++
+		}
+	}
+	return n, nil
+}
+func (f *fakeStore) UpsertCandidate(_ context.Context, q Question) (Question, error) {
+	for k := range f.qs {
+		if f.qs[k].Key == q.Key && f.qs[k].ID == q.ID && q.ID != 0 {
+			f.qs[k].Score, f.qs[k].Status, f.qs[k].Format, f.qs[k].Reason = q.Score, q.Status, q.Format, q.Reason
+			return f.qs[k], nil
+		}
+	}
+	q.ID = int64(len(f.qs) + 1)
+	f.qs = append(f.qs, q)
+	return q, nil
+}
+func (f *fakeStore) Send(_ context.Context, id int64, text, format, persona string, at time.Time) error {
+	for k := range f.qs {
+		if f.qs[k].ID == id {
+			f.qs[k].Text, f.qs[k].Status, f.qs[k].Format, f.qs[k].Persona = text, StatusOpen, format, persona
+			f.sentTimes = append(f.sentTimes, at)
+		}
+	}
+	return nil
+}
+func (f *fakeStore) RecordAnswer(_ context.Context, id int64, status, text string, parsed map[string]any, _ time.Time) error {
+	for k := range f.qs {
+		if f.qs[k].ID == id {
+			f.qs[k].Status, f.qs[k].AnswerText, f.qs[k].Parsed = status, text, parsed
+		}
+	}
+	return nil
+}
+func (f *fakeStore) Close(_ context.Context, id int64, _ string) error {
+	for k := range f.qs {
+		if f.qs[k].ID == id {
+			f.qs[k].Status = StatusClosed
+		}
+	}
+	return nil
+}
+func (f *fakeStore) SaveAnswerEvidence(_ context.Context, ev domain.Evidence) error {
+	f.evidence = append(f.evidence, ev)
+	return nil
+}
+func (f *fakeStore) AppendTrace(_ context.Context, s agent.TraceStep) error {
+	f.trace = append(f.trace, s)
+	return nil
+}
+
+type fakeLLM struct {
+	reply func(system, user string) (string, error)
+	calls int
+}
+
+func (l *fakeLLM) Complete(_ context.Context, system, user string) (string, error) {
+	l.calls++
+	return l.reply(system, user)
+}
+func (l *fakeLLM) Mode() string { return agent.ModeCache }
+
+func testRegistry(t *testing.T) domain.Registry {
+	t.Helper()
+	reg, err := domain.NewRegistry([]domain.Characteristic{
+		{Key: "pets_allowed", Title: "Можно с питомцем", Level: domain.LevelHotel, ValueType: domain.ValueBool, ValueField: "available", TTLDays: 180,
+			FavorableValues: []string{"true"}, AskHotelier: "Принимаете ли вы гостей с животными?"},
+		{Key: "blackout_curtains", Title: "Затемняющие шторы", Level: domain.LevelHotel, ValueType: domain.ValueBool, ValueField: "available", TTLDays: 365,
+			FavorableValues: []string{"true"}, AskHotelier: "Есть ли затемняющие шторы?"},
+		{Key: "night_pharmacy", Title: "Ночная аптека", Level: domain.LevelHotel, ValueType: domain.ValueBool, ValueField: "available", TTLDays: 365,
+			AskHotelier: "Есть ли рядом ночная аптека?"},
+		{Key: "no_question", Title: "Без вопроса", Level: domain.LevelHotel, ValueType: domain.ValueBool, ValueField: "available", TTLDays: 365},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return reg
+}
+
+var testNow = time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
+
+func newInterviewer(t *testing.T, st *fakeStore, llm LLM) *Interviewer {
+	return &Interviewer{Registry: testRegistry(t), Store: st, LLM: llm, Now: func() time.Time { return testNow }}
+}
+
+func baseStore() *fakeStore {
+	return &fakeStore{
+		hotel:  Hotel{ID: 5, Name: "Hotel Test", District: "gothic", RegionID: 1, Persona: domain.PersonaHonest},
+		demand: map[string]int{"pets_allowed": 14, "blackout_curtains": 19, "night_pharmacy": 6, "sea_view": 42},
+		truth: map[string]map[string]any{
+			"pets_allowed":      {"available": true, "species": []any{"dogs"}, "max_kg": 10, "fee_eur": 15},
+			"blackout_curtains": {"available": false},
+		},
+	}
+}
+
+// Вопросы без данных: ценный уходит, малоценный копится, число отправленных не больше бюджета.
+func TestRoundThresholdAndBudget(t *testing.T) {
+	st := baseStore()
+	res, err := newInterviewer(t, st, nil).Round(context.Background(), 5, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Candidates) != 3 {
+		t.Fatalf("кандидатов 3 (вопрос есть у трёх характеристик): %d", len(res.Candidates))
+	}
+	if len(res.Sent) != 2 || res.LowValue != 1 {
+		t.Fatalf("отправлено 2 (шторы, питомцы), ниже порога 1 (аптека 6/42): отправлено %d, ниже порога %d", len(res.Sent), res.LowValue)
+	}
+	if res.Sent[0].Key != "blackout_curtains" {
+		t.Errorf("первым уходит самый ценный вопрос (шторы, спрос 19): %s", res.Sent[0].Key)
+	}
+	for _, q := range st.qs {
+		if q.Key == "night_pharmacy" && q.Status != StatusLowValue {
+			t.Errorf("аптека копится со статусом pending_low_value: %s", q.Status)
+		}
+		if q.Key == "pets_allowed" && q.Format != domain.FormatOpen {
+			t.Errorf("расчёта нет — формат open: %s", q.Format)
+		}
+	}
+}
+
+func TestRoundBudgetExhausted(t *testing.T) {
+	st := baseStore()
+	st.sentTimes = []time.Time{testNow.AddDate(0, 0, -2), testNow.AddDate(0, 0, -1)}
+	res, err := newInterviewer(t, st, nil).Round(context.Background(), 5, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Sent) != 1 || res.Waiting != 1 || res.BudgetLeft != 1 {
+		t.Fatalf("из бюджета в 3 вопроса осталось 1: отправлено %d, ждёт %d, остаток %d", len(res.Sent), res.Waiting, res.BudgetLeft)
+	}
+	// Старше недели не считается.
+	st = baseStore()
+	st.sentTimes = []time.Time{testNow.AddDate(0, 0, -8), testNow.AddDate(0, 0, -9), testNow.AddDate(0, 0, -10)}
+	res, _ = newInterviewer(t, st, nil).Round(context.Background(), 5, Options{})
+	if res.BudgetLeft != domain.QuestionBudget {
+		t.Errorf("окно %d дней: %d", domain.QuestionBudgetDays, res.BudgetLeft)
+	}
+}
+
+// Повторный раунд не дублирует отправленные вопросы и не отправляет их снова.
+func TestRoundIdempotent(t *testing.T) {
+	st := baseStore()
+	iv := newInterviewer(t, st, nil)
+	if _, err := iv.Round(context.Background(), 5, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	res, err := iv.Round(context.Background(), 5, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Sent) != 0 || len(st.qs) != 3 {
+		t.Errorf("повторный раунд: отправлено %d, вопросов в БД %d", len(res.Sent), len(st.qs))
+	}
+}
+
+func TestRoundWithPersonaAnswers(t *testing.T) {
+	st := baseStore()
+	res, err := newInterviewer(t, st, nil).Round(context.Background(), 5, Options{Answer: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Answers) != 2 || len(st.evidence) != 2 {
+		t.Fatalf("честный ответил на оба вопроса: ответов %d, свидетельств %d", len(res.Answers), len(st.evidence))
+	}
+	for _, ev := range st.evidence {
+		if ev.AuthorType != domain.AuthorHotelier || ev.AuthorID != "5" || ev.Source != domain.SourceHotelier {
+			t.Errorf("автор свидетельства — отельер этого отеля: %+v", ev)
+		}
+		if ev.Details["answer_text"] == "" {
+			t.Error("текст ответа в details")
+		}
+		switch ev.Key {
+		case "pets_allowed":
+			d, _ := ev.Claimed["details"].(map[string]any)
+			if ev.Claimed["available"] != true || d["max_kg"] != 10 || d["fee_eur"] != 15 {
+				t.Errorf("питомцы: значение и детали из ответа: %+v", ev.Claimed)
+			}
+		case "blackout_curtains":
+			if ev.Claimed["available"] != false {
+				t.Errorf("честный признаёт, что штор нет: %+v", ev.Claimed)
+			}
+		}
+	}
+}
+
+// Ленивый: уход от ответа даёт needs_clarification и не создаёт свидетельство.
+func TestLazyEvasiveAnswerNeedsClarification(t *testing.T) {
+	var id int64
+	for id = 1; id < 200; id++ {
+		if strings.Contains(domain.PersonaAnswer(domain.PersonaLazy, domain.AnswerRequest{HotelID: id, Key: "pets_allowed", Format: domain.FormatOpen, Truth: map[string]any{"available": true}}), "уточнить") {
+			break
+		}
+	}
+	st := baseStore()
+	st.hotel.ID, st.hotel.Persona = id, domain.PersonaLazy
+	iv := newInterviewer(t, st, nil)
+	iv.Registry, _ = domain.NewRegistry([]domain.Characteristic{testRegistryChar(t, "pets_allowed")})
+	res, err := iv.Round(context.Background(), id, Options{Answer: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Answers) != 1 || res.Answers[0].Status != StatusNeedsClarification || len(st.evidence) != 0 {
+		t.Fatalf("уход от ответа: %+v, свидетельств %d", res.Answers, len(st.evidence))
+	}
+}
+
+func testRegistryChar(t *testing.T, key string) domain.Characteristic {
+	t.Helper()
+	c, ok := testRegistry(t).Get(key)
+	if !ok {
+		t.Fatal(key)
+	}
+	return c
+}
+
+// Подтверждение расчёта: «да» повторяет расчётное значение как утверждение отельера, «нет» значения не даёт.
+func TestParseConfirm(t *testing.T) {
+	c := domain.Characteristic{Key: domain.SeaViewKey, Title: "Вид на море", ValueType: domain.ValueRange, ValueField: "min_floor"}
+	iv := newInterviewer(t, baseStore(), nil)
+	val := map[string]any{"min_floor": float64(4)}
+	q := Question{Format: domain.FormatConfirm, AnswerText: "Да, верно."}
+	if p := iv.Parse(context.Background(), c, q, val); !p.Found || p.Claimed["min_floor"] != float64(4) {
+		t.Errorf("да: %+v", p)
+	}
+	q.AnswerText = "Нет, у нас с 6-го."
+	if p := iv.Parse(context.Background(), c, q, val); p.Found {
+		t.Errorf("нет без значения: %+v", p)
+	}
+	q.AnswerText = "уточнить"
+	if p := iv.Parse(context.Background(), c, q, val); p.Found {
+		t.Errorf("уточнить: %+v", p)
+	}
+}
+
+func TestParseLLMRetryAndFallback(t *testing.T) {
+	c := testRegistryChar(t, "pets_allowed")
+	q := Question{Format: domain.FormatOpen, Text: "Принимаете?", AnswerText: "Да, принимаем собак до 10 кг, 15 € за ночь."}
+
+	// Первая попытка с недопустимым значением, вторая исправлена.
+	n := 0
+	llm := &fakeLLM{reply: func(string, string) (string, error) {
+		n++
+		if n == 1 {
+			return `{"found": true, "value": "возможно"}`, nil
+		}
+		return `{"found": true, "value": "true", "details": {"species": ["dogs"], "max_kg": 10}}`, nil
+	}}
+	p := newInterviewer(t, baseStore(), llm).Parse(context.Background(), c, q, nil)
+	if !p.Found || llm.calls != 2 || p.Claimed["available"] != true || p.Mode != agent.ModeCache {
+		t.Fatalf("исправление с одной попытки: %+v, вызовов %d", p, llm.calls)
+	}
+
+	// Дважды недопустимо: значение не выдумывается.
+	bad := &fakeLLM{reply: func(string, string) (string, error) { return "Конечно!", nil }}
+	if p := newInterviewer(t, baseStore(), bad).Parse(context.Background(), c, q, nil); p.Found || bad.calls != 2 {
+		t.Errorf("после неудачного исправления значения нет: %+v, вызовов %d", p, bad.calls)
+	}
+
+	// Промах кеша или нет ключа: запасной разбор да / нет с деталями по шаблонам.
+	miss := &fakeLLM{reply: func(string, string) (string, error) { return "", errors.New("нет в кеше") }}
+	p = newInterviewer(t, baseStore(), miss).Parse(context.Background(), c, q, nil)
+	d, _ := p.Claimed["details"].(map[string]any)
+	if !p.Found || p.Mode != agent.ModePlanner || d["max_kg"] != 10 || d["fee_eur"] != 15 {
+		t.Errorf("запасной разбор: %+v", p)
+	}
+	if p := parseFallback(c, "Не уверен, надо уточнить."); p.Found {
+		t.Errorf("уход от ответа не должен давать значение: %+v", p)
+	}
+}
+
+func TestGuestsSearched(t *testing.T) {
+	cases := map[int]string{1: "1 гость искал", 2: "2 гостя искали", 5: "5 гостей искали", 11: "11 гостей искали", 14: "14 гостей искали", 21: "21 гость искал", 22: "22 гостя искали"}
+	for n, want := range cases {
+		if got := guestsSearched(n, "Т"); !strings.HasPrefix(got, want) {
+			t.Errorf("%d: %q, ожидалось %q…", n, got, want)
+		}
+	}
+}

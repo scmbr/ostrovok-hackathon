@@ -81,11 +81,12 @@ func (s *AgentStore) RecomputeFact(ctx context.Context, hotelID int64, district,
 	return saveEvidence(ctx, s.pool, s.rules, districtScope(district), key, nil, nil)
 }
 
-// CreateQuestion пишет вопрос отельеру; если такой открытый вопрос уже есть, ничего не меняет.
+// CreateQuestion пишет кандидата в вопросы отельеру (pending): отправляет его интервьюер по ценности и бюджету.
+// Если живой вопрос по характеристике уже есть, ничего не меняет.
 func (s *AgentStore) CreateQuestion(ctx context.Context, q agent.Question) (bool, error) {
 	tag, err := s.pool.Exec(ctx, `
 INSERT INTO hotelier_questions (hotel_id, characteristic_key, question, reason, status, value_score)
-VALUES ($1, $2, $3, $4, 'open', $5)
+VALUES ($1, $2, $3, $4, 'pending', $5)
 ON CONFLICT (hotel_id, characteristic_key) WHERE status IN ('pending', 'pending_low_value', 'open', 'needs_clarification') DO NOTHING`,
 		q.HotelID, q.Key, q.Text, q.Reason, q.ValueScore)
 	if err != nil {
@@ -99,7 +100,7 @@ func (s *AgentStore) CloseQuestion(ctx context.Context, hotelID int64, key, note
 	tag, err := s.pool.Exec(ctx, `
 UPDATE hotelier_questions
 SET status = 'closed', reason = COALESCE(reason || '; ', '') || 'закрыт: ' || $3
-WHERE hotel_id = $1 AND characteristic_key = $2 AND status = 'open'`, hotelID, key, note)
+WHERE hotel_id = $1 AND characteristic_key = $2 AND status IN ('pending', 'pending_low_value', 'open')`, hotelID, key, note)
 	if err != nil {
 		return false, err
 	}
