@@ -92,7 +92,7 @@ func (s *HotelierMockStore) SaveHotelierMock(ctx context.Context, regionID int64
 	for key, n := range demand {
 		if _, err := tx.Exec(ctx, `
 INSERT INTO characteristic_demand (characteristic_key, region_id, count, source) VALUES ($1, $2, $3, $4)
-ON CONFLICT (characteristic_key, region_id) DO UPDATE SET count = EXCLUDED.count, source = EXCLUDED.source`,
+ON CONFLICT (characteristic_key, region_id, source) DO UPDATE SET count = EXCLUDED.count`,
 			key, regionID, n, collect.DemandSourceMock); err != nil {
 			return err
 		}

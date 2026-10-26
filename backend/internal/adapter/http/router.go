@@ -16,12 +16,16 @@ import (
 var distFS embed.FS
 
 // NewRouter возвращает корневой обработчик: /health, /api/* и статика фронтенда.
-func NewRouter(reg domain.Registry, traces TraceSource, rooms RoomsSource, cabinet HotelierService) http.Handler {
+func NewRouter(reg domain.Registry, traces TraceSource, rooms RoomsSource, cabinet HotelierService, opts ...Option) http.Handler {
 	static, _ := fs.Sub(distFS, "dist")
-	return newRouter(static, reg, traces, rooms, cabinet)
+	return newRouter(static, reg, traces, rooms, cabinet, opts...)
 }
 
-func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms RoomsSource, cabinet HotelierService) http.Handler {
+func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms RoomsSource, cabinet HotelierService, opts ...Option) http.Handler {
+	var deps routerDeps
+	for _, o := range opts {
+		o(&deps)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.Handle("GET /api/characteristics", handleCharacteristics(reg))
@@ -30,6 +34,11 @@ func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms Room
 	}
 	if rooms != nil {
 		mux.Handle("GET /api/hotels/{id}/rooms", handleRooms(rooms))
+	}
+	if deps.search != nil {
+		mux.Handle("POST /api/search", handleSearch(deps.search, reg))
+		mux.Handle("GET /api/hotels/{id}", handleHotelCard(deps.search, reg))
+		mux.Handle("GET /api/hotels/{id}/similar", handleSimilar(deps.search, reg))
 	}
 	if cabinet != nil {
 		mux.Handle("GET /api/hotelier/{hotel_id}/inbox", handleHotelierInbox(cabinet))

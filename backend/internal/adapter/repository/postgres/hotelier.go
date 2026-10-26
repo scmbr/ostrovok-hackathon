@@ -47,7 +47,7 @@ func (s *HotelierStore) AppendTrace(ctx context.Context, t agent.TraceStep) erro
 }
 
 func (s *HotelierStore) Demand(ctx context.Context, regionID int64) (map[string]int, error) {
-	rows, err := s.pool.Query(ctx, `SELECT characteristic_key, count FROM characteristic_demand WHERE region_id = $1`, regionID)
+	rows, err := s.pool.Query(ctx, `SELECT characteristic_key, sum(count)::int FROM characteristic_demand WHERE region_id = $1 GROUP BY characteristic_key`, regionID)
 	if err != nil {
 		return nil, err
 	}

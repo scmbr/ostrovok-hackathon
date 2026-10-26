@@ -33,6 +33,40 @@ type HotelRooms struct {
 	HotelID    int64
 	Facades    []FacadeInfo
 	Categories []CategoryView
+
+	prs map[string]projection
+}
+
+// belowFloor — псевдозначение номеров ниже запрошенного этажа.
+const belowFloor = "below_floor"
+
+// AssessAt считает категорию по характеристике key для искомого значения target (пусто — цель из реестра) и номеров не ниже
+// minFloor (0 — любой этаж). Номера делятся по этажам поровну, как в AssessCategory.
+func (h HotelRooms) AssessAt(categoryID int64, key, target string, minFloor int) (domain.CategoryAssessment, bool) {
+	pr, ok := h.prs[key]
+	if !ok {
+		return domain.CategoryAssessment{}, false
+	}
+	for _, c := range h.Categories {
+		if c.Category.ID != categoryID {
+			continue
+		}
+		if target == "" {
+			target = pr.rule.Target
+		}
+		at := pr.valueAt
+		if minFloor > 0 {
+			// Номера ниже нужного этажа не подходят ни под какое значение: их доля уходит в «не подходит», пожелание строится выше.
+			at = func(facadeID int64, floor int) (string, bool) {
+				if floor < minFloor {
+					return belowFloor, true
+				}
+				return pr.valueAt(facadeID, floor)
+			}
+		}
+		return domain.AssessCategory(c.Category.Rooms, c.Category.Placed(), at, target), true
+	}
+	return domain.CategoryAssessment{}, false
 }
 
 // Hotel собирает категории отеля. Вероятность и пожелание считаются по текущим фактам фасадов,
@@ -58,6 +92,10 @@ func (s *Service) Hotel(ctx context.Context, hotelID int64) (HotelRooms, error) 
 		return out, fmt.Errorf("факты категорий: %w", err)
 	}
 	prs := projections(s.Registry, facts)
+	out.prs = map[string]projection{}
+	for _, pr := range prs {
+		out.prs[pr.char.Key] = pr
+	}
 	for _, c := range cats {
 		v := CategoryView{Category: c}
 		for _, pr := range prs {

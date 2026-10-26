@@ -14,6 +14,7 @@ import (
 	apphttp "github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/http"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/repository/postgres"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/rooms"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/search"
 )
 
 // Run запускает HTTP-сервер и блокируется до SIGINT/SIGTERM.
@@ -50,10 +51,17 @@ func Run() error {
 	if err != nil {
 		return fmt.Errorf("кабинет отельера: %w", err)
 	}
+	region, err := postgres.NewRegionStore(pool).LoadRegion(ctx, defaultRegion)
+	if err != nil {
+		return fmt.Errorf("регион поиска: %w", err)
+	}
+	roomSvc := &rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, reg.Rules())}
+	searchStore := postgres.NewSearchStore(pool)
+	searchSvc := &search.Service{Registry: reg, Store: searchStore, Rooms: roomSvc, Demand: searchStore, RegionID: region.ID}
 	srv := &http.Server{
 		Addr: ":" + cfg.Port,
 		Handler: apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules()),
-			&rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, reg.Rules())}, cabinet),
+			roomSvc, cabinet, apphttp.WithSearch(searchSvc)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

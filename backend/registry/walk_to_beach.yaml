@@ -5,7 +5,7 @@ level: hotel
 value_type: number
 value_field: minutes
 ttl_days: 180
-significant_diff: 5 # разница меньше пяти минут — «одинаково»
+significant_diff: 2 # разница меньше двух минут — «одинаково»
 conflict_theta: 1.0
 strategies:
   - tool: walk
