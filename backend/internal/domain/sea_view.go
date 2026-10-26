@@ -67,10 +67,15 @@ type SeaViewTarget struct {
 	Facades    []StoredFacade
 }
 
-// FanAzimuths — азимуты лучей веера вокруг нормали фасада.
+// FanAzimuths — азимуты лучей веера вокруг нормали фасада с параметрами по умолчанию.
 func FanAzimuths(facadeAzimuth float64) []float64 {
+	return FanAzimuthsWith(facadeAzimuth, SeaFanHalfDeg, SeaFanStepDeg)
+}
+
+// FanAzimuthsWith — азимуты лучей веера в пределах ±halfDeg от нормали фасада с шагом stepDeg.
+func FanAzimuthsWith(facadeAzimuth, halfDeg, stepDeg float64) []float64 {
 	var out []float64
-	for d := -SeaFanHalfDeg; d <= SeaFanHalfDeg+1e-9; d += SeaFanStepDeg {
+	for d := -halfDeg; d <= halfDeg+1e-9; d += stepDeg {
 		out = append(out, math.Mod(facadeAzimuth+d+360, 360))
 	}
 	return out
@@ -127,8 +132,13 @@ type SeaView struct {
 	Blockers []Obstacle
 }
 
-// ComputeSeaView считает вид по лучам веера для этажей 1..levels.
+// ComputeSeaView считает вид по лучам веера для этажей 1..levels с порогом SeaViewMinFraction.
 func ComputeSeaView(rays []SeaRay, levels int) SeaView {
+	return ComputeSeaViewWith(rays, levels, SeaViewMinFraction)
+}
+
+// ComputeSeaViewWith — то же с заданной долей лучей, с которой этаж считается имеющим вид.
+func ComputeSeaViewWith(rays []SeaRay, levels int, minFraction float64) SeaView {
 	if levels < 1 {
 		levels = 1
 	}
@@ -152,7 +162,7 @@ func ComputeSeaView(rays []SeaRay, levels int) SeaView {
 		if len(rays) > 0 {
 			v.Fractions[floor-1] = float64(seen) / float64(len(rays))
 		}
-		if v.MinFloor == 0 && v.Fractions[floor-1] >= SeaViewMinFraction {
+		if v.MinFloor == 0 && v.Fractions[floor-1] >= minFraction {
 			v.MinFloor = floor
 		}
 	}

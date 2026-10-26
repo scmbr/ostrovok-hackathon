@@ -21,7 +21,7 @@ func NewSeaViewStore(pool *pgxpool.Pool) *SeaViewStore { return &SeaViewStore{po
 // (building_parts) в пределах FacadeDepthM от фасадной линии, центр которых лежит за стеной
 // (башня на подиуме смотрит в ту же сторону поверх подиума), иначе этажность ближайшей части;
 // у зданий без частей — этажность здания, а если её нет (высота OSM по умолчанию), высота / 3 м.
-func (s *SeaViewStore) SeaViewTargets(ctx context.Context) ([]domain.SeaViewTarget, error) {
+func (s *SeaViewStore) SeaViewTargets(ctx context.Context, flt domain.HotelFilter) ([]domain.SeaViewTarget, error) {
 	rows, err := s.pool.Query(ctx, `
 SELECT h.id, b.id,
        COALESCE(
@@ -39,7 +39,8 @@ FROM hotels h
 JOIN buildings b ON b.id = h.building_id
 JOIN facades f ON f.hotel_id = h.id
 CROSS JOIN LATERAL (SELECT ST_LineInterpolatePoint(f.geom, 0.5) AS pt) m
-ORDER BY h.id, f.id`, domain.FloorHeightM, domain.FacadeDepthM)
+WHERE ($3::bigint = 0 OR h.region_id = $3) AND ($4::bigint = 0 OR h.id = $4)
+ORDER BY h.id, f.id`, domain.FloorHeightM, domain.FacadeDepthM, flt.RegionID, flt.HotelID)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +66,7 @@ ORDER BY h.id, f.id`, domain.FloorHeightM, domain.FacadeDepthM)
 // с суши в воду (вода справа от направления линии OSM), и здания на пути до берега.
 // Препятствия: части зданий кадастра с разной этажностью, здания кадастра без частей и здания OSM,
 // не продублированные кадастром (shadowed). Здание самого отеля тоже учитывается.
-func (s *SeaViewStore) SeaRays(ctx context.Context, rays []domain.RayQuery) ([]domain.SeaRay, error) {
+func (s *SeaViewStore) SeaRays(ctx context.Context, rays []domain.RayQuery, rayMaxM float64) ([]domain.SeaRay, error) {
 	lon := make([]float64, len(rays))
 	lat := make([]float64, len(rays))
 	az := make([]float64, len(rays))
@@ -120,7 +121,7 @@ LEFT JOIN LATERAL (
       AND ST_Intersects(ST_Transform(b.geom, 25831), r.line)
   ) u
 ) ob ON ob.d < c.d
-ORDER BY r.i, ob.d`, lon, lat, az, domain.SeaRayMaxM, domain.DefaultHeightM, domain.HeightCatastro)
+ORDER BY r.i, ob.d`, lon, lat, az, rayMaxM, domain.DefaultHeightM, domain.HeightCatastro)
 	if err != nil {
 		return nil, err
 	}

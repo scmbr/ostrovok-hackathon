@@ -16,8 +16,21 @@ const noiseNightTTL = 365 * 24 * time.Hour
 // NoiseNightStore — хранилище для расчёта noise_night; сегменты и источники на фасады накладывает PostGIS.
 type NoiseNightStore interface {
 	// NoiseTargets возвращает отели с фасадами: сегменты карты шума (если есть) и источники шума OSM вокруг.
-	NoiseTargets(ctx context.Context) ([]domain.NoiseTarget, error)
+	NoiseTargets(ctx context.Context, flt domain.HotelFilter, search domain.NoiseSearch) ([]domain.NoiseTarget, error)
 	EvidenceSaver
+}
+
+// NoiseNightSpec — описание инструмента noise_night.
+var NoiseNightSpec = Spec{
+	Name:        "noise-night",
+	Description: "ночной шум по фасадам: карта шума BCN (если покрывает фасад) и независимая оценка по дорогам и заведениям OSM",
+	Keys:        []string{domain.NoiseNightKey},
+	Scope:       ScopeHotel,
+	Params: []Param{
+		{"osm_radius_m", "м", "радиус учёта дорог и ночных заведений OSM вокруг фасада", domain.NoiseOSMRadiusM},
+		{"facade_buffer_m", "м", "полоса вокруг фасада, в которую попадают сегменты карты BCN", domain.NoiseFacadeBufferM},
+		{"min_overlap_m", "м", "минимальная длина сегмента карты в полосе фасада (или половина сегмента, если он короче)", domain.NoiseMinOverlapM},
+	},
 }
 
 // NoiseNight считает noise_night: карта шума BCN по фасадам (если покрывает фасад) и независимая оценка по OSM.
@@ -35,10 +48,18 @@ type NoiseNightResult struct {
 }
 
 // Run пересчитывает noise_night у всех отелей с фасадами.
-func (c *NoiseNight) Run(ctx context.Context) (NoiseNightResult, error) {
-	targets, err := c.Store.NoiseTargets(ctx)
+func (c *NoiseNight) Run(ctx context.Context, opts Options) (NoiseNightResult, error) {
+	p, err := NoiseNightSpec.Resolve(opts.Params)
+	if err != nil {
+		return NoiseNightResult{}, err
+	}
+	search := domain.NoiseSearch{OSMRadiusM: p["osm_radius_m"], FacadeBufferM: p["facade_buffer_m"], MinOverlapM: p["min_overlap_m"]}
+	targets, err := c.Store.NoiseTargets(ctx, opts.Filter, search)
 	if err != nil {
 		return NoiseNightResult{}, fmt.Errorf("отели с источниками шума: %w", err)
+	}
+	if len(targets) == 0 && opts.Filter.HotelID != 0 {
+		return NoiseNightResult{}, fmt.Errorf("отель %d не найден или у него нет фасадов", opts.Filter.HotelID)
 	}
 	now := time.Now()
 	if c.Now != nil {
@@ -49,7 +70,7 @@ func (c *NoiseNight) Run(ctx context.Context) (NoiseNightResult, error) {
 		if err := ctx.Err(); err != nil {
 			return res, err
 		}
-		evs, st := noiseEvidences(t, now)
+		evs, st := noiseEvidences(t, search, now)
 		if len(evs) == 0 {
 			continue
 		}
@@ -74,6 +95,7 @@ type noiseStats struct{ bcn, osmOnly, conflicts, same int }
 // noiseFacade — итог по фасаду: оба источника (BCN может отсутствовать) и значение, которое лежит в факте.
 type noiseFacade struct {
 	facade domain.NoiseTargetFacade
+	search domain.NoiseSearch
 	bcn    *domain.FacadeNoise
 	osm    domain.OSMNoise
 	lnDB   float64
@@ -86,11 +108,11 @@ var noiseAuthors = []domain.Author{domain.ToolAuthor(domain.NoiseNightBCNMethod)
 // noiseEvidences: свидетельства каждого фасада и лучшего (самого тихого) фасада от имени отеля.
 // Факты и конфликты из них собирает domain.AssembleFacts: значение берётся из BCN, если карта покрывает фасад,
 // иначе из оценки OSM; расхождение источников на ступень и более — конфликт фасада.
-func noiseEvidences(t domain.NoiseTarget, now time.Time) ([]domain.Evidence, noiseStats) {
+func noiseEvidences(t domain.NoiseTarget, search domain.NoiseSearch, now time.Time) ([]domain.Evidence, noiseStats) {
 	var st noiseStats
 	var results []noiseFacade
 	for _, f := range t.Facades {
-		r := noiseFacade{facade: f, osm: domain.EstimateOSMNoise(f.OSM)}
+		r := noiseFacade{facade: f, search: search, osm: domain.EstimateOSMNoise(f.OSM)}
 		r.lnDB, r.level = r.osm.LnDB, r.osm.Level
 		if n, ok := domain.ComputeFacadeNoise(f.Samples); ok {
 			r.bcn = &n
@@ -161,7 +183,7 @@ func (r noiseFacade) evidence(entityType, entityID string, now, until time.Time)
 					"license": "CC BY 4.0, Ajuntament de Barcelona",
 				},
 				"params": map[string]any{
-					"period": "ночь (Ln)", "facade_buffer_m": domain.NoiseFacadeBufferM, "min_overlap_m": domain.NoiseMinOverlapM,
+					"period": "ночь (Ln)", "facade_buffer_m": r.search.FacadeBufferM, "min_overlap_m": r.search.MinOverlapM,
 					"aggregation": "энергетическое среднее по сегментам, вес — длина в полосе фасада",
 				},
 				"assumptions": []string{
@@ -179,7 +201,7 @@ func (r noiseFacade) evidence(entityType, entityID string, now, until time.Time)
 			"exposed_sources":    r.osm.Exposed,
 			"independence_group": domain.NoiseOSMGroup,
 			"params": map[string]any{
-				"radius_m": domain.NoiseOSMRadiusM, "background_db": domain.NoiseBackgroundDB,
+				"radius_m": r.search.OSMRadiusM, "background_db": domain.NoiseBackgroundDB,
 				"shield_db": domain.NoiseShieldDB, "exposed_half_deg": domain.NoiseExposedHalfDeg,
 			},
 			"assumptions": []string{

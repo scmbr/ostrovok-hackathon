@@ -16,7 +16,7 @@ type seaStore struct {
 	recorder
 }
 
-func (s *seaStore) SeaViewTargets(context.Context) ([]domain.SeaViewTarget, error) {
+func (s *seaStore) SeaViewTargets(context.Context, domain.HotelFilter) ([]domain.SeaViewTarget, error) {
 	return []domain.SeaViewTarget{{
 		HotelID: 5, BuildingID: 1,
 		Facades: []domain.StoredFacade{
@@ -26,7 +26,7 @@ func (s *seaStore) SeaViewTargets(context.Context) ([]domain.SeaViewTarget, erro
 	}}, nil
 }
 
-func (s *seaStore) SeaRays(_ context.Context, q []domain.RayQuery) ([]domain.SeaRay, error) {
+func (s *seaStore) SeaRays(_ context.Context, q []domain.RayQuery, _ float64) ([]domain.SeaRay, error) {
 	out := make([]domain.SeaRay, len(q))
 	for i, r := range q {
 		if r.AzimuthDeg > 0 && r.AzimuthDeg < 180 {
@@ -43,7 +43,7 @@ func (s *seaStore) SeaRays(_ context.Context, q []domain.RayQuery) ([]domain.Sea
 func TestSeaViewFacts(t *testing.T) {
 	store := &seaStore{}
 	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
-	n, err := (&SeaView{Store: store, Now: func() time.Time { return now }}).Run(context.Background())
+	n, err := (&SeaView{Store: store, Now: func() time.Time { return now }}).Run(context.Background(), Options{})
 	if err != nil || n != 1 {
 		t.Fatalf("Run: %d, %v", n, err)
 	}
@@ -95,7 +95,7 @@ func TestSeaViewFacts(t *testing.T) {
 // Башня на подиуме: вид с 1-го этажа подиума (2 этажа) для отеля не показатель, лучший фасад — башенный.
 type towerStore struct{ seaStore }
 
-func (s *towerStore) SeaViewTargets(context.Context) ([]domain.SeaViewTarget, error) {
+func (s *towerStore) SeaViewTargets(context.Context, domain.HotelFilter) ([]domain.SeaViewTarget, error) {
 	return []domain.SeaViewTarget{{
 		HotelID: 6, BuildingID: 2,
 		Facades: []domain.StoredFacade{
@@ -105,7 +105,7 @@ func (s *towerStore) SeaViewTargets(context.Context) ([]domain.SeaViewTarget, er
 	}}, nil
 }
 
-func (s *towerStore) SeaRays(_ context.Context, q []domain.RayQuery) ([]domain.SeaRay, error) {
+func (s *towerStore) SeaRays(_ context.Context, q []domain.RayQuery, _ float64) ([]domain.SeaRay, error) {
 	out := make([]domain.SeaRay, len(q))
 	for i, r := range q {
 		out[i] = domain.SeaRay{AzimuthDeg: r.AzimuthDeg, HasWater: true, WaterDistM: 300}
@@ -118,7 +118,7 @@ func (s *towerStore) SeaRays(_ context.Context, q []domain.RayQuery) ([]domain.S
 
 func TestSeaViewHotelFactSkipsLowPodium(t *testing.T) {
 	store := &towerStore{}
-	if _, err := (&SeaView{Store: store}).Run(context.Background()); err != nil {
+	if _, err := (&SeaView{Store: store}).Run(context.Background(), Options{}); err != nil {
 		t.Fatal(err)
 	}
 	saved := store.saved["6/"+domain.SeaViewKey]

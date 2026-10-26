@@ -25,6 +25,17 @@ type ClimateStore interface {
 	DistrictEvidenceSaver
 }
 
+// ClimateSpec — описание инструмента climate.
+var ClimateSpec = Spec{
+	Name:        "climate",
+	Description: "месячные нормы климата района: воздух, осадки, солнце и вода по реанализу Open-Meteo (ERA5)",
+	Keys:        []string{domain.ClimateKey},
+	Scope:       ScopeDistrict,
+	Params: []Param{
+		{"years", "лет", "сколько последних полных лет берётся для месячных норм", domain.ClimateYears},
+	},
+}
+
 // Climate считает climate_by_month по районам: месячные нормы воздуха, осадков, солнца и температуры моря.
 type Climate struct {
 	Src       ClimateSource
@@ -40,16 +51,36 @@ type ClimateResult struct {
 }
 
 // Run загружает последние ClimateYears полных лет по центру каждого района и пишет факт района.
-func (c *Climate) Run(ctx context.Context) (ClimateResult, error) {
+func (c *Climate) Run(ctx context.Context, opts Options) (ClimateResult, error) {
 	res := ClimateResult{SeaYears: math.MaxInt}
+	p, err := ClimateSpec.Resolve(opts.Params)
+	if err != nil {
+		return res, err
+	}
+	years := int(p["years"])
+	if years < 1 {
+		return res, fmt.Errorf("инструмент %s: years должен быть не меньше 1", ClimateSpec.Name)
+	}
+	districts := c.Districts
+	if opts.District != "" {
+		districts = nil
+		for _, d := range c.Districts {
+			if d.Name == opts.District {
+				districts = append(districts, d)
+			}
+		}
+		if len(districts) == 0 {
+			return res, fmt.Errorf("район %q не найден", opts.District)
+		}
+	}
 	now := time.Now()
 	if c.Now != nil {
 		now = c.Now()
 	}
 	toYear := now.Year() - 1
-	from := time.Date(toYear-domain.ClimateYears+1, 1, 1, 0, 0, 0, 0, time.UTC)
+	from := time.Date(toYear-years+1, 1, 1, 0, 0, 0, 0, time.UTC)
 	to := time.Date(toYear, 12, 31, 0, 0, 0, 0, time.UTC)
-	for _, d := range c.Districts {
+	for _, d := range districts {
 		if err := ctx.Err(); err != nil {
 			return res, err
 		}

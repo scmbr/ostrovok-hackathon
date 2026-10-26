@@ -12,7 +12,7 @@ type nightFake struct {
 	recorder
 }
 
-func (s *nightFake) NightTargets(context.Context) ([]domain.NightTarget, error) {
+func (s *nightFake) NightTargets(context.Context, domain.HotelFilter, float64) ([]domain.NightTarget, error) {
 	return []domain.NightTarget{
 		{HotelID: 1, Pois: []domain.NightPoi{
 			{OSMID: 10, Kind: "pharmacy", Name: "Farmàcia", DistM: 120.4, Hours: "24/7"},
@@ -26,7 +26,7 @@ func (s *nightFake) NightTargets(context.Context) ([]domain.NightTarget, error) 
 func TestNightServicesFacts(t *testing.T) {
 	store := &nightFake{}
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
-	res, err := (&NightServices{Store: store, Now: func() time.Time { return now }}).Run(context.Background())
+	res, err := (&NightServices{Store: store, Now: func() time.Time { return now }}).Run(context.Background(), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

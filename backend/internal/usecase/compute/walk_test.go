@@ -25,7 +25,7 @@ func (s *walkFake) LoadWalkEdges(context.Context) ([]domain.WalkEdge, error) {
 	}, nil
 }
 
-func (s *walkFake) HotelPoints(context.Context) ([]domain.HotelPoint, error) {
+func (s *walkFake) HotelPoints(context.Context, domain.HotelFilter) ([]domain.HotelPoint, error) {
 	return []domain.HotelPoint{
 		{ID: 1, Name: "A", Point: orb.Point{2.17, 41.38}},
 		{ID: 2, Name: "B", Point: orb.Point{2.18, 41.38}},
@@ -74,7 +74,7 @@ func (s *walkFake) EdgeGeoms(_ context.Context, ids []int64) (map[int64]orb.Line
 func TestWalkFacts(t *testing.T) {
 	store := &walkFake{}
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
-	res, err := (&Walk{Store: store, Now: func() time.Time { return now }}).Run(context.Background())
+	res, err := (&Walk{Store: store, Now: func() time.Time { return now }}).Run(context.Background(), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

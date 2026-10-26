@@ -72,14 +72,16 @@ VALUES ($1, ST_Transform(ST_GeomFromText($2, 25831), 4326), $3, $4, $5, $6)`,
 }
 
 // NoiseTargets возвращает отели с фасадами. На каждом фасаде: сегменты карты BCN (если есть) и источники
-// шума OSM в радиусе NoiseOSMRadiusM — дороги и ночные заведения с расстоянием и направлением.
-func (s *NoiseStore) NoiseTargets(ctx context.Context) ([]domain.NoiseTarget, error) {
+// шума OSM в радиусе p.OSMRadiusM — дороги и ночные заведения с расстоянием и направлением.
+func (s *NoiseStore) NoiseTargets(ctx context.Context, flt domain.HotelFilter, p domain.NoiseSearch) ([]domain.NoiseTarget, error) {
 	var out []domain.NoiseTarget
 	index := map[int64]*domain.NoiseTargetFacade{}
 
 	rows, err := s.pool.Query(ctx, `
-SELECT hotel_id, id, azimuth_deg, COALESCE(faces_street, false), courtyard
-FROM facades ORDER BY hotel_id, id`)
+SELECT f.hotel_id, f.id, f.azimuth_deg, COALESCE(f.faces_street, false), f.courtyard
+FROM facades f JOIN hotels h ON h.id = f.hotel_id
+WHERE ($1::bigint = 0 OR h.region_id = $1) AND ($2::bigint = 0 OR h.id = $2)
+ORDER BY f.hotel_id, f.id`, flt.RegionID, flt.HotelID)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +92,7 @@ FROM facades ORDER BY hotel_id, id`)
 			rows.Close()
 			return nil, err
 		}
-		f.OSM.AzimuthDeg = f.AzimuthDeg
+		f.OSM.AzimuthDeg, f.OSM.RadiusM = f.AzimuthDeg, p.OSMRadiusM
 		if len(out) == 0 || out[len(out)-1].HotelID != hotelID {
 			out = append(out, domain.NoiseTarget{HotelID: hotelID})
 		}
@@ -102,9 +104,11 @@ FROM facades ORDER BY hotel_id, id`)
 		return nil, err
 	}
 	// Указатели берём после того, как срезы перестали расти.
+	var facadeIDs []int64
 	for i := range out {
 		for j := range out[i].Facades {
 			index[out[i].Facades[j].ID] = &out[i].Facades[j]
+			facadeIDs = append(facadeIDs, out[i].Facades[j].ID)
 		}
 	}
 
@@ -121,9 +125,9 @@ CROSS JOIN LATERAL (
                                    ST_Buffer(ST_Transform(f.geom, 25831), $1::float8))) AS ov,
          ST_Length(ST_Transform(n.geom, 25831)) AS len
 ) o
-WHERE ST_DWithin(ST_Transform(f.geom, 25831), ST_Transform(n.geom, 25831), $1::float8)
+WHERE f.id = ANY($3::bigint[]) AND ST_DWithin(ST_Transform(f.geom, 25831), ST_Transform(n.geom, 25831), $1::float8)
   AND o.ov >= LEAST($2::float8, o.len / 2)
-ORDER BY f.id, n.id`, domain.NoiseFacadeBufferM, domain.NoiseMinOverlapM)
+ORDER BY f.id, n.id`, p.FacadeBufferM, p.MinOverlapM, facadeIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +153,7 @@ WITH m AS (
   SELECT f.id AS fid, ST_LineInterpolatePoint(f.geom, 0.5) AS p4326,
          ST_Transform(ST_LineInterpolatePoint(f.geom, 0.5), 25831) AS p,
          radians(f.azimuth_deg::float8) AS az, h.building_id AS b1, h.osm_building_id AS b2
-  FROM facades f JOIN hotels h ON h.id = f.hotel_id
+  FROM facades f JOIN hotels h ON h.id = f.hotel_id WHERE f.id = ANY($3::bigint[])
 )
 SELECT DISTINCT ON (m.fid, COALESCE(r.name, r.osm_id::text), r.highway)
        m.fid, r.highway, ST_Distance(c.cp, m.p), COALESCE(degrees(ST_Azimuth(m.p, c.cp)), -1),
@@ -161,7 +165,7 @@ FROM m
 JOIN roads r ON r.geom && ST_Expand(m.p4326, 0.003)
 CROSS JOIN LATERAL (SELECT ST_ClosestPoint(ST_Transform(r.geom, 25831), m.p) AS cp) c
 WHERE ST_DWithin(c.cp, m.p, $1::float8)
-ORDER BY m.fid, COALESCE(r.name, r.osm_id::text), r.highway, ST_Distance(c.cp, m.p)`, domain.NoiseOSMRadiusM, domain.RayOriginOffsetM)
+ORDER BY m.fid, COALESCE(r.name, r.osm_id::text), r.highway, ST_Distance(c.cp, m.p)`, p.OSMRadiusM, domain.RayOriginOffsetM, facadeIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +189,7 @@ WITH m AS (
   SELECT f.id AS fid, ST_LineInterpolatePoint(f.geom, 0.5) AS p4326,
          ST_Transform(ST_LineInterpolatePoint(f.geom, 0.5), 25831) AS p,
          radians(f.azimuth_deg::float8) AS az, h.building_id AS b1, h.osm_building_id AS b2
-  FROM facades f JOIN hotels h ON h.id = f.hotel_id
+  FROM facades f JOIN hotels h ON h.id = f.hotel_id WHERE f.id = ANY($4::bigint[])
 )
 SELECT m.fid, q.kind, ST_Distance(q.pp, m.p), COALESCE(degrees(ST_Azimuth(m.p, q.pp)), -1),
        EXISTS (SELECT 1 FROM buildings bl
@@ -196,7 +200,7 @@ FROM m
 JOIN pois q0 ON q0.geom && ST_Expand(m.p4326, 0.003)
 CROSS JOIN LATERAL (SELECT q0.kind AS kind, ST_Transform(q0.geom, 25831) AS pp) q
 WHERE q.kind = ANY($2::text[]) AND ST_DWithin(q.pp, m.p, $1::float8)
-ORDER BY m.fid, q0.id`, domain.NoiseOSMRadiusM, domain.NoiseNightlifeKinds(), domain.RayOriginOffsetM)
+ORDER BY m.fid, q0.id`, p.OSMRadiusM, domain.NoiseNightlifeKinds(), domain.RayOriginOffsetM, facadeIDs)
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,7 @@ const maxPathPoints = 150
 // WalkStore — хранилище для расчёта пеших маршрутов.
 type WalkStore interface {
 	LoadWalkEdges(ctx context.Context) ([]domain.WalkEdge, error)
-	HotelPoints(ctx context.Context) ([]domain.HotelPoint, error)
+	HotelPoints(ctx context.Context, flt domain.HotelFilter) ([]domain.HotelPoint, error)
 	Destinations(ctx context.Context, kind string) ([]domain.Destination, error)
 	// SnapPoints привязывает точки к ближайшему ребру графа; ok[i] = false, если рядом нет рёбер.
 	SnapPoints(ctx context.Context, points []orb.Point, maxM float64) (snaps []domain.WalkSnap, ok []bool, err error)
@@ -44,19 +44,41 @@ type WalkResult struct {
 	MetroTargets int
 }
 
+// WalkSpec — описание инструмента walk.
+var WalkSpec = Spec{
+	Name:        "walk",
+	Description: "пешие маршруты от отеля до пляжа и метро по пешеходному графу OSM (Дейкстра), минуты и путь",
+	Keys:        []string{domain.WalkToBeachKey, domain.WalkToMetroKey},
+	Scope:       ScopeHotel,
+	Params: []Param{
+		{"speed_m_per_min", "м/мин", "скорость пешехода; рельеф не учитывается", domain.WalkSpeedMPerMin},
+		{"snap_max_m", "м", "дальше этого расстояния до ближайшего пути точка (отель, метро, пляж) не привязывается к графу", domain.WalkSnapMaxM},
+		{"beach_max_m", "м", "предельная длина маршрута до пляжа", domain.WalkBeachMaxM},
+		{"metro_max_m", "м", "предельная длина маршрута до метро", domain.WalkMetroMaxM},
+	},
+}
+
 type walkKind struct {
 	key, dest string
 	maxM      float64
 }
 
-var walkKinds = []walkKind{
-	{domain.WalkToBeachKey, domain.DestBeach, domain.WalkBeachMaxM},
-	{domain.WalkToMetroKey, domain.DestMetro, domain.WalkMetroMaxM},
+// walkKindsFor — виды маршрутов с предельными длинами из параметров запуска.
+func walkKindsFor(p Params) []walkKind {
+	return []walkKind{
+		{domain.WalkToBeachKey, domain.DestBeach, p["beach_max_m"]},
+		{domain.WalkToMetroKey, domain.DestMetro, p["metro_max_m"]},
+	}
 }
 
 // Run пересчитывает пешие маршруты у всех отелей.
-func (c *Walk) Run(ctx context.Context) (WalkResult, error) {
+func (c *Walk) Run(ctx context.Context, opts Options) (WalkResult, error) {
 	var res WalkResult
+	p, err := WalkSpec.Resolve(opts.Params)
+	if err != nil {
+		return res, err
+	}
+	kinds := walkKindsFor(p)
 	edges, err := c.Store.LoadWalkEdges(ctx)
 	if err != nil {
 		return res, fmt.Errorf("граф: %w", err)
@@ -74,21 +96,24 @@ func (c *Walk) Run(ctx context.Context) (WalkResult, error) {
 		now = c.Now()
 	}
 
-	hotels, err := c.Store.HotelPoints(ctx)
+	hotels, err := c.Store.HotelPoints(ctx, opts.Filter)
 	if err != nil {
 		return res, fmt.Errorf("отели: %w", err)
+	}
+	if len(hotels) == 0 && opts.Filter.HotelID != 0 {
+		return res, fmt.Errorf("отель %d не найден", opts.Filter.HotelID)
 	}
 	hotelPts := make([]orb.Point, len(hotels))
 	for i, h := range hotels {
 		hotelPts[i] = h.Point
 	}
-	hotelSnaps, hotelOK, err := c.Store.SnapPoints(ctx, hotelPts, domain.WalkSnapMaxM)
+	hotelSnaps, hotelOK, err := c.Store.SnapPoints(ctx, hotelPts, p["snap_max_m"])
 	if err != nil {
 		return res, fmt.Errorf("привязка отелей: %w", err)
 	}
 
 	targets := map[string][]domain.WalkTarget{}
-	for _, k := range walkKinds {
+	for _, k := range kinds {
 		dests, err := c.Store.Destinations(ctx, k.dest)
 		if err != nil {
 			return res, fmt.Errorf("цели %s: %w", k.dest, err)
@@ -97,7 +122,7 @@ func (c *Walk) Run(ctx context.Context) (WalkResult, error) {
 		for i, d := range dests {
 			pts[i] = d.Point
 		}
-		snaps, ok, err := c.Store.SnapPoints(ctx, pts, domain.WalkSnapMaxM)
+		snaps, ok, err := c.Store.SnapPoints(ctx, pts, p["snap_max_m"])
 		if err != nil {
 			return res, fmt.Errorf("привязка целей %s: %w", k.dest, err)
 		}
@@ -119,10 +144,10 @@ func (c *Walk) Run(ctx context.Context) (WalkResult, error) {
 			continue
 		}
 		res.Hotels++
-		for _, k := range walkKinds {
+		for _, k := range kinds {
 			var evs []domain.Evidence
 			if route, found := graph.ShortestToAny(hotelSnaps[i], targets[k.dest], k.maxM); found {
-				ev, err := c.walkEvidence(ctx, h, k, route, edgeByID, len(edges), now)
+				ev, err := c.walkEvidence(ctx, h, k, p, route, edgeByID, len(edges), now)
 				if err != nil {
 					return res, fmt.Errorf("отель %d, %s: %w", h.ID, k.key, err)
 				}
@@ -144,7 +169,7 @@ func (c *Walk) Run(ctx context.Context) (WalkResult, error) {
 	return res, nil
 }
 
-func (c *Walk) walkEvidence(ctx context.Context, h domain.HotelPoint, k walkKind, r domain.WalkRoute,
+func (c *Walk) walkEvidence(ctx context.Context, h domain.HotelPoint, k walkKind, p Params, r domain.WalkRoute,
 	edgeByID map[int64]domain.WalkEdge, graphEdges int, now time.Time) (domain.Evidence, error) {
 	geoms, err := c.Store.EdgeGeoms(ctx, r.Edges)
 	if err != nil {
@@ -153,7 +178,7 @@ func (c *Walk) walkEvidence(ctx context.Context, h domain.HotelPoint, k walkKind
 	path := routePath(r, edgeByID, geoms)
 	until := now.Add(walkTTL)
 	value := map[string]any{
-		"minutes":     r.Minutes(),
+		"minutes":     r.MinutesAt(p["speed_m_per_min"]),
 		"distance_m":  math.Round(r.DistM),
 		"target_kind": k.dest,
 	}
@@ -170,7 +195,7 @@ func (c *Walk) walkEvidence(ctx context.Context, h domain.HotelPoint, k walkKind
 		"path":               path,
 		"independence_group": domain.WalkGroup,
 		"params": map[string]any{
-			"speed_m_per_min": domain.WalkSpeedMPerMin, "snap_max_m": domain.WalkSnapMaxM, "max_route_m": k.maxM,
+			"speed_m_per_min": p["speed_m_per_min"], "snap_max_m": p["snap_max_m"], "max_route_m": k.maxM,
 		},
 		"assumptions": []string{
 			"рельеф не учитывается: перепад высот на маршруте не считается",

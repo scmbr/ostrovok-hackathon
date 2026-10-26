@@ -107,8 +107,9 @@ func (s *WalkStore) LoadWalkEdges(ctx context.Context) ([]domain.WalkEdge, error
 }
 
 // HotelPoints возвращает отели с точкой OSM (вход в отель неизвестен).
-func (s *WalkStore) HotelPoints(ctx context.Context) ([]domain.HotelPoint, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, ST_X(geom), ST_Y(geom) FROM hotels ORDER BY id`)
+func (s *WalkStore) HotelPoints(ctx context.Context, flt domain.HotelFilter) ([]domain.HotelPoint, error) {
+	rows, err := s.pool.Query(ctx, `SELECT h.id, h.name, ST_X(h.geom), ST_Y(h.geom) FROM hotels h
+WHERE ($1::bigint = 0 OR h.region_id = $1) AND ($2::bigint = 0 OR h.id = $2) ORDER BY h.id`, flt.RegionID, flt.HotelID)
 	if err != nil {
 		return nil, err
 	}

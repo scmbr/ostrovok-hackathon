@@ -14,7 +14,7 @@ type noiseStore struct {
 
 var secondaryAhead = []domain.NoiseSourceRef{{Kind: "secondary", DistM: 15, BearingDeg: 0}}
 
-func (s *noiseStore) NoiseTargets(context.Context) ([]domain.NoiseTarget, error) {
+func (s *noiseStore) NoiseTargets(context.Context, domain.HotelFilter, domain.NoiseSearch) ([]domain.NoiseTarget, error) {
 	return []domain.NoiseTarget{
 		{HotelID: 7, Facades: []domain.NoiseTargetFacade{
 			// Улица: карта и OSM согласны (громко).
@@ -39,7 +39,7 @@ func (s *noiseStore) NoiseTargets(context.Context) ([]domain.NoiseTarget, error)
 func TestNoiseNightFacts(t *testing.T) {
 	store := &noiseStore{}
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
-	res, err := (&NoiseNight{Store: store, Now: func() time.Time { return now }}).Run(context.Background())
+	res, err := (&NoiseNight{Store: store, Now: func() time.Time { return now }}).Run(context.Background(), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -122,6 +122,11 @@ func (s *ServiceSummary) Nearest() (NightOpen, bool) {
 // EvaluateNightServices определяет, что открыто ночью: часы без тега или не разобранные — «неизвестно»
 // и открытыми не считаются (оценка осторожная, недооценка вероятнее переоценки). Открытые отсортированы по расстоянию.
 func EvaluateNightServices(pois []NightPoi) NightServices {
+	return EvaluateNightServicesWithin(pois, NightRadiusM)
+}
+
+// EvaluateNightServicesWithin — то же для заведений не дальше radiusM от отеля.
+func EvaluateNightServicesWithin(pois []NightPoi, radiusM float64) NightServices {
 	res := NightServices{Services: map[string]*ServiceSummary{
 		ServicePharmacy: {}, ServiceShop: {}, ServiceFood: {},
 	}}
@@ -129,7 +134,7 @@ func EvaluateNightServices(pois []NightPoi) NightServices {
 	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].DistM < sorted[j].DistM })
 	for _, p := range sorted {
 		kind := ServiceKind(p.Kind)
-		if kind == "" || p.DistM > NightRadiusM {
+		if kind == "" || p.DistM > radiusM {
 			continue
 		}
 		sum := res.Services[kind]

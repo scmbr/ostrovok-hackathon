@@ -31,7 +31,7 @@ func TestClimateFacts(t *testing.T) {
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
 	c := &Climate{Src: fake, Store: fake, Now: func() time.Time { return now },
 		Districts: []domain.District{{Name: "gothic", BBox: domain.BBox{South: 41.379, West: 2.170, North: 41.388, East: 2.182}}}}
-	res, err := c.Run(context.Background())
+	res, err := c.Run(context.Background(), Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestClimateFacts(t *testing.T) {
 func TestClimateFailsWithoutData(t *testing.T) {
 	empty := &emptyClimate{}
 	c := &Climate{Src: empty, Store: empty, Districts: []domain.District{{Name: "x"}}}
-	if _, err := c.Run(context.Background()); err == nil {
+	if _, err := c.Run(context.Background(), Options{}); err == nil {
 		t.Error("район без данных не дал ошибку")
 	}
 }
