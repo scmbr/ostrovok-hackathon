@@ -10,6 +10,7 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/repository/postgres"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/source/bcnnoise"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/source/catastro"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/source/openmeteo"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/source/overpass"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/collect"
@@ -19,6 +20,7 @@ import (
 const collectUsage = `команды:
   osm          выгрузить отели, здания и берег из OSM (Overpass) в БД
   pois         выгрузить бары, клубы, аптеки, кафе и магазины рядом с отелями (после osm)
+  climate      рассчитать климат по месяцам для районов (факт climate_by_month, Open-Meteo, нужен интернет)
   walk-data    выгрузить пешеходный граф, метро и пляжи из OSM (после osm; долго, большой запрос)
   walk         рассчитать пешие маршруты до пляжа и метро (факты walk_to_beach, walk_to_metro, после walk-data)
   roads        выгрузить дороги OSM вокруг отелей (после osm)
@@ -37,7 +39,7 @@ func RunCollect(args []string) error {
 		return fmt.Errorf("укажите команду\n%s", collectUsage)
 	}
 	cmd := args[0]
-	if cmd != "osm" && cmd != "catastro" && cmd != "roads" && cmd != "pois" && cmd != "walk-data" && cmd != "walk" && cmd != "facades" && cmd != "sea-view" && cmd != "noise" && cmd != "noise-night" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
+	if cmd != "osm" && cmd != "catastro" && cmd != "roads" && cmd != "pois" && cmd != "walk-data" && cmd != "climate" && cmd != "walk" && cmd != "facades" && cmd != "sea-view" && cmd != "noise" && cmd != "noise-night" && cmd != "mock-cards" && cmd != "select-demo" && cmd != "stats" {
 		return fmt.Errorf("неизвестная команда %q\n%s", cmd, collectUsage)
 	}
 
@@ -78,6 +80,14 @@ func RunCollect(args []string) error {
 		if err := c.CollectPois(ctx); err != nil {
 			return err
 		}
+	case "climate":
+		res, err := (&compute.Climate{
+			Src: openmeteo.NewClient(cfg.RawDataDir), Store: postgres.NewClimateStore(pool), Districts: domain.Districts,
+		}).Run(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("climate_by_month рассчитан у районов: %d; лет данных о море (минимум по районам): %d\n", res.Districts, res.SeaYears)
 	case "walk-data":
 		if err := c.CollectWalk(ctx); err != nil {
 			return err
