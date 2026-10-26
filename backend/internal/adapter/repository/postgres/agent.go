@@ -41,9 +41,9 @@ SELECT f.id, f.entity_type, f.entity_id, f.characteristic_key, f.value, f.source
 FROM facts f
 LEFT JOIN conflicts c ON f.id = ANY(c.fact_ids) AND c.status = $2
 WHERE f.status = $3 AND (
-      (f.entity_type = 'hotel' AND f.entity_id = $1::text)
-   OR (f.entity_type = 'facade' AND f.entity_id IN (SELECT id::text FROM facades WHERE hotel_id = $1))
-   OR (f.entity_type = 'district' AND f.entity_id = (SELECT district FROM hotels WHERE id = $1)))
+      (f.entity_type = 'hotel' AND f.entity_id = ($1::bigint)::text)
+   OR (f.entity_type = 'facade' AND f.entity_id IN (SELECT id::text FROM facades WHERE hotel_id = $1::bigint))
+   OR (f.entity_type = 'district' AND f.entity_id = (SELECT district FROM hotels WHERE id = $1::bigint)))
 ORDER BY f.id`, hotelID, domain.ConflictOpen, domain.FactActive)
 	if err != nil {
 		return nil, err

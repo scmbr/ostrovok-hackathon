@@ -285,3 +285,43 @@ func TestSessionIDNamesHotel(t *testing.T) {
 		t.Errorf("session = %s", res.SessionID)
 	}
 }
+
+func TestNudgeWhenModelStopsEarly(t *testing.T) {
+	a, st, rn := newFixture(t)
+	// модель сразу «заканчивает», хотя ничего не посчитано; потом слушается подсказки
+	a.Chat = &scripted{replies: []Message{
+		{Role: "assistant", Content: "готово"},
+		call("1", "run_tool", map[string]any{"characteristic": "sea_view", "reason": "по подсказке"}),
+	}}
+	if _, err := a.Run(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	if len(rn.calls) != 1 || rn.calls[0] != "sea-view" {
+		t.Errorf("запуски = %v", rn.calls)
+	}
+	var nudged bool
+	for _, s := range st.trace {
+		nudged = nudged || strings.HasPrefix(s.Decision, "проверка полноты")
+	}
+	if !nudged {
+		t.Error("в журнале нет записи проверки полноты")
+	}
+}
+
+func TestRecomputeRefusedAfterToolRun(t *testing.T) {
+	a, st, _ := newFixture(t)
+	a.Chat = &scripted{replies: []Message{
+		call("1", "run_tool", map[string]any{"characteristic": "sea_view", "reason": "считаю"}),
+		call("2", "recompute_fact", map[string]any{"characteristic": "sea_view", "reason": "на всякий"}),
+	}}
+	if _, err := a.Run(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	var refused bool
+	for _, s := range st.trace {
+		refused = refused || (s.Tool == "recompute_fact" && strings.HasPrefix(s.Decision, "отказ:"))
+	}
+	if !refused {
+		t.Error("пересчёт после запуска инструмента не отклонён")
+	}
+}

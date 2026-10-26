@@ -36,16 +36,18 @@ type Result struct {
 }
 
 type run struct {
-	a       *Agent
-	h       HotelInfo
-	session string
-	mode    string
-	step    int
-	actions int
-	asked   int
-	skipped int
-	ran     map[string]bool
-	states  map[string]State
+	a          *Agent
+	h          HotelInfo
+	session    string
+	mode       string
+	step       int
+	actions    int
+	asked      int
+	skipped    int
+	ran        map[string]bool
+	recomputed map[string]bool
+	askedKeys  map[string]bool
+	states     map[string]State
 }
 
 // Run выполняет один прогон по отелю.
@@ -58,7 +60,7 @@ func (a *Agent) Run(ctx context.Context, hotelID int64) (Result, error) {
 	if a.Now != nil {
 		now = a.Now
 	}
-	r := &run{a: a, h: h, session: fmt.Sprintf("%d-%d", h.ID, now().Unix()), ran: map[string]bool{}}
+	r := &run{a: a, h: h, session: fmt.Sprintf("%d-%d", h.ID, now().Unix()), ran: map[string]bool{}, recomputed: map[string]bool{}, askedKeys: map[string]bool{}}
 	r.mode = ModePlanner
 	if a.Chat != nil {
 		r.mode = a.ChatMode
@@ -225,12 +227,22 @@ func (r *run) opRunTool(ctx context.Context, key string, idx int, params map[str
 // opRecompute просит движок правды пересобрать факт характеристики из активных свидетельств.
 func (r *run) opRecompute(ctx context.Context, key, why string) map[string]any {
 	in := map[string]any{"characteristic": key}
-	if _, ok := r.a.Registry.Get(key); !ok {
+	c, ok := r.a.Registry.Get(key)
+	if !ok {
 		return r.reject(ctx, "recompute_fact", in, "нет такой характеристики: "+key)
+	}
+	if r.recomputed[key] {
+		return r.reject(ctx, "recompute_fact", in, key+": факт уже пересчитан в этом прогоне")
+	}
+	for _, s := range c.Strategies {
+		if r.ranTool(s.Tool) {
+			return r.reject(ctx, "recompute_fact", in, fmt.Sprintf("%s: после запуска %s движок правды уже пересобрал факт", key, s.Tool))
+		}
 	}
 	if r.actions >= r.maxSteps() {
 		return r.reject(ctx, "recompute_fact", in, fmt.Sprintf("%s %d исчерпан", limitMarker, r.maxSteps()))
 	}
+	r.recomputed[key] = true
 	r.actions++
 	if err := r.a.Store.RecomputeFact(ctx, r.h.ID, r.h.District, key); err != nil {
 		out := map[string]any{"error": err.Error()}
@@ -263,6 +275,7 @@ func (r *run) opAsk(ctx context.Context, key, why string) map[string]any {
 	case r.asked >= MaxQuestions:
 		return r.reject(ctx, "ask_hotelier", in, fmt.Sprintf("лимит вопросов на отель за прогон: %d", MaxQuestions))
 	}
+	r.askedKeys[key] = true
 	score := ValueScore(st)
 	created, err := r.a.Store.CreateQuestion(ctx, Question{HotelID: r.h.ID, Key: key, Text: c.AskHotelier, Reason: reason, ValueScore: score})
 	if err != nil {
@@ -273,11 +286,14 @@ func (r *run) opAsk(ctx context.Context, key, why string) map[string]any {
 	if created {
 		r.asked++
 	}
-	out := map[string]any{"created": created, "question": c.AskHotelier, "reason": reason, "value_score": score}
+	// Модели возвращается то, что не зависит от наличия такого вопроса в БД: иначе воспроизведение из кеша
+	// на базе, где вопрос уже есть, разойдётся с записанным прогоном. created — только в журнале.
+	out := map[string]any{"question": c.AskHotelier, "reason": reason, "value_score": score}
+	logged := map[string]any{"created": created, "question": c.AskHotelier, "reason": reason, "value_score": score}
 	if !created {
-		out["note"] = "такой открытый вопрос уже есть"
+		logged["note"] = "такой открытый вопрос уже есть"
 	}
-	_ = r.log(ctx, why, "ask_hotelier", in, out)
+	_ = r.log(ctx, why, "ask_hotelier", in, logged)
 	return out
 }
 
@@ -321,13 +337,23 @@ func (r *run) converse(ctx context.Context) error {
 		{Role: "user", Content: fmt.Sprintf("Отель: «%s», район %s. Состояние характеристик (JSON):\n%s\nХарактеристики со статусом ok не трогай. Остальные доведи до результата.", r.h.Name, r.h.District, intro)},
 	}
 	tools := toolDefs()
-	for round := 0; round < r.maxSteps(); round++ {
+	nudges := 0
+	for round := 0; round < r.maxSteps()+2; round++ {
 		reply, err := r.a.Chat.Chat(ctx, msgs, tools)
 		if err != nil {
 			return r.fallback(ctx, err)
 		}
 		msgs = append(msgs, reply)
 		if len(reply.ToolCalls) == 0 {
+			if left := r.pending(); len(left) > 0 && nudges < 2 && r.actions < r.maxSteps() {
+				nudges++
+				note := "Остались необработанные характеристики:\n- " + strings.Join(left, "\n- ") + "\nПродолжи работу по правилам."
+				if err := r.log(ctx, "проверка полноты: модель закончила, но остались необработанные характеристики", "", nil, map[string]any{"left": left}); err != nil {
+					return err
+				}
+				msgs = append(msgs, Message{Role: "user", Content: note})
+				continue
+			}
 			return r.log(ctx, "итог агента: "+strings.TrimSpace(reply.Content), "", nil, nil)
 		}
 		for _, call := range reply.ToolCalls {
@@ -417,11 +443,13 @@ func (r *run) characteristicsView() []map[string]any {
 const systemPrompt = `Ты агент-сборщик характеристик отеля. Ты не знаешь фактов и не записываешь их: значения считают инструменты, а уверенность и конфликты определяет движок правды. Ты решаешь только, что посчитать и когда спросить отельера.
 Правила:
 - Характеристики со статусом ok (свежо и уверенно) не трогай.
-- Для missing, stale, disputed, weak и uncertain выбери стратегию из реестра (list_characteristics) и запусти инструмент run_tool. Один инструмент не запускай дважды.
+- Для missing, stale, disputed, weak и uncertain выбери стратегию из реестра (list_characteristics) и запусти инструмент run_tool. Инструмент считает сразу все характеристики, у которых он указан в стратегиях (walk — пляж и метро, night-services — ночные сервисы и аптека), поэтому запускай каждый инструмент один раз, а потом смотри состояния в ответе.
+- После каждого запуска движок правды сам пересобирает факты. recompute_fact нужен, только если инструмент не запускался, а свидетельства изменились: в этом прогоне почти никогда.
+- Повторный запуск не улучшит результат: если после расчёта статус остался weak или uncertain, это итог, а не повод считать снова.
 - После расчёта смотри на результат. Если факт появился и уверенность не ниже 0,6, отельера не спрашивай.
 - Вопрос отельеру (ask_hotelier) разрешён, только если у характеристики есть вопрос, а после расчёта данных нет или уверенность ниже 0,6. Не больше трёх вопросов.
-- В каждом вызове в поле reason пиши одну короткую фразу с обоснованием решения по-русски.
-- Когда работа закончена, ответь коротким итогом без вызова инструментов.`
+- В каждом вызове в поле reason пиши одну короткую фразу по-русски: ключ характеристики, её статус или уверенность и почему выбран этот инструмент или вопрос.
+- Когда работа закончена, ответь коротким итогом без вызова инструментов; пиши в нём только то, что видно из ответов инструментов (статусы и уверенность).`
 
 func toolDefs() []ToolDef {
 	reason := `"reason":{"type":"string","description":"краткое обоснование решения"}`
@@ -437,4 +465,39 @@ func toolDefs() []ToolDef {
 		{Name: "recompute_fact", Description: "Пересчитать факт характеристики движком правды из имеющихся свидетельств, без запуска инструмента.", Parameters: obj(reason+","+key, `"reason","characteristic"`)},
 		{Name: "ask_hotelier", Description: "Создать вопрос отельеру по характеристике. Разрешено, только если после расчёта данных нет или уверенность ниже 0,6.", Parameters: obj(reason+","+key, `"reason","characteristic"`)},
 	}
+}
+
+// ranTool — инструмент уже запускался в этом прогоне (с любыми параметрами).
+func (r *run) ranTool(tool string) bool {
+	for sig := range r.ran {
+		if sig == tool || strings.HasPrefix(sig, tool+" ") {
+			return true
+		}
+	}
+	return false
+}
+
+// pending — характеристики, которые ещё требуют работы по правилам агента: инструмент стратегии не запускался
+// или после расчёта нужен вопрос отельеру. Нужны для проверки полноты: ленивая модель не должна закончить раньше времени.
+func (r *run) pending() []string {
+	var out []string
+	for _, c := range r.a.Registry.All() {
+		st := r.states[c.Key]
+		if !st.Needs() {
+			continue
+		}
+		var untried []string
+		for _, s := range c.Strategies {
+			if !r.ranTool(s.Tool) {
+				untried = append(untried, s.Tool)
+			}
+		}
+		switch {
+		case len(untried) > 0:
+			out = append(out, fmt.Sprintf("%s (%s): не запущен инструмент %s", c.Key, st.Reason, untried[0]))
+		case AskReason(c, st) != "" && !r.askedKeys[c.Key] && r.asked < MaxQuestions:
+			out = append(out, fmt.Sprintf("%s (%s): расчёт выполнен, нужен вопрос отельеру (ask_hotelier)", c.Key, AskReason(c, st)))
+		}
+	}
+	return out
 }

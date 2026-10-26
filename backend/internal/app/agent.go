@@ -74,6 +74,7 @@ func runAgent(args []string, reg domain.Registry) error {
 	hotelID := fs.Int64("hotel", 0, "id отеля (hotels.id)")
 	regionCode := fs.String("region", "barcelona", "код региона")
 	planner := fs.Bool("planner", false, "не использовать LLM: детерминированный планировщик")
+	cacheOnly := fs.Bool("cache", false, "не обращаться к LLM: воспроизвести прогон из кеша")
 	noRecord := fs.Bool("no-record", false, "не сохранять ответы LLM в кеш")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -106,7 +107,7 @@ func runAgent(args []string, reg domain.Registry) error {
 	switch {
 	case *planner:
 		fmt.Println("режим: планировщик (без LLM)")
-	case cfg.LLMAPIKey != "":
+	case cfg.LLMAPIKey != "" && !*cacheOnly:
 		live := adapterllm.NewClient(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel)
 		rec = &adapterllm.Recorder{Next: live, Model: cfg.LLMModel}
 		a.Chat, a.ChatMode = rec, agent.ModeLLM

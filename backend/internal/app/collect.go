@@ -38,7 +38,7 @@ const collectUsage = `использование: collect <команда> [-reg
   catastro     загрузить здания кадастра с этажностью из data/raw/catastro и привязать отели
   noise        загрузить фасадный шум карты BCN для зданий отелей (после catastro; data/raw/noise)
   noise-night  рассчитать noise_night: карта BCN и оценка OSM, расхождения источников (после facades, noise, pois)
-  agent -hotel ID  прогон агента-сборщика по отелю: что считать, когда спросить отельера; журнал в agent_trace (-planner без LLM, -no-record)
+  agent -hotel ID  прогон агента-сборщика по отелю: что считать, когда спросить отельера; журнал в agent_trace (-planner без LLM, -cache из кеша, -no-record)
   llm-check    проверить ключ LLM: один запрос с вызовом инструмента
   add-characteristic "описание"  добавить характеристику по тексту: LLM составляет YAML реестра из существующих инструментов
   truth        пересобрать все факты из активных свидетельств движком правды; печатает конфликты и таблицу по θ и conflict_steps

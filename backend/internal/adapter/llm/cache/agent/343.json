@@ -1,0 +1,59 @@
+{
+  "hotel": "343",
+  "model": "gpt-4o-mini",
+  "replies": {
+    "84c6a688e156706e9fe275d20452bf2cf157f05b09434e034e1197ab863748ff": {
+      "content": "Статусы и уверенность характеристик отеля «Vincci Marítimo»:\n\n- **climate_by_month**: ok, уверенность 0.85\n- **night_pharmacy**: uncertain, уверенность 0.60\n- **night_services**: uncertain, уверенность 0.60\n- **noise_night**: weak, уверенность 0.6\n- **sea_view**: ok, уверенность 0.85\n- **walk_to_beach**: uncertain, уверенность 0.70\n- **walk_to_metro**: uncertain, уверенность 0.70\n\nХарактеристики с статусом ok не требуют изменений. Для uncertain и weak характеристик уверенность осталась ниже 0.75, поэтому необходимо задать вопросы отельеру."
+    },
+    "9a027bde5542835ce7af08147c0ea71d2729ad0f89c85a67a79ef5c796bfbb2e": {
+      "tool_calls": [
+        {
+          "id": "call_SMhAu45Fz2iNN2wrw9PlsrDp",
+          "name": "run_tool",
+          "arguments": "{\"reason\":\"слабое расхождение источников для ночного шума\",\"characteristic\":\"noise_night\",\"strategy_index\":0}"
+        }
+      ]
+    },
+    "9bb800b25f5582ddfbd472628d3356381893046d2dcff6a28ccfd3e8001f466f": {
+      "tool_calls": [
+        {
+          "id": "call_DVeIkhWIEbumvPWO6iynMXCG",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75 для ночной аптеки\", \"characteristic\": \"night_pharmacy\", \"strategy_index\": 1}"
+        },
+        {
+          "id": "call_irbDBg0DtHb6zCrTXOIxWK9S",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75 для ночных сервисов\", \"characteristic\": \"night_services\", \"strategy_index\": 1}"
+        },
+        {
+          "id": "call_Pl2y2phFoV1a19iECdslxmvx",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75 для прогулки до пляжа\", \"characteristic\": \"walk_to_beach\", \"strategy_index\": 0}"
+        },
+        {
+          "id": "call_1Yz62tvAjGpUoJ8EWehpjGSy",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75 для прогулки до метро\", \"characteristic\": \"walk_to_metro\", \"strategy_index\": 0}"
+        }
+      ]
+    },
+    "dce0e1711cd218f716e66d1a80d566fd11fa8aa77a9663707252736fd708ac59": {
+      "tool_calls": [
+        {
+          "id": "call_VSC3KRDDtBoUQsVD6wPmCCr4",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75 для ночной аптеки\", \"characteristic\": \"night_pharmacy\", \"strategy_index\": 0}"
+        },
+        {
+          "id": "call_VAQvjGO9gX0gY9aYpfvya8T4",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75 для ночных сервисов\", \"characteristic\": \"night_services\", \"strategy_index\": 0}"
+        }
+      ]
+    },
+    "f7bd391bc159366ad778fe0b658f0b9e46daf83ce25426c61b9e6ae7ac6ff1f6": {
+      "content": "Статусы и уверенность характеристик отеля «Vincci Marítimo» после обработки:\n\n- **climate_by_month**: ok, уверенность 0.85\n- **night_pharmacy**: uncertain, уверенность 0.60\n- **night_services**: uncertain, уверенность 0.60\n- **noise_night**: weak, уверенность 0.60\n- **sea_view**: ok, уверенность 0.85\n- **walk_to_beach**: uncertain, уверенность 0.70\n- **walk_to_metro**: uncertain, уверенность 0.70\n\nВсе характеристики обработаны. Для uncertain и weak характеристик уверенность осталась ниже 0.75, поэтому необходимо задать вопросы отельеру."
+    }
+  }
+}
