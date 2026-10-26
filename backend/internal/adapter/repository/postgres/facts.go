@@ -212,12 +212,26 @@ type evidenceWriter struct {
 	pool *pgxpool.Pool
 	// rules — правила движка правды по характеристикам (реестр).
 	rules map[string]domain.TruthParams
+	// afterHotel вызывается после записи свидетельств отеля: категории номеров пересобирают свои свидетельства.
+	afterHotel HotelSaved
 }
+
+// HotelSaved — реакция на запись свидетельств характеристики key у отеля и его фасадов.
+type HotelSaved func(ctx context.Context, hotelID int64, key string) error
+
+// SetAfterHotelSave задаёт реакцию на запись свидетельств отеля; ошибка реакции возвращается из SaveHotelEvidence.
+func (w *evidenceWriter) SetAfterHotelSave(fn HotelSaved) { w.afterHotel = fn }
 
 // SaveHotelEvidence записывает свидетельства характеристики key у отеля и его фасадов, см. saveEvidence.
 func (w evidenceWriter) SaveHotelEvidence(ctx context.Context, hotelID int64, key string,
 	authors []domain.Author, evs []domain.Evidence) error {
-	return saveEvidence(ctx, w.pool, w.rules, hotelScope(hotelID), key, authors, evs)
+	if err := saveEvidence(ctx, w.pool, w.rules, hotelScope(hotelID), key, authors, evs); err != nil {
+		return err
+	}
+	if w.afterHotel != nil {
+		return w.afterHotel(ctx, hotelID, key)
+	}
+	return nil
 }
 
 // SaveDistrictEvidence записывает свидетельства характеристики key у района, см. saveEvidence.

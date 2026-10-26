@@ -147,3 +147,39 @@ func TestServiceHotel(t *testing.T) {
 		t.Errorf("отель без категорий: %v", err)
 	}
 }
+
+// Факт фасада изменился (инструмент записал новый вид) — Refresh пересобирает свидетельство категории,
+// вероятность следует за фасадом без отдельного запуска проекции.
+func TestRefreshFollowsFacadeFacts(t *testing.T) {
+	store := &fakeStore{
+		facts: []domain.Fact{seaFact(10, "1", float64(4), 0.85)},
+		cats:  []domain.RoomCategory{{ID: 101, Name: "Standard", Rooms: 10, Placements: []domain.StoredPlacement{place(1, 1, 5, 10)}}},
+	}
+	pr := &Projector{Registry: testRegistry(t), Store: store}
+	ctx := context.Background()
+	probability := func() any { return store.saved[101][0].Claimed["probability"] }
+
+	if err := pr.Refresh(ctx, 1, domain.SeaViewKey); err != nil {
+		t.Fatal(err)
+	}
+	if got := probability(); got != 0.4 { // вид с 4-го этажа: этажи 4–5 из 5
+		t.Fatalf("вероятность до изменения фасада %v, ждали 0,4", got)
+	}
+	store.facts = []domain.Fact{seaFact(11, "1", float64(2), 0.85)} // фасад стал видеть море с 2-го этажа
+	if err := pr.Refresh(ctx, 1, domain.SeaViewKey); err != nil {
+		t.Fatal(err)
+	}
+	if got := probability(); got != 0.8 {
+		t.Errorf("вероятность после изменения фасада %v, ждали 0,8", got)
+	}
+
+	// Характеристика без правила category и отель без категорий — не ошибка и не запись.
+	store.saved = nil
+	if err := pr.Refresh(ctx, 1, domain.NoiseNightKey); err != nil || store.saved != nil {
+		t.Errorf("noise_night без category: ошибка %v, записано %v", err, store.saved)
+	}
+	empty := &Projector{Registry: testRegistry(t), Store: &fakeStore{}}
+	if err := empty.Refresh(ctx, 1, domain.SeaViewKey); err != nil {
+		t.Errorf("отель без категорий: %v", err)
+	}
+}

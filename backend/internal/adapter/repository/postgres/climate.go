@@ -13,5 +13,5 @@ type ClimateStore struct {
 }
 
 func NewClimateStore(pool *pgxpool.Pool, rules map[string]domain.TruthParams) *ClimateStore {
-	return &ClimateStore{pool: pool, evidenceWriter: evidenceWriter{pool, rules}}
+	return &ClimateStore{pool: pool, evidenceWriter: evidenceWriter{pool: pool, rules: rules}}
 }

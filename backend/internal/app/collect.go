@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"os/signal"
 	"sort"
 	"strconv"
@@ -163,7 +164,9 @@ func RunCollect(args []string) error {
 		}
 		fmt.Printf("фасады рассчитаны у отелей: %d\n", n)
 	case "sea-view":
-		n, err := (&compute.SeaView{Registry: reg, Store: postgres.NewSeaViewStore(pool, rules)}).Run(ctx, opts)
+		sv := postgres.NewSeaViewStore(pool, rules)
+		sv.SetAfterHotelSave(roomsRefresh(reg, pool, rules))
+		n, err := (&compute.SeaView{Registry: reg, Store: sv}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
@@ -175,7 +178,9 @@ func RunCollect(args []string) error {
 		}
 		fmt.Printf("сегментов фасадного шума загружено: %d\n", n)
 	case "noise-night":
-		res, err := (&compute.NoiseNight{Registry: reg, Store: postgres.NewNoiseStore(pool, region.ID, rules)}).Run(ctx, opts)
+		nn := postgres.NewNoiseStore(pool, region.ID, rules)
+		nn.SetAfterHotelSave(roomsRefresh(reg, pool, rules))
+		res, err := (&compute.NoiseNight{Registry: reg, Store: nn}).Run(ctx, opts)
 		if err != nil {
 			return err
 		}
@@ -456,4 +461,11 @@ func sortedKeys(m map[string]int) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// roomsRefresh — реакция на запись фасадных свидетельств: свидетельства категорий номеров отеля пересобираются
+// в том же вызове (характеристики без правила category игнорируются).
+func roomsRefresh(reg domain.Registry, pool *pgxpool.Pool, rules map[string]domain.TruthParams) postgres.HotelSaved {
+	p := &rooms.Projector{Registry: reg, Store: postgres.NewRoomStore(pool, rules)}
+	return p.Refresh
 }

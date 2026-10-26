@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"slices"
 	"strconv"
 	"time"
 
@@ -43,34 +44,63 @@ func (p *Projector) Run(ctx context.Context, flt domain.HotelFilter) (Result, er
 		if err := ctx.Err(); err != nil {
 			return res, err
 		}
-		cats, err := p.Store.Categories(ctx, id)
+		r, err := p.project(ctx, id, keys)
+		res.Categories += r.Categories
+		res.Evidence += r.Evidence
 		if err != nil {
-			return res, fmt.Errorf("отель %d: %w", id, err)
-		}
-		facts, err := p.Store.FacadeFacts(ctx, id, keys)
-		if err != nil {
-			return res, fmt.Errorf("отель %d: %w", id, err)
-		}
-		for _, pr := range projections(p.Registry, facts) {
-			for _, c := range cats {
-				ev, ok := p.evidence(pr, c)
-				var evs []domain.Evidence
-				if ok {
-					evs = append(evs, ev)
-					res.Evidence++
-				}
-				author := domain.ToolAuthor(domain.RoomProjectionMethod)
-				if err := p.Store.SaveCategoryEvidence(ctx, c.ID, pr.char.Key, []domain.Author{author}, evs); err != nil {
-					return res, fmt.Errorf("отель %d, категория %q, %s: %w", id, c.Name, pr.char.Key, err)
-				}
-			}
+			return res, err
 		}
 		res.Hotels++
-		res.Categories += len(cats)
 		if (i+1)%25 == 0 {
 			log.Printf("rooms: %d из %d отелей", i+1, len(hotels))
 		}
 	}
+	return res, nil
+}
+
+// Refresh пересобирает свидетельства категорий отеля по характеристике key после того, как инструмент записал
+// новые факты его фасадов: вероятность категории следует за фасадами без отдельного запуска `collect rooms`.
+// У характеристик без правила category и у отелей без размещённых категорий ничего не делает.
+func (p *Projector) Refresh(ctx context.Context, hotelID int64, key string) error {
+	if c, ok := p.Registry.Get(key); !ok || c.Category == nil {
+		return nil
+	}
+	_, err := p.project(ctx, hotelID, []string{key})
+	return err
+}
+
+// project пересчитывает свидетельства категорий отеля по характеристикам keys.
+func (p *Projector) project(ctx context.Context, id int64, keys []string) (Result, error) {
+	var res Result
+	cats, err := p.Store.Categories(ctx, id)
+	if err != nil {
+		return res, fmt.Errorf("отель %d: %w", id, err)
+	}
+	if len(cats) == 0 {
+		return res, nil
+	}
+	facts, err := p.Store.FacadeFacts(ctx, id, keys)
+	if err != nil {
+		return res, fmt.Errorf("отель %d: %w", id, err)
+	}
+	for _, pr := range projections(p.Registry, facts) {
+		if !slices.Contains(keys, pr.char.Key) {
+			continue
+		}
+		for _, c := range cats {
+			ev, ok := p.evidence(pr, c)
+			var evs []domain.Evidence
+			if ok {
+				evs = append(evs, ev)
+				res.Evidence++
+			}
+			author := domain.ToolAuthor(domain.RoomProjectionMethod)
+			if err := p.Store.SaveCategoryEvidence(ctx, c.ID, pr.char.Key, []domain.Author{author}, evs); err != nil {
+				return res, fmt.Errorf("отель %d, категория %q, %s: %w", id, c.Name, pr.char.Key, err)
+			}
+		}
+	}
+	res.Categories = len(cats)
 	return res, nil
 }
 

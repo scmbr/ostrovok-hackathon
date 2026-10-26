@@ -23,7 +23,7 @@ type RoomStore struct {
 }
 
 func NewRoomStore(pool *pgxpool.Pool, rules map[string]domain.TruthParams) *RoomStore {
-	return &RoomStore{pool: pool, evidenceWriter: evidenceWriter{pool, rules}}
+	return &RoomStore{pool: pool, evidenceWriter: evidenceWriter{pool: pool, rules: rules}}
 }
 
 func categoryScope(categoryID int64) evidenceScope {
