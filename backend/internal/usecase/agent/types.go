@@ -25,8 +25,11 @@ const (
 	AskConfidence = 0.6
 	// MaxQuestions — вопросов отельеру на отель за один прогон.
 	MaxQuestions = 3
-	// MaxSteps — шагов агента (решений) за прогон.
-	MaxSteps = 20
+	// MaxLLMCalls — вызовов LLM за прогон (записи журнала и отказы не считаются).
+	MaxLLMCalls = 20
+	// MaxConsecutiveRejections — после стольких отказов подряд (без удачного действия между ними) прогон
+	// останавливается: модель зациклилась, лишние вызовы только стоят денег.
+	MaxConsecutiveRejections = 5
 )
 
 // HotelInfo — отель, по которому идёт прогон.
