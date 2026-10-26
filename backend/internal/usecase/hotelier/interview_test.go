@@ -482,3 +482,23 @@ func (f *fakeStore) MarkStale(_ context.Context, id int64) error {
 	f.stale = append(f.stale, id)
 	return nil
 }
+
+// LLM не должна подменять подтверждение расчёта другим вопросом: без «верно?» берётся шаблон.
+func TestPhraseKeepsConfirmQuestion(t *testing.T) {
+	c := seaViewChar()
+	h := Hotel{ID: 5, Name: "Hotel Test"}
+	d := "По расчёту из номеров «Vista mar» море не видно — верно? (да / нет / уточнить)"
+	bad := &fakeLLM{reply: func(string, string) (string, error) {
+		return "Насколько хорошо видно море?", nil
+	}}
+	text, mode := newInterviewer(t, baseStore(), bad).phrase(context.Background(), h, c, d, domain.FormatConfirm)
+	if text != d || mode != agent.ModePlanner {
+		t.Errorf("подмена вопроса: %q (%s)", text, mode)
+	}
+	good := &fakeLLM{reply: func(string, string) (string, error) {
+		return "Верно ли, что из номеров «Vista mar» море не видно?", nil
+	}}
+	if text, mode = newInterviewer(t, baseStore(), good).phrase(context.Background(), h, c, d, domain.FormatConfirm); mode != agent.ModeCache || text == d {
+		t.Errorf("нормальная переформулировка принимается: %q (%s)", text, mode)
+	}
+}

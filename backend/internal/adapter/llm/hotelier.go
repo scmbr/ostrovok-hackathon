@@ -119,6 +119,15 @@ func (h *Hotelier) Save(dir string) (string, int, error) {
 	for k, v := range h.replies {
 		merged[k] = v
 	}
+	// Файл на диске может быть новее встроенного кеша (параллельные и последовательные прогоны одной сборки): дописываем к нему.
+	if data, err := os.ReadFile(filepath.Join(dir, hotelierCacheFile)); err == nil {
+		var onDisk hotelierFile
+		if json.Unmarshal(data, &onDisk) == nil {
+			for k, v := range onDisk.Replies {
+				merged[k] = v
+			}
+		}
+	}
 	for k, v := range h.recorded {
 		merged[k] = v
 	}

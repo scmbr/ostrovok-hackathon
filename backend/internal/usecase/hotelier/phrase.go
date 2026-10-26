@@ -13,7 +13,7 @@ const maxQuestionRunes = 400
 
 const phraseSystem = `Ты помощник сервиса бронирования отелей. Сформулируй один короткий вежливый вопрос отельеру на русском языке.
 Вопрос про отель, а не про конкретного гостя: ответ будет полезен всем будущим гостям.
-Если дан расчёт, попроси подтвердить его: «верно? да / нет / уточнить». Если расчёта нет, спроси конкретно (категории, сторона, этаж, условия), а не «есть ли».
+Если дан расчёт, сохрани его в вопросе дословно по смыслу и попроси подтвердить: «верно? (да / нет / уточнить)». Если расчёта нет, спроси конкретно (категории, сторона, этаж, условия), а не «есть ли».
 Опирайся только на данные из запроса, ничего не выдумывай. Ответь одним вопросом без пояснений и кавычек.`
 
 var noiseRU = map[string]string{"quiet": "тихо", "moderate": "умеренно шумно", "loud": "шумно"}
@@ -51,6 +51,10 @@ func (i *Interviewer) phrase(ctx context.Context, h Hotel, c domain.Characterist
 	text, err := i.LLM.Complete(ctx, phraseSystem, user)
 	text = strings.TrimSpace(strings.Trim(strings.TrimSpace(text), "\"«»"))
 	if err != nil || text == "" || len([]rune(text)) > maxQuestionRunes {
+		return d, agent.ModePlanner
+	}
+	// Подтверждение расчёта должно оставаться подтверждением: без «верно?» модель подменила вопрос другим.
+	if format == domain.FormatConfirm && !strings.Contains(strings.ToLower(text), "верно") {
 		return d, agent.ModePlanner
 	}
 	return text, i.LLM.Mode()
