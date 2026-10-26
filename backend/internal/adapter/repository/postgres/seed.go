@@ -119,6 +119,11 @@ func LoadSeed(ctx context.Context, pool *pgxpool.Pool, path string) (bool, error
 	if err != nil {
 		return false, err
 	}
+	// pg_dump пишет в сид set_config('search_path', '', false): без сброса соединение остаётся в пуле
+	// с пустым search_path, и запросы без схемы на нём падают.
+	if _, err := tx.Exec(ctx, `RESET search_path`); err != nil {
+		return false, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return false, err
 	}

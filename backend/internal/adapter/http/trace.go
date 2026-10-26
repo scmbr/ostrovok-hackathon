@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -41,6 +42,7 @@ func handleTrace(src TraceSource) http.HandlerFunc {
 		}
 		steps, err := src.ListTrace(r.Context(), id, r.URL.Query().Get("session"))
 		if err != nil {
+			log.Printf("журнал агента, отель %d: %v", id, err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "не удалось прочитать журнал"})
 			return
 		}
