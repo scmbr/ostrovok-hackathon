@@ -35,9 +35,16 @@ func runSearchDemo(ctx context.Context, reg domain.Registry, pool *pgxpool.Pool,
 			if h.Alt != nil {
 				printVariant("   альтернатива", *h.Alt)
 			}
+			printConflicts(h)
 		}
 	}
 	return nil
+}
+
+func printConflicts(h domain.HotelResult) {
+	for _, c := range h.OtherConflicts {
+		fmt.Printf("   конфликт в другой категории «%s», %s: %s\n", c.Category, c.Key, c.Description)
+	}
 }
 
 func violationNote(v domain.Variant) string {
@@ -103,6 +110,7 @@ func printHotelSeaView(ctx context.Context, svc *search.Service, hotelID int64) 
 		if h.Alt != nil {
 			printVariant("   альтернатива", *h.Alt)
 		}
+		printConflicts(h)
 		return nil
 	}
 	return fmt.Errorf("отель %d не попал в выдачу (не демо-отель или нет категорий)", hotelID)

@@ -108,6 +108,14 @@ type searchHotelDTO struct {
 	Violations  []string    `json:"violations"`
 	Best        variantDTO  `json:"best"`
 	Alternative *variantDTO `json:"alternative,omitempty"`
+	// OtherConflicts — открытые конфликты в других категориях отеля по желаниям запроса.
+	OtherConflicts []variantConflictDTO `json:"other_conflicts"`
+}
+
+type variantConflictDTO struct {
+	Category    string `json:"category"`
+	Key         string `json:"key"`
+	Description string `json:"description"`
 }
 
 type searchResponse struct {
@@ -163,7 +171,10 @@ func newSearchResponse(reg domain.Registry, r search.Result) searchResponse {
 	out := searchResponse{Query: r.Query, Considered: r.Considered, Dropped: r.Dropped, Hotels: []searchHotelDTO{}}
 	for _, h := range r.Hotels {
 		d := searchHotelDTO{HotelID: h.HotelID, Name: h.Name, District: h.District, Card: newCardDTO(h.Card), Score: round2(h.Best.Score),
-			Violations: nonNil(h.Best.Violations), Best: newVariantDTO(reg, h.Best)}
+			Violations: nonNil(h.Best.Violations), Best: newVariantDTO(reg, h.Best), OtherConflicts: []variantConflictDTO{}}
+		for _, c := range h.OtherConflicts {
+			d.OtherConflicts = append(d.OtherConflicts, variantConflictDTO{Category: c.Category, Key: c.Key, Description: c.Description})
+		}
 		if h.Alt != nil {
 			alt := newVariantDTO(reg, *h.Alt)
 			d.Alternative = &alt
