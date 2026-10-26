@@ -13,6 +13,7 @@ import (
 
 	apphttp "github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/http"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/repository/postgres"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/rooms"
 )
 
 // Run запускает HTTP-сервер и блокируется до SIGINT/SIGTERM.
@@ -46,8 +47,9 @@ func Run() error {
 	}
 
 	srv := &http.Server{
-		Addr:              ":" + cfg.Port,
-		Handler:           apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules())),
+		Addr: ":" + cfg.Port,
+		Handler: apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules()),
+			&rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, reg.Rules())}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
