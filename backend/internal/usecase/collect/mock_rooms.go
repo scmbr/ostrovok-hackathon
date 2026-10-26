@@ -11,8 +11,8 @@ import (
 
 // Персоны имитированного отельера (hotelier_questions.persona, details свидетельств размещения).
 const (
-	PersonaHonest       = "honest"
-	PersonaEmbellishing = "embellishing"
+	PersonaHonest       = domain.PersonaHonest
+	PersonaEmbellishing = domain.PersonaEmbellishing
 )
 
 // BeautifiersCount — у стольких береговых отелей без вида «Sea View» размещена на фасадах без вида на море:

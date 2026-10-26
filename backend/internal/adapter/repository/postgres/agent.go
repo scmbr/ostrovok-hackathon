@@ -86,7 +86,7 @@ func (s *AgentStore) CreateQuestion(ctx context.Context, q agent.Question) (bool
 	tag, err := s.pool.Exec(ctx, `
 INSERT INTO hotelier_questions (hotel_id, characteristic_key, question, reason, status, value_score)
 VALUES ($1, $2, $3, $4, 'open', $5)
-ON CONFLICT (hotel_id, characteristic_key) WHERE status = 'open' DO NOTHING`,
+ON CONFLICT (hotel_id, characteristic_key) WHERE status IN ('pending', 'pending_low_value', 'open', 'needs_clarification') DO NOTHING`,
 		q.HotelID, q.Key, q.Text, q.Reason, q.ValueScore)
 	if err != nil {
 		return false, err
