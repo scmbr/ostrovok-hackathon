@@ -269,3 +269,51 @@ func TestAssembleFactsGroupsByEntityAndKey(t *testing.T) {
 		t.Error("без свидетельств факта нет")
 	}
 }
+
+func catEv(id int64, author Author, rel float64, view string) Evidence {
+	return Evidence{ID: id, EntityType: EntityRoomCategory, EntityID: "1", Key: SeaViewKey, Claimed: map[string]any{"view": view},
+		AuthorType: author.Type, AuthorID: author.ID, Reliability: rel, ObservedAt: t0}
+}
+
+func catCtx() TruthContext {
+	return TruthContext{Now: t0, Rules: map[string]TruthParams{SeaViewKey: {
+		Kind: TruthSingle, ValueField: "min_floor",
+		ByEntity: map[string]TruthParams{EntityRoomCategory: {
+			Kind: TruthEnum, ValueField: "view", FavorableValues: []string{"full"}, ConflictMinSideHotelier: 0.3,
+		}},
+	}}}
+}
+
+// Пониженный θ = 0,3 нужен только названию категории: «Sea View» отельера (≈0,41 после асимметрии) против расчёта
+// «none» — конфликт.
+func TestCategoryReducedThetaWhenHotelierClaimInDispute(t *testing.T) {
+	f, _ := AssembleFact([]Evidence{
+		catEv(1, ToolAuthor(RoomProjectionMethod), 0.85, "none"),
+		catEv(2, Author{AuthorHotelier, "5"}, 0.8, "full"),
+	}, catCtx())
+	if f.Conflict == nil {
+		t.Errorf("название отельера против расчёта должно давать конфликт: %+v", f)
+	}
+}
+
+// Без свидетельства отельера действует обычный θ = 1,0: один гость с обычной репутацией (вес ≈0,85) против расчёта —
+// только weak_disagreement, а не конфликт (раньше пониженный θ превращал его в конфликт в обход правила трёх гостей).
+func TestCategoryOrdinaryThetaForGuestsWithoutHotelier(t *testing.T) {
+	f, _ := AssembleFact([]Evidence{
+		catEv(1, ToolAuthor(RoomProjectionMethod), 0.85, "full"),
+		catEv(2, Author{AuthorGuest, "7"}, 0.7, "none"),
+	}, catCtx())
+	if f.Conflict != nil || !f.WeakDisagreement {
+		t.Errorf("один гость против расчёта: конфликт=%v weak=%v", f.Conflict, f.WeakDisagreement)
+	}
+	// Три гостя: «против» весит больше θ = 1,0 — конфликт.
+	f, _ = AssembleFact([]Evidence{
+		catEv(1, ToolAuthor(RoomProjectionMethod), 0.85, "full"),
+		catEv(2, Author{AuthorGuest, "7"}, 0.7, "none"),
+		catEv(3, Author{AuthorGuest, "8"}, 0.7, "none"),
+		catEv(4, Author{AuthorGuest, "9"}, 0.7, "none"),
+	}, catCtx())
+	if f.Conflict == nil {
+		t.Error("три гостя против расчёта: ожидался конфликт")
+	}
+}

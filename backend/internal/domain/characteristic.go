@@ -88,6 +88,9 @@ type CategoryRule struct {
 	FavorableValues []string
 	ConflictSteps   int
 	ConflictTheta   float64
+	// ConflictThetaHotelier — пониженный θ, только если в споре участвует утверждение отельера (название категории);
+	// иначе действует ConflictTheta (по умолчанию 1,0). Гости и расчёт без отельера пониженным порогом не спорят.
+	ConflictThetaHotelier float64
 }
 
 // FacadeValueAt читает значение характеристики у фасада на этаже из claimed факта фасада.
@@ -141,7 +144,7 @@ func (c Characteristic) TruthParams() TruthParams {
 	}
 	if r := c.Category; r != nil {
 		cp := TruthParams{
-			Kind: TruthEnum, ValueField: r.ValueField, ConflictSteps: r.ConflictSteps, ConflictMinSide: r.ConflictTheta,
+			Kind: TruthEnum, ValueField: r.ValueField, ConflictSteps: r.ConflictSteps, ConflictMinSide: r.ConflictTheta, ConflictMinSideHotelier: r.ConflictThetaHotelier,
 			FavorableValues: r.FavorableValues,
 		}
 		if r.Ordered {

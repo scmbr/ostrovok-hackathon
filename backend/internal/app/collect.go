@@ -42,6 +42,7 @@ const collectUsage = `использование: collect <команда> [-reg
   noise-night  рассчитать noise_night: карта BCN и оценка OSM, расхождения источников (после facades, noise, pois)
   agent -hotel ID  прогон агента-сборщика по отелю: что считать, когда спросить отельера; журнал в agent_trace (-planner без LLM, -cache из кеша, -no-record)
   hotelier-round [-hotel ID] [-answer=false]  раунд агента-интервьюера отельера по ценности и бюджету; персона отвечает, ответ разбирается (-no-llm, -cache, -no-record)
+  hotelier-preview [-hotel ID]  разбор ответа персоны на открытые вопросы без записи в БД (кнопка «ответить как персона»; ответы LLM — в кеш)
   hotelier-reset  снять вопросы, ответы отельеров и репутацию, пересобрать факты (как truth): вернуть отельеров к состоянию до интервью
   llm-check    проверить ключ LLM: один запрос с вызовом инструмента
   add-characteristic "описание"  добавить характеристику по тексту: LLM составляет YAML реестра из существующих инструментов
@@ -49,6 +50,10 @@ const collectUsage = `использование: collect <команда> [-reg
   mock-cards   сгенерировать мок базовых карточек отелей
   mock-rooms   сгенерировать категории номеров и их размещение у демо-отелей, «Sea View» у береговых (после mock-cards и sea-view; -hotel ID — один отель)
   mock-hotelier  назначить персоны имитированных отельеров демо-отелям, записать мок спроса и скрытую истину (после mock-rooms)
+  mock-stays   имитированные гости и брони демо-отелей; у одного отеля три гостя сообщают о закрытом виде (после mock-rooms, пересоздаёт гостей)
+  guest-surveys  анкеты гостей по броням: вопросы по ожиданиям и контрольный, свидетельства о категориях, репутация гостей (после mock-stays)
+  guest-signals  сигнал гостей: 3 надёжных гостя против расчёта ставят факт на пересчёт (stale), задача и запись в agent_trace
+  recompute-tasks  выполнить задачи пересчёта: инструмент по отелю, итог (подтвердил расчёт или изменил) в agent_trace
   rooms        рассчитать значения характеристик в категориях номеров из фактов фасадов и размещения (после mock-rooms; -hotel ID — один отель)
   select-demo  отметить демо-подмножество отелей (флаг hotels.demo)
   stats        показать сводку по собранным данным`
@@ -72,6 +77,9 @@ func RunCollect(args []string) error {
 	}
 	if cmd == "hotelier-reset" {
 		return runHotelierReset(args[1:], reg)
+	}
+	if cmd == "hotelier-preview" {
+		return runHotelierPreview(args[1:], reg)
 	}
 	if cmd == "hotelier-round" {
 		return runHotelierRound(args[1:], reg)
@@ -238,6 +246,8 @@ func RunCollect(args []string) error {
 			return err
 		}
 		fmt.Printf("категории номеров рассчитаны: отелей %d, категорий %d, свидетельств записано %d\n", res.Hotels, res.Categories, res.Evidence)
+	case "mock-stays", "guest-surveys", "guest-signals", "recompute-tasks":
+		return runGuests(ctx, cmd, reg, pool, region, opts.Filter, cfg)
 	case "select-demo":
 		n, err := c.SelectDemo(ctx, collect.DemoSize)
 		if err != nil {
@@ -261,12 +271,12 @@ const defaultRegion = "barcelona"
 var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
 	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
-	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "hotelier-round": true, "hotelier-reset": true, "mock-cards": true, "mock-rooms": true, "mock-hotelier": true, "rooms": true,
+	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "hotelier-round": true, "hotelier-reset": true, "hotelier-preview": true, "mock-stays": true, "guest-surveys": true, "guest-signals": true, "recompute-tasks": true, "mock-cards": true, "mock-rooms": true, "mock-hotelier": true, "rooms": true,
 	"select-demo": true, "stats": true,
 }
 
 // roomsCommands — команды по категориям номеров: работают по отелям (-hotel), но не расчётные инструменты реестра.
-var roomsCommands = map[string]bool{"mock-rooms": true, "mock-hotelier": true, "rooms": true}
+var roomsCommands = map[string]bool{"mock-rooms": true, "mock-hotelier": true, "rooms": true, "mock-stays": true, "guest-surveys": true, "guest-signals": true, "recompute-tasks": true}
 
 // toolFlags — область и параметры запуска расчётного инструмента.
 type toolFlags struct {

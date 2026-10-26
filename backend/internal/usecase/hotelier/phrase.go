@@ -57,5 +57,9 @@ func (i *Interviewer) phrase(ctx context.Context, h Hotel, c domain.Characterist
 	if format == domain.FormatConfirm && !strings.Contains(strings.ToLower(text), "верно") {
 		return d, agent.ModePlanner
 	}
+	// Если черновик ссылается на гостей (сообщения о закрытом виде), переписанный вопрос не должен их терять.
+	if strings.Contains(strings.ToLower(d), "гост") && !strings.Contains(strings.ToLower(text), "гост") {
+		return d, agent.ModePlanner
+	}
 	return text, i.LLM.Mode()
 }

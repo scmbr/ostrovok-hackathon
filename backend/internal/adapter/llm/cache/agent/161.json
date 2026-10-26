@@ -2,114 +2,37 @@
   "hotel": "161",
   "model": "gpt-4o-mini",
   "replies": {
-    "0b9b2ccd76918dfb70c009cccd610b48779025520a7fdcc0488ee50e667fccf3": {
+    "282a10ecdd376d545ae3d4215430fd2ef91a52c6a36d6da0314e5cd2eb068ace": {
       "tool_calls": [
         {
-          "id": "call_lpoA9WJVDcofGJAjd751QQnk",
-          "name": "recompute_fact",
-          "arguments": "{\"reason\":\"вид на море, статус uncertain, уверенность 0.45\",\"characteristic\":\"sea_view\"}"
+          "id": "call_Pccs0Fdja6dwEyj0VACWEJAu",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy\": \"night-services\"}"
+        },
+        {
+          "id": "call_6RkSwV8uHhBUy6YOPszchRWh",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy\": \"night-services\"}"
+        },
+        {
+          "id": "call_OQUoGueTTvGbtsdTvbBj6aOx",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"слабое расхождение источников (weak_disagreement): 1\", \"characteristic\": \"noise_night\", \"strategy\": \"noise-night:bcn\"}"
+        },
+        {
+          "id": "call_o8MsKPnlkaMOA5d3cHJpxbFz",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy\": \"walk\"}"
+        },
+        {
+          "id": "call_RYmzwxcwKJbf2nhDP61Rjt3l",
+          "name": "run_tool",
+          "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy\": \"walk\"}"
         }
       ]
     },
-    "100b2c29175d43ddf9c18b30c0a828bac513f8166011481ba8b51a629a91d1e7": {
-      "tool_calls": [
-        {
-          "id": "call_n7CzLqtG5sP26yzg7pHd4O2J",
-          "name": "ask_hotelier",
-          "arguments": "{\"reason\":\"вид на море, статус uncertain, уверенность 0.45\",\"characteristic\":\"sea_view\"}"
-        }
-      ]
-    },
-    "26824fbf8139f778c001593381edfc683d534d2249c781d6d6ac8536466b6d1b": {
-      "tool_calls": [
-        {
-          "id": "call_qxH3PDAZ3C2Npod9YDywafly",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"ночные сервисы, статус uncertain, уверенность 0.60\", \"characteristic\": \"night_services\", \"strategy_index\": 0}"
-        },
-        {
-          "id": "call_3gKZOOc77fyHuIHAieChjsJL",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"аптека, статус uncertain, уверенность 0.60\", \"characteristic\": \"night_pharmacy\", \"strategy_index\": 0}"
-        }
-      ]
-    },
-    "417da88f5110fb2c5ed8ddd8263feffdec8334866c5411389f21480e3c5bb28e": {
-      "tool_calls": [
-        {
-          "id": "call_wkPbs2oSJOAOgFsp2YcBtstD",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"ночной шум, статус weak, слабое расхождение источников\", \"characteristic\": \"noise_night\", \"strategy_index\": 0}"
-        },
-        {
-          "id": "call_37Y1YM5vs2pax1CTW7wlh2at",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"вид на море, статус uncertain, уверенность 0.45\", \"characteristic\": \"sea_view\", \"strategy_index\": 0}"
-        }
-      ]
-    },
-    "4f24f2470a671062668102cff23eeb63c7d584d56171b6590abda09ec17669ba": {
-      "content": "Итоговые статусы характеристик отеля «Hotel Best Western Hotel 54 Barceloneta»:\n\n- night_pharmacy: статус uncertain, уверенность 0.60\n- night_services: статус uncertain, уверенность 0.60\n- sea_view: статус uncertain, уверенность 0.45 (вопрос отельеру: \"Из каких категорий номеров, с какой стороны и с какого этажа видно море?\")"
-    },
-    "c33c90cf81c67c005cdbe2718ec27bedbf0fbebbf853c672c6f234faeb505ae0": {
-      "tool_calls": [
-        {
-          "id": "call_mMbL6Mv4fdyFh60sLJdPUuBf",
-          "name": "ask_hotelier",
-          "arguments": "{\"reason\": \"ночные сервисы, статус uncertain, уверенность 0.60\", \"characteristic\": \"night_services\"}"
-        },
-        {
-          "id": "call_LSlIwPPhq3xmi9fylEWgJfRB",
-          "name": "ask_hotelier",
-          "arguments": "{\"reason\": \"аптека, статус uncertain, уверенность 0.60\", \"characteristic\": \"night_pharmacy\"}"
-        },
-        {
-          "id": "call_JMX9mXe8MW2hQDCJ3auyzaAn",
-          "name": "ask_hotelier",
-          "arguments": "{\"reason\": \"вид на море, статус uncertain, уверенность 0.45\", \"characteristic\": \"sea_view\"}"
-        }
-      ]
-    },
-    "d680cd2b115f1984a6ae1724ab421dfca6675fdbec4a3290ccd2d5bbd66d050e": {
-      "tool_calls": [
-        {
-          "id": "call_pilImO8qrP7KNnWDmMkqcocC",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"ночные сервисы, статус uncertain, уверенность 0.60\", \"characteristic\": \"night_services\", \"strategy_index\": 1}"
-        },
-        {
-          "id": "call_o4h1OMDJVwpahgIZcOm4SrAy",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"аптека, статус uncertain, уверенность 0.60\", \"characteristic\": \"night_pharmacy\", \"strategy_index\": 1}"
-        },
-        {
-          "id": "call_dyIAy7bFfLdyLegGCg6XBE8A",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"прогулка до пляжа, статус uncertain, уверенность 0.70\", \"characteristic\": \"walk_to_beach\", \"strategy_index\": 0}"
-        },
-        {
-          "id": "call_IcQi3bP77NK0L178Ss7nDuJr",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"прогулка до метро, статус uncertain, уверенность 0.70\", \"characteristic\": \"walk_to_metro\", \"strategy_index\": 0}"
-        }
-      ]
-    },
-    "ea6eb38f70d35e7903c5598961a0a12388e5663fe918fb2c47ceada946a350ed": {
-      "content": "Итоговые статусы характеристик отеля «Hotel Best Western Hotel 54 Barceloneta»:\n\n- night_pharmacy: статус uncertain, уверенность 0.60\n- night_services: статус uncertain, уверенность 0.60\n- noise_night: статус weak, уверенность 0.79\n- sea_view: статус uncertain, уверенность 0.45 (вопрос отельеру: \"Из каких категорий номеров, с какой стороны и с какого этажа видно море?\")"
-    },
-    "f8cd30b9c46fa93ae24316b5454734325a075fba91893f493357f7b2af13d0a9": {
-      "tool_calls": [
-        {
-          "id": "call_aGtrgod0m8HYr666nbqgzbjJ",
-          "name": "recompute_fact",
-          "arguments": "{\"reason\": \"ночные сервисы, статус uncertain, уверенность 0.60\", \"characteristic\": \"night_services\"}"
-        },
-        {
-          "id": "call_EBl7RwlhHBTnWWiN6uRV4gEF",
-          "name": "recompute_fact",
-          "arguments": "{\"reason\": \"аптека, статус uncertain, уверенность 0.60\", \"characteristic\": \"night_pharmacy\"}"
-        }
-      ]
+    "b6c8c4cf7f4f987d7e0c7ae01aa692cc3d226ef1e982d4e97478006d9fadeb73": {
+      "content": "Статусы характеристик отеля «Hotel Best Western Hotel 54 Barceloneta» после обработки:\n\n- **night_pharmacy**: статус uncertain, уверенность 0.60.\n- **night_services**: статус uncertain, уверенность 0.60.\n- **noise_night**: статус weak, уверенность 0.99.\n- **walk_to_beach**: статус uncertain, уверенность не удалось рассчитать (нет данных).\n- **walk_to_metro**: статус uncertain, уверенность не удалось рассчитать (нет данных).\n\nХарактеристики с статусом ok не изменились."
     }
   }
 }

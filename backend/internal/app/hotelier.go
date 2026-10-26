@@ -153,6 +153,92 @@ func printHotelierResult(r hotelier.Result) {
 	}
 }
 
+// runHotelierPreview — collect hotelier-preview [-hotel ID]: разбор ответа персоны на открытые вопросы отеля (по всем
+// демо-отелям с открытыми вопросами) без записи в БД. Ответы живой модели пишутся в кеш интервьюера: кнопка
+// «ответить как персона» в кабинете работает и без ключа.
+func runHotelierPreview(args []string, reg domain.Registry) error {
+	fs := flag.NewFlagSet("hotelier-preview", flag.ContinueOnError)
+	hotelID := fs.Int64("hotel", 0, "id отеля; без него — все демо-отели с открытыми вопросами")
+	regionCode := fs.String("region", defaultRegion, "код региона")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg := LoadConfig()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	pool, err := postgres.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("подключение к БД: %w", err)
+	}
+	defer pool.Close()
+	if err := postgres.Migrate(ctx, pool); err != nil {
+		return fmt.Errorf("миграции: %w", err)
+	}
+	region, err := postgres.NewRegionStore(pool).LoadRegion(ctx, *regionCode)
+	if err != nil {
+		return err
+	}
+	rules := reg.Rules()
+	store := postgres.NewHotelierStore(pool, rules)
+	iv := &hotelier.Interviewer{Registry: reg, Store: store,
+		Impact:     &rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, rules)},
+		Reputation: &reputation.Service{Registry: reg, Store: postgres.NewReputationStore(pool, rules)}}
+	var llm *adapterllm.Hotelier
+	if cfg.LLMAPIKey != "" {
+		llm, err = adapterllm.NewHotelierLive(adapterllm.NewClient(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel), true)
+		fmt.Printf("режим: LLM %s\n", cfg.LLMModel)
+	} else {
+		llm, err = adapterllm.NewHotelierCache()
+		fmt.Println("LLM_API_KEY не задан: режим кеша")
+	}
+	if err != nil {
+		return err
+	}
+	iv.LLM = llm
+
+	ids := []int64{*hotelID}
+	if *hotelID == 0 {
+		hotels, err := postgres.NewHotelierMockStore(pool).DemoHotels(ctx, domain.HotelFilter{RegionID: region.ID})
+		if err != nil {
+			return err
+		}
+		ids = ids[:0]
+		for _, h := range hotels {
+			ids = append(ids, h.ID)
+		}
+	}
+	n := 0
+	for _, id := range ids {
+		qs, err := store.Questions(ctx, id)
+		if err != nil {
+			return err
+		}
+		for _, q := range qs {
+			if q.Status != hotelier.StatusOpen {
+				continue
+			}
+			pv, err := iv.Preview(ctx, q)
+			if err != nil {
+				return fmt.Errorf("отель %d, %s: %w", id, q.Key, err)
+			}
+			if pv == nil {
+				continue
+			}
+			n++
+			fmt.Printf("%d %s: %s\n  ← «%s» → найдено: %v, значение: %v, разбор: %s\n", id, q.Key, q.Text, pv.Answer, pv.Parsed.Found, pv.Parsed.Claimed, pv.Parsed.Mode)
+		}
+	}
+	fmt.Printf("разобрано ответов персон без записи в БД: %d\n", n)
+	path, saved, err := llm.Save(adapterllm.HotelierCacheDir)
+	if err != nil {
+		return fmt.Errorf("сохранение кеша: %w", err)
+	}
+	if saved > 0 {
+		fmt.Printf("ответов LLM записано в кеш: %d (%s)\n", saved, path)
+	}
+	return nil
+}
+
 // runHotelierReset — collect hotelier-reset: удалить вопросы, свидетельства из ответов отельеров и репутацию авторов,
 // затем пересобрать факты движком правды (как collect truth). Нужна перед итоговыми прогонами и записью видео.
 func runHotelierReset(args []string, reg domain.Registry) error {

@@ -270,6 +270,11 @@ func (s *HotelierStore) CategoryIssues(ctx context.Context, hotelID int64) ([]ho
 		if is.CalcValue == "" {
 			continue
 		}
+		for _, e := range cf.Evidence {
+			if val, ok := e.Claimed["view"]; ok && e.AuthorType == domain.AuthorGuest && fmt.Sprint(val) != is.CalcValue {
+				is.GuestAgainst++
+			}
+		}
 		for _, p := range cat.Placements {
 			label := "фасад"
 			for _, f := range facades {
