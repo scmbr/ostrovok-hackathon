@@ -100,8 +100,8 @@ func TestEmbeddedRulesMatchFormerConstants(t *testing.T) {
 				ConflictSteps: 2, FavorableValues: []string{domain.NoiseQuiet},
 			}},
 		},
-		domain.WalkToBeachKey: {Kind: domain.TruthNumber, ValueField: "minutes", SignificantDiff: 5, ConflictMinSide: 1},
-		domain.WalkToMetroKey: {Kind: domain.TruthNumber, ValueField: "minutes", SignificantDiff: 5, ConflictMinSide: 1},
+		domain.WalkToBeachKey: {Kind: domain.TruthNumber, ValueField: "minutes", SignificantDiff: 2, ConflictMinSide: 1},
+		domain.WalkToMetroKey: {Kind: domain.TruthNumber, ValueField: "minutes", SignificantDiff: 2, ConflictMinSide: 1},
 	}
 	for key, w := range want {
 		if got := rules[key]; !reflect.DeepEqual(got, w) {
