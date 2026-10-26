@@ -12,9 +12,10 @@ import (
 // SeaViewStore — пространственные выборки для sea_view и запись фактов.
 type SeaViewStore struct {
 	pool *pgxpool.Pool
+	evidenceWriter
 }
 
-func NewSeaViewStore(pool *pgxpool.Pool) *SeaViewStore { return &SeaViewStore{pool: pool} }
+func NewSeaViewStore(pool *pgxpool.Pool) *SeaViewStore { return &SeaViewStore{pool: pool, evidenceWriter: evidenceWriter{pool}} }
 
 // SeaViewTargets возвращает отели с фасадами. Этажность фасада — максимум по частям здания
 // (building_parts) в пределах FacadeDepthM от фасадной линии, центр которых лежит за стеной
@@ -149,7 +150,3 @@ ORDER BY r.i, ob.d`, lon, lat, az, domain.SeaRayMaxM, domain.DefaultHeightM, dom
 	return out, rows.Err()
 }
 
-// SaveFacts заменяет активные факты и свидетельства sea_view отеля и его фасадов.
-func (s *SeaViewStore) SaveFacts(ctx context.Context, hotelID int64, facts []domain.Fact) error {
-	return saveFacts(ctx, s.pool, hotelID, domain.SeaViewKey, facts)
-}

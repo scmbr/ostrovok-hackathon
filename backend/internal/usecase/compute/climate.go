@@ -22,7 +22,7 @@ type ClimateSource interface {
 // ClimateStore — запись фактов по районам.
 type ClimateStore interface {
 	// SaveDistrictFacts заменяет активные факты характеристики key у района новыми.
-	SaveDistrictFacts(ctx context.Context, district, key string, facts []domain.Fact) error
+	DistrictEvidenceSaver
 }
 
 // Climate считает climate_by_month по районам: месячные нормы воздуха, осадков, солнца и температуры моря.
@@ -62,8 +62,9 @@ func (c *Climate) Run(ctx context.Context) (ClimateResult, error) {
 		if norms.Days == 0 {
 			return res, fmt.Errorf("район %s: нет данных за %d–%d", d.Name, from.Year(), to.Year())
 		}
-		fact := climateFact(d, centre, norms, from.Year(), to.Year(), now)
-		if err := c.Store.SaveDistrictFacts(ctx, d.Name, domain.ClimateKey, []domain.Fact{fact}); err != nil {
+		ev := climateEvidence(d, centre, norms, from.Year(), to.Year(), now)
+		if err := c.Store.SaveDistrictEvidence(ctx, d.Name, domain.ClimateKey,
+			[]domain.Author{domain.ToolAuthor(domain.ClimateMethod)}, []domain.Evidence{ev}); err != nil {
 			return res, fmt.Errorf("район %s: %w", d.Name, err)
 		}
 		res.Districts++
@@ -75,7 +76,7 @@ func (c *Climate) Run(ctx context.Context) (ClimateResult, error) {
 	return res, nil
 }
 
-func climateFact(d domain.District, centre orb.Point, n domain.ClimateNorms, fromYear, toYear int, now time.Time) domain.Fact {
+func climateEvidence(d domain.District, centre orb.Point, n domain.ClimateNorms, fromYear, toYear int, now time.Time) domain.Evidence {
 	until := now.Add(climateTTL)
 	months := make([]map[string]any, 0, 12)
 	for _, m := range n.Months {
@@ -115,15 +116,10 @@ func climateFact(d domain.District, centre orb.Point, n domain.ClimateNorms, fro
 		},
 	}
 	id := d.Name
-	return domain.Fact{
-		EntityType: domain.EntityDistrict, EntityID: id, Key: domain.ClimateKey, Value: value,
-		Source: domain.SourceOpenMeteo, Method: domain.ClimateMethod, Confidence: domain.ClimateReliability,
-		ObservedAt: now, ValidUntil: &until,
-		Evidence: []domain.Evidence{{
-			EntityType: domain.EntityDistrict, EntityID: id, Key: domain.ClimateKey, Claimed: value,
-			Source: domain.SourceOpenMeteo, Method: domain.ClimateMethod, AuthorType: domain.AuthorTool, AuthorID: domain.ClimateMethod,
-			Reliability: domain.ClimateReliability, ObservedAt: now, ValidUntil: &until, Details: details,
-		}},
+	return domain.Evidence{
+		EntityType: domain.EntityDistrict, EntityID: id, Key: domain.ClimateKey, Claimed: value,
+		Source: domain.SourceOpenMeteo, Method: domain.ClimateMethod, AuthorType: domain.AuthorTool, AuthorID: domain.ClimateMethod,
+		Reliability: domain.ClimateReliability, ObservedAt: now, ValidUntil: &until, Details: details,
 	}
 }
 

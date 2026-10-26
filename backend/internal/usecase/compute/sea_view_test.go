@@ -13,7 +13,7 @@ import (
 // seaStore: фасад на восток (вода в 300 м, дом 12 м в 20 м закрывает нижние этажи)
 // и фасад на запад (воды нет).
 type seaStore struct {
-	saved []domain.Fact
+	recorder
 }
 
 func (s *seaStore) SeaViewTargets(context.Context) ([]domain.SeaViewTarget, error) {
@@ -40,11 +40,6 @@ func (s *seaStore) SeaRays(_ context.Context, q []domain.RayQuery) ([]domain.Sea
 	return out, nil
 }
 
-func (s *seaStore) SaveFacts(_ context.Context, _ int64, facts []domain.Fact) error {
-	s.saved = facts
-	return nil
-}
-
 func TestSeaViewFacts(t *testing.T) {
 	store := &seaStore{}
 	now := time.Date(2026, 10, 24, 12, 0, 0, 0, time.UTC)
@@ -52,10 +47,11 @@ func TestSeaViewFacts(t *testing.T) {
 	if err != nil || n != 1 {
 		t.Fatalf("Run: %d, %v", n, err)
 	}
-	if len(store.saved) != 3 {
-		t.Fatalf("фактов %d, want 3: два фасада и отель", len(store.saved))
+	saved := store.saved["5/"+domain.SeaViewKey]
+	if len(saved) != 3 {
+		t.Fatalf("фактов %d, want 3: два фасада и отель", len(saved))
 	}
-	east, west, hotel := store.saved[0], store.saved[1], store.saved[2]
+	east, west, hotel := saved[0], saved[1], saved[2]
 
 	// Окно должно подняться над 12 м: h·(1 − 20/450) ≥ 12 → h ≥ 12,56 м → этаж 5 (13,5 м).
 	if east.Value["min_floor"] != 5 {
@@ -71,17 +67,17 @@ func TestSeaViewFacts(t *testing.T) {
 		t.Errorf("отель: %v", hotel.Value)
 	}
 
-	for _, f := range store.saved {
+	for _, f := range saved {
 		if f.Source != domain.SourceComputed || f.Method != domain.SeaViewMethod || f.Key != domain.SeaViewKey {
 			t.Errorf("происхождение факта не заполнено: %+v", f)
 		}
 		if f.Confidence <= 0 || f.ObservedAt != now || f.ValidUntil == nil || !f.ValidUntil.After(now) {
 			t.Errorf("confidence/observed_at/valid_until: %+v", f)
 		}
-		if len(f.Evidence) != 1 {
-			t.Fatalf("свидетельств %d, want 1: %+v", len(f.Evidence), f)
+		if len(f.EvidenceIDs) != 1 {
+			t.Fatalf("свидетельств %d, want 1: %+v", len(f.EvidenceIDs), f)
 		}
-		e := f.Evidence[0]
+		e := store.ev(f)[0]
 		if e.EntityType != f.EntityType || e.EntityID != f.EntityID || e.Key != f.Key ||
 			e.Source != f.Source || e.Method != f.Method || e.AuthorType != domain.AuthorTool {
 			t.Errorf("свидетельство не согласовано с фактом: %+v", e)
@@ -125,7 +121,8 @@ func TestSeaViewHotelFactSkipsLowPodium(t *testing.T) {
 	if _, err := (&SeaView{Store: store}).Run(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	hotel := store.saved[len(store.saved)-1]
+	saved := store.saved["6/"+domain.SeaViewKey]
+	hotel := saved[len(saved)-1]
 	if hotel.Value["facade_id"] != int64(21) {
 		t.Errorf("лучший фасад %v, want 21 (башня): подиум в 2 этажа не показатель", hotel.Value["facade_id"])
 	}

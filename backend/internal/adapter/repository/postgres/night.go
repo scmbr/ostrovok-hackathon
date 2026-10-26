@@ -11,9 +11,10 @@ import (
 // NightStore — заведения рядом с отелями для night_services.
 type NightStore struct {
 	pool *pgxpool.Pool
+	evidenceWriter
 }
 
-func NewNightStore(pool *pgxpool.Pool) *NightStore { return &NightStore{pool: pool} }
+func NewNightStore(pool *pgxpool.Pool) *NightStore { return &NightStore{pool: pool, evidenceWriter: evidenceWriter{pool}} }
 
 // NightTargets возвращает все отели с заведениями в радиусе NightRadiusM (расстояние по прямой, м) и их opening_hours.
 // Отели без заведений тоже возвращаются: «ничего рядом» — тоже результат.
@@ -47,7 +48,3 @@ ORDER BY h.id, p.id`, domain.NightRadiusM)
 	return out, rows.Err()
 }
 
-// SaveFacts заменяет активные факты и свидетельства night_services отеля.
-func (s *NightStore) SaveFacts(ctx context.Context, hotelID int64, facts []domain.Fact) error {
-	return saveFacts(ctx, s.pool, hotelID, domain.NightServicesKey, facts)
-}

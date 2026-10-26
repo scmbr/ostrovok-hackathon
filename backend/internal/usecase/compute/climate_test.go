@@ -14,7 +14,7 @@ import (
 type climateFake struct {
 	from, to time.Time
 	points   []orb.Point
-	saved    map[string][]domain.Fact
+	recorder
 }
 
 func (s *climateFake) Daily(_ context.Context, p orb.Point, from, to time.Time) ([]domain.ClimateDay, error) {
@@ -24,14 +24,6 @@ func (s *climateFake) Daily(_ context.Context, p orb.Point, from, to time.Time) 
 		{Date: time.Date(2024, 10, 10, 0, 0, 0, 0, time.UTC), MeanC: 19, MaxC: 23, MinC: 15, PrecipMM: 2, SunHours: 7, SeaC: 21.5},
 		{Date: time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC), MeanC: 9, MaxC: 13, MinC: 5, PrecipMM: 0, SunHours: 5, SeaC: math.NaN()},
 	}, nil
-}
-
-func (s *climateFake) SaveDistrictFacts(_ context.Context, district, key string, facts []domain.Fact) error {
-	if s.saved == nil {
-		s.saved = map[string][]domain.Fact{}
-	}
-	s.saved[district+"/"+key] = facts
-	return nil
 }
 
 func TestClimateFacts(t *testing.T) {
@@ -69,8 +61,9 @@ func TestClimateFacts(t *testing.T) {
 	if sw, _ := f.Value["swimming_months"].([]int); len(sw) != 1 || sw[0] != 10 {
 		t.Errorf("месяцы купания: %v", f.Value["swimming_months"])
 	}
-	if len(f.Evidence) != 1 || f.Evidence[0].Details["independence_group"] != domain.ClimateGroup || f.Evidence[0].Details["sea_years_with_data"] != 1 {
-		t.Errorf("свидетельство: %+v", f.Evidence)
+	evs := fake.ev(f)
+	if len(evs) != 1 || evs[0].Details["independence_group"] != domain.ClimateGroup || evs[0].Details["sea_years_with_data"] != 1 {
+		t.Errorf("свидетельство: %+v", evs)
 	}
 }
 
@@ -87,6 +80,6 @@ type emptyClimate struct{}
 func (emptyClimate) Daily(context.Context, orb.Point, time.Time, time.Time) ([]domain.ClimateDay, error) {
 	return nil, nil
 }
-func (emptyClimate) SaveDistrictFacts(context.Context, string, string, []domain.Fact) error {
+func (emptyClimate) SaveDistrictEvidence(context.Context, string, string, []domain.Author, []domain.Evidence) error {
 	return nil
 }

@@ -83,9 +83,10 @@ WHERE $1::text <> $7::text OR EXISTS (SELECT 1 FROM sea s
 // WalkStore — пешеходный граф, цели и привязка точек к графу для расчёта маршрутов.
 type WalkStore struct {
 	pool *pgxpool.Pool
+	evidenceWriter
 }
 
-func NewWalkStore(pool *pgxpool.Pool) *WalkStore { return &WalkStore{pool: pool} }
+func NewWalkStore(pool *pgxpool.Pool) *WalkStore { return &WalkStore{pool: pool, evidenceWriter: evidenceWriter{pool}} }
 
 // LoadWalkEdges возвращает рёбра графа без геометрии (она нужна только для рёбер маршрута).
 func (s *WalkStore) LoadWalkEdges(ctx context.Context) ([]domain.WalkEdge, error) {
@@ -212,7 +213,3 @@ func (s *WalkStore) EdgeGeoms(ctx context.Context, ids []int64) (map[int64]orb.L
 	return out, rows.Err()
 }
 
-// SaveFacts заменяет активные факты и свидетельства характеристики key у отеля.
-func (s *WalkStore) SaveFacts(ctx context.Context, hotelID int64, key string, facts []domain.Fact) error {
-	return saveFacts(ctx, s.pool, hotelID, key, facts)
-}

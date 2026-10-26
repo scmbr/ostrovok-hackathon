@@ -14,9 +14,10 @@ import (
 // NoiseStore — фасадный шум карты BCN: загрузка сегментов и привязка их к фасадам отелей.
 type NoiseStore struct {
 	pool *pgxpool.Pool
+	evidenceWriter
 }
 
-func NewNoiseStore(pool *pgxpool.Pool) *NoiseStore { return &NoiseStore{pool: pool} }
+func NewNoiseStore(pool *pgxpool.Pool) *NoiseStore { return &NoiseStore{pool: pool, evidenceWriter: evidenceWriter{pool}} }
 
 // HotelCatastroRefs возвращает кадастровые ссылки зданий отелей.
 func (s *NoiseStore) HotelCatastroRefs(ctx context.Context) ([]string, error) {
@@ -213,7 +214,3 @@ ORDER BY m.fid, q0.id`, domain.NoiseOSMRadiusM, domain.NoiseNightlifeKinds(), do
 	return out, rows.Err()
 }
 
-// SaveFacts заменяет активные факты и свидетельства noise_night отеля и его фасадов.
-func (s *NoiseStore) SaveFacts(ctx context.Context, hotelID int64, facts []domain.Fact) error {
-	return saveFacts(ctx, s.pool, hotelID, domain.NoiseNightKey, facts)
-}

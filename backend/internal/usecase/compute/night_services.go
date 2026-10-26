@@ -19,8 +19,7 @@ const maxNightEvidencePois = 15
 type NightServicesStore interface {
 	// NightTargets возвращает все отели с заведениями в радиусе domain.NightRadiusM.
 	NightTargets(ctx context.Context) ([]domain.NightTarget, error)
-	// SaveFacts заменяет активные факты night_services отеля новыми.
-	SaveFacts(ctx context.Context, hotelID int64, facts []domain.Fact) error
+	EvidenceSaver
 }
 
 // NightServices считает night_services: что открыто ночью рядом с отелем по opening_hours из OSM.
@@ -63,14 +62,15 @@ func (c *NightServices) Run(ctx context.Context) (NightServicesResult, error) {
 		default:
 			res.None++
 		}
-		if err := c.Store.SaveFacts(ctx, t.HotelID, []domain.Fact{nightFact(t.HotelID, ns, now)}); err != nil {
+		if err := c.Store.SaveHotelEvidence(ctx, t.HotelID, domain.NightServicesKey,
+			[]domain.Author{domain.ToolAuthor(domain.NightServicesMethod)}, []domain.Evidence{nightEvidence(t.HotelID, ns, now)}); err != nil {
 			return res, fmt.Errorf("отель %d: %w", t.HotelID, err)
 		}
 	}
 	return res, nil
 }
 
-func nightFact(hotelID int64, ns domain.NightServices, now time.Time) domain.Fact {
+func nightEvidence(hotelID int64, ns domain.NightServices, now time.Time) domain.Evidence {
 	until := now.Add(nightServicesTTL)
 	total, unknown := 0, 0
 	value := map[string]any{"level": ns.Level}
@@ -114,15 +114,10 @@ func nightFact(hotelID int64, ns domain.NightServices, now time.Time) domain.Fac
 			"расстояние по прямой от точки отеля",
 		},
 	}
-	return domain.Fact{
-		EntityType: domain.EntityHotel, EntityID: id, Key: domain.NightServicesKey, Value: value,
-		Source: domain.SourceOSM, Method: domain.NightServicesMethod, Confidence: domain.NightServicesReliability,
-		ObservedAt: now, ValidUntil: &until,
-		Evidence: []domain.Evidence{{
-			EntityType: domain.EntityHotel, EntityID: id, Key: domain.NightServicesKey, Claimed: value,
-			Source: domain.SourceOSM, Method: domain.NightServicesMethod, AuthorType: domain.AuthorTool, AuthorID: domain.NightServicesMethod,
-			Reliability: domain.NightServicesReliability, ObservedAt: now, ValidUntil: &until, Details: details,
-		}},
+	return domain.Evidence{
+		EntityType: domain.EntityHotel, EntityID: id, Key: domain.NightServicesKey, Claimed: value,
+		Source: domain.SourceOSM, Method: domain.NightServicesMethod, AuthorType: domain.AuthorTool, AuthorID: domain.NightServicesMethod,
+		Reliability: domain.NightServicesReliability, ObservedAt: now, ValidUntil: &until, Details: details,
 	}
 }
 

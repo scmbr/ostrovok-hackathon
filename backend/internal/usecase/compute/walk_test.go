@@ -14,7 +14,7 @@ import (
 // отель C далеко от графа. Метро привязано к ребру 2–3 (90 м до узла 2, 30 м до узла 3),
 // пляж — к ребру 3–4 (150 м до узла 3, 50 м до узла 4).
 type walkFake struct {
-	saved map[string][]domain.Fact // ключ «отель/характеристика»
+	recorder
 }
 
 func (s *walkFake) LoadWalkEdges(context.Context) ([]domain.WalkEdge, error) {
@@ -71,14 +71,6 @@ func (s *walkFake) EdgeGeoms(_ context.Context, ids []int64) (map[int64]orb.Line
 	return out, nil
 }
 
-func (s *walkFake) SaveFacts(_ context.Context, hotelID int64, key string, facts []domain.Fact) error {
-	if s.saved == nil {
-		s.saved = map[string][]domain.Fact{}
-	}
-	s.saved[string(rune('0'+hotelID))+"/"+key] = facts
-	return nil
-}
-
 func TestWalkFacts(t *testing.T) {
 	store := &walkFake{}
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
@@ -103,11 +95,12 @@ func TestWalkFacts(t *testing.T) {
 		f.ObservedAt != now || f.ValidUntil == nil || !f.ValidUntil.After(now) {
 		t.Errorf("происхождение: %+v", f)
 	}
-	if len(f.Evidence) != 1 || f.Evidence[0].Details["independence_group"] != domain.WalkGroup || f.Evidence[0].Reliability != f.Confidence {
-		t.Fatalf("свидетельство: %+v", f.Evidence)
+	evs := store.ev(f)
+	if len(evs) != 1 || evs[0].Details["independence_group"] != domain.WalkGroup || evs[0].Reliability != f.Confidence {
+		t.Fatalf("свидетельство: %+v", evs)
 	}
 	// Путь: одно ребро 1–2.
-	path, _ := f.Evidence[0].Details["path"].([][2]float64)
+	path, _ := evs[0].Details["path"].([][2]float64)
 	if len(path) != 2 || path[0] != [2]float64{2.17, 41.38} || path[1] != [2]float64{2.171, 41.38} {
 		t.Errorf("путь: %v", path)
 	}

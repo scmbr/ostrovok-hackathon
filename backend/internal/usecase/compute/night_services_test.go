@@ -9,7 +9,7 @@ import (
 )
 
 type nightFake struct {
-	saved map[int64][]domain.Fact
+	recorder
 }
 
 func (s *nightFake) NightTargets(context.Context) ([]domain.NightTarget, error) {
@@ -23,14 +23,6 @@ func (s *nightFake) NightTargets(context.Context) ([]domain.NightTarget, error) 
 	}, nil
 }
 
-func (s *nightFake) SaveFacts(_ context.Context, hotelID int64, facts []domain.Fact) error {
-	if s.saved == nil {
-		s.saved = map[int64][]domain.Fact{}
-	}
-	s.saved[hotelID] = facts
-	return nil
-}
-
 func TestNightServicesFacts(t *testing.T) {
 	store := &nightFake{}
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
@@ -42,7 +34,8 @@ func TestNightServicesFacts(t *testing.T) {
 		t.Fatalf("итог %+v", res)
 	}
 
-	f := store.saved[1][0]
+	f := store.saved["1/"+domain.NightServicesKey][0]
+	evs := store.ev(f)
 	if f.Value["level"] != domain.NightBasic || f.Value["pois_total"] != 3 || f.Value["hours_known"] != 2 {
 		t.Errorf("значение: %+v", f.Value)
 	}
@@ -59,16 +52,16 @@ func TestNightServicesFacts(t *testing.T) {
 		f.ObservedAt != now || f.ValidUntil == nil || !f.ValidUntil.After(now) {
 		t.Errorf("происхождение: %+v", f)
 	}
-	if len(f.Evidence) != 1 || f.Evidence[0].Details["unknown_hours"] != 1 ||
-		f.Evidence[0].Details["independence_group"] != domain.NightServicesGroup {
-		t.Fatalf("свидетельство: %+v", f.Evidence)
+	if len(evs) != 1 || evs[0].Details["unknown_hours"] != 1 ||
+		evs[0].Details["independence_group"] != domain.NightServicesGroup {
+		t.Fatalf("свидетельство: %+v", evs)
 	}
-	if open, _ := f.Evidence[0].Details["open_at_night"].([]map[string]any); len(open) != 2 {
+	if open, _ := evs[0].Details["open_at_night"].([]map[string]any); len(open) != 2 {
 		t.Errorf("открытых ночью в evidence %d, want 2", len(open))
 	}
 
 	// Отель без заведений тоже получает факт «ничего»: его отсутствие — результат, а не пробел в данных.
-	none := store.saved[2][0]
+	none := store.saved["2/"+domain.NightServicesKey][0]
 	if none.Value["level"] != domain.NightNone || none.Value["pois_total"] != 0 {
 		t.Errorf("пустой отель: %+v", none.Value)
 	}

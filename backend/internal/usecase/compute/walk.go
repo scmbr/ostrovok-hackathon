@@ -26,8 +26,7 @@ type WalkStore interface {
 	// SnapPoints привязывает точки к ближайшему ребру графа; ok[i] = false, если рядом нет рёбер.
 	SnapPoints(ctx context.Context, points []orb.Point, maxM float64) (snaps []domain.WalkSnap, ok []bool, err error)
 	EdgeGeoms(ctx context.Context, ids []int64) (map[int64]orb.LineString, error)
-	// SaveFacts заменяет активные факты характеристики key у отеля (пустой список — только снять прежние).
-	SaveFacts(ctx context.Context, hotelID int64, key string, facts []domain.Fact) error
+	EvidenceSaver
 }
 
 // Walk считает walk_to_beach и walk_to_metro: кратчайший пеший путь по графу OSM от отеля до ближайшей цели.
@@ -121,20 +120,20 @@ func (c *Walk) Run(ctx context.Context) (WalkResult, error) {
 		}
 		res.Hotels++
 		for _, k := range walkKinds {
-			var facts []domain.Fact
+			var evs []domain.Evidence
 			if route, found := graph.ShortestToAny(hotelSnaps[i], targets[k.dest], k.maxM); found {
-				f, err := c.walkFact(ctx, h, k, route, edgeByID, len(edges), now)
+				ev, err := c.walkEvidence(ctx, h, k, route, edgeByID, len(edges), now)
 				if err != nil {
 					return res, fmt.Errorf("отель %d, %s: %w", h.ID, k.key, err)
 				}
-				facts = []domain.Fact{f}
+				evs = []domain.Evidence{ev}
 				if k.dest == domain.DestBeach {
 					res.Beach++
 				} else {
 					res.Metro++
 				}
 			}
-			if err := c.Store.SaveFacts(ctx, h.ID, k.key, facts); err != nil {
+			if err := c.Store.SaveHotelEvidence(ctx, h.ID, k.key, []domain.Author{domain.ToolAuthor(domain.WalkMethod)}, evs); err != nil {
 				return res, fmt.Errorf("отель %d, %s: %w", h.ID, k.key, err)
 			}
 		}
@@ -145,11 +144,11 @@ func (c *Walk) Run(ctx context.Context) (WalkResult, error) {
 	return res, nil
 }
 
-func (c *Walk) walkFact(ctx context.Context, h domain.HotelPoint, k walkKind, r domain.WalkRoute,
-	edgeByID map[int64]domain.WalkEdge, graphEdges int, now time.Time) (domain.Fact, error) {
+func (c *Walk) walkEvidence(ctx context.Context, h domain.HotelPoint, k walkKind, r domain.WalkRoute,
+	edgeByID map[int64]domain.WalkEdge, graphEdges int, now time.Time) (domain.Evidence, error) {
 	geoms, err := c.Store.EdgeGeoms(ctx, r.Edges)
 	if err != nil {
-		return domain.Fact{}, err
+		return domain.Evidence{}, err
 	}
 	path := routePath(r, edgeByID, geoms)
 	until := now.Add(walkTTL)
@@ -181,20 +180,13 @@ func (c *Walk) walkFact(ctx context.Context, h domain.HotelPoint, k walkKind, r 
 			"граф пешеходных путей OSM может быть неполон",
 		},
 	}
-	return domain.Fact{
-		EntityType: domain.EntityHotel, EntityID: id, Key: k.key, Value: value,
-		Source: domain.SourceOSM, Method: domain.WalkMethod, Confidence: domain.WalkReliability,
-		ObservedAt: now, ValidUntil: &until,
-		Evidence: []domain.Evidence{{
-			EntityType: domain.EntityHotel, EntityID: id, Key: k.key, Claimed: value,
-			Source: domain.SourceOSM, Method: domain.WalkMethod, AuthorType: domain.AuthorTool, AuthorID: domain.WalkMethod,
-			Reliability: domain.WalkReliability, ObservedAt: now, ValidUntil: &until, Details: details,
-		}},
+	return domain.Evidence{
+		EntityType: domain.EntityHotel, EntityID: id, Key: k.key, Claimed: value,
+		Source: domain.SourceOSM, Method: domain.WalkMethod, AuthorType: domain.AuthorTool, AuthorID: domain.WalkMethod,
+		Reliability: domain.WalkReliability, ObservedAt: now, ValidUntil: &until, Details: details,
 	}, nil
 }
 
-// routePath склеивает геометрии рёбер маршрута в одну линию [lon, lat] с точностью до 5 знаков (≈1 м);
-// длинный путь прореживается до maxPathPoints точек, начало и конец сохраняются.
 func routePath(r domain.WalkRoute, edgeByID map[int64]domain.WalkEdge, geoms map[int64]orb.LineString) [][2]float64 {
 	var line []orb.Point
 	for i, eid := range r.Edges {

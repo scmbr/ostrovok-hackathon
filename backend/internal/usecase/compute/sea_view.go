@@ -20,8 +20,7 @@ type SeaViewStore interface {
 	// SeaRays для каждого запроса возвращает луч с расстоянием до берега (суша → вода)
 	// и зданиями на пути до берега, в том же порядке. Здания-дубликаты (shadowed) не возвращаются.
 	SeaRays(ctx context.Context, rays []domain.RayQuery) ([]domain.SeaRay, error)
-	// SaveFacts заменяет активные факты sea_view отеля и его фасадов новыми.
-	SaveFacts(ctx context.Context, hotelID int64, facts []domain.Fact) error
+	EvidenceSaver
 }
 
 // SeaView считает характеристику sea_view: с какого этажа фасад видит море.
@@ -71,7 +70,7 @@ func (c *SeaView) forHotel(ctx context.Context, t domain.SeaViewTarget) error {
 	}
 
 	perFacade := len(queries) / max(len(t.Facades), 1)
-	var facts []domain.Fact
+	var evs []domain.Evidence
 	var best *facadeResult
 	withView := 0
 	maxLevels := 0
@@ -82,7 +81,7 @@ func (c *SeaView) forHotel(ctx context.Context, t domain.SeaViewTarget) error {
 	for i, f := range t.Facades {
 		v := domain.ComputeSeaView(rays[i*perFacade:(i+1)*perFacade], f.Levels)
 		results[i] = facadeResult{facade: f, view: v}
-		facts = append(facts, facadeFact(f, v, now))
+		evs = append(evs, facadeEvidence(f, v, now))
 		if v.MinFloor > 0 {
 			withView++
 			// Фасад низкой части (подиум под башней) номеров, скорее всего, не имеет: лучшим его не берём.
@@ -91,8 +90,8 @@ func (c *SeaView) forHotel(ctx context.Context, t domain.SeaViewTarget) error {
 			}
 		}
 	}
-	facts = append(facts, hotelFact(t, best, withView, now))
-	return c.Store.SaveFacts(ctx, t.HotelID, facts)
+	evs = append(evs, hotelEvidence(t, best, withView, now))
+	return c.Store.SaveHotelEvidence(ctx, t.HotelID, domain.SeaViewKey, []domain.Author{domain.ToolAuthor(domain.SeaViewMethod)}, evs)
 }
 
 type facadeResult struct {
@@ -108,7 +107,7 @@ func better(a, b facadeResult) bool {
 	return a.view.Fractions[a.view.MinFloor-1] > b.view.Fractions[b.view.MinFloor-1]
 }
 
-func facadeFact(f domain.StoredFacade, v domain.SeaView, now time.Time) domain.Fact {
+func facadeEvidence(f domain.StoredFacade, v domain.SeaView, now time.Time) domain.Evidence {
 	fractions := make([]float64, len(v.Fractions))
 	for i, x := range v.Fractions {
 		fractions[i] = round2(x)
@@ -142,21 +141,10 @@ func facadeFact(f domain.StoredFacade, v domain.SeaView, now time.Time) domain.F
 			"деревья и надстройки не учитываются",
 		},
 	}
-	return domain.Fact{
-		EntityType: domain.EntityFacade,
-		EntityID:   fmt.Sprint(f.ID),
-		Key:        domain.SeaViewKey,
-		Value:      value,
-		Source:     domain.SourceComputed,
-		Method:     domain.SeaViewMethod,
-		Confidence: v.Confidence(),
-		ObservedAt: now,
-		ValidUntil: &until,
-		Evidence:   []domain.Evidence{seaViewEvidence(domain.EntityFacade, fmt.Sprint(f.ID), value, v.Confidence(), now, until, details)},
-	}
+	return seaViewEvidence(domain.EntityFacade, fmt.Sprint(f.ID), value, v.Confidence(), now, until, details)
 }
 
-func hotelFact(t domain.SeaViewTarget, best *facadeResult, withView int, now time.Time) domain.Fact {
+func hotelEvidence(t domain.SeaViewTarget, best *facadeResult, withView int, now time.Time) domain.Evidence {
 	levels := 0
 	for _, f := range t.Facades {
 		levels = max(levels, f.Levels)
@@ -179,18 +167,7 @@ func hotelFact(t domain.SeaViewTarget, best *facadeResult, withView int, now tim
 		details["blockers"] = blockersEvidence(best.view.Blockers)
 	}
 	until := now.Add(seaViewTTL)
-	return domain.Fact{
-		EntityType: domain.EntityHotel,
-		EntityID:   fmt.Sprint(t.HotelID),
-		Key:        domain.SeaViewKey,
-		Value:      value,
-		Source:     domain.SourceComputed,
-		Method:     domain.SeaViewMethod,
-		Confidence: conf,
-		ObservedAt: now,
-		ValidUntil: &until,
-		Evidence:   []domain.Evidence{seaViewEvidence(domain.EntityHotel, fmt.Sprint(t.HotelID), value, conf, now, until, details)},
-	}
+	return seaViewEvidence(domain.EntityHotel, fmt.Sprint(t.HotelID), value, conf, now, until, details)
 }
 
 // seaViewEvidence — свидетельство расчёта: надёжность равна уверенности расчёта.
