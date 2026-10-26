@@ -48,6 +48,9 @@ type TruthParams struct {
 	// ConflictEntityTypes — сущности, у которых ищутся конфликты; пусто — у всех. Уровень отеля производный
 	// от фасада и своего расхождения не даёт.
 	ConflictEntityTypes []string
+	// ByEntity — свои правила для сущности другого уровня (категория номеров читает ту же характеристику иначе:
+	// другое поле значения, свои значения и порог); нет записи — действуют эти.
+	ByEntity map[string]TruthParams
 }
 
 // DefaultConflictMinSide — порог θ, если реестр его не задаёт.
@@ -60,8 +63,11 @@ type TruthContext struct {
 	Rules map[string]TruthParams // по ключу характеристики (Registry.Rules); нет правила — TruthSingle
 }
 
-func (c TruthContext) params(key string) TruthParams {
+func (c TruthContext) params(key, entityType string) TruthParams {
 	if p, ok := c.Rules[key]; ok {
+		if o, ok := p.ByEntity[entityType]; ok {
+			return o
+		}
 		return p
 	}
 	return TruthParams{Kind: TruthSingle}
@@ -223,7 +229,7 @@ func AssembleFact(es []Evidence, c TruthContext) (Fact, bool) {
 	if len(es) == 0 {
 		return Fact{}, false
 	}
-	p := c.params(es[0].Key)
+	p := c.params(es[0].Key, es[0].EntityType)
 	ws := make([]weighed, len(es))
 	for i, e := range es {
 		r := effectiveReliability(e, p, c)

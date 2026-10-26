@@ -66,6 +66,9 @@ func (s *memStore) CreateQuestion(_ context.Context, q agent.Question) (bool, er
 	s.questions = append(s.questions, q)
 	return true, nil
 }
+func (s *memStore) CloseQuestion(context.Context, int64, string, string) (bool, error) {
+	return false, nil
+}
 func (s *memStore) AppendTrace(_ context.Context, t agent.TraceStep) error {
 	s.trace = append(s.trace, t)
 	return nil

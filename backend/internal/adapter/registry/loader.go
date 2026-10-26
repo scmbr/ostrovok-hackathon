@@ -32,12 +32,25 @@ type file struct {
 	ConflictSteps    int            `yaml:"conflict_steps,omitempty"`
 	ConflictTheta    float64        `yaml:"conflict_theta,omitempty"`
 	ConflictEntities []string       `yaml:"conflict_entities,omitempty"`
+	Category         *fileCategory  `yaml:"category,omitempty"`
 	Strategies       []fileStrategy `yaml:"strategies,omitempty"`
 	AskHotelier      string         `yaml:"ask_hotelier,omitempty"`
 	AskGuest         string         `yaml:"ask_guest,omitempty"`
 	Origin           string         `yaml:"origin,omitempty"`
 	OriginText       string         `yaml:"origin_text,omitempty"`
 	AddedAt          string         `yaml:"added_at,omitempty"`
+}
+
+// fileCategory — правило переноса характеристики на категорию номеров (domain.CategoryRule).
+type fileCategory struct {
+	Values          []string `yaml:"values"`
+	Ordered         bool     `yaml:"ordered,omitempty"`
+	ValueField      string   `yaml:"value_field"`
+	Target          string   `yaml:"target"`
+	FloorField      string   `yaml:"floor_field,omitempty"`
+	FavorableValues []string `yaml:"favorable_values,omitempty"`
+	ConflictSteps   int      `yaml:"conflict_steps,omitempty"`
+	ConflictTheta   float64  `yaml:"conflict_theta,omitempty"`
 }
 
 type fileStrategy struct {
@@ -69,6 +82,12 @@ func Parse(data []byte) (domain.Characteristic, error) {
 		FavorableValues: f.FavorableValues, SignificantDiff: f.SignificantDiff, ConflictSteps: f.ConflictSteps,
 		ConflictTheta: f.ConflictTheta, ConflictEntities: f.ConflictEntities,
 		AskHotelier: f.AskHotelier, AskGuest: f.AskGuest, Origin: f.Origin, OriginText: f.OriginText, AddedAt: f.AddedAt,
+	}
+	if k := f.Category; k != nil {
+		c.Category = &domain.CategoryRule{
+			Values: k.Values, Ordered: k.Ordered, ValueField: k.ValueField, Target: k.Target, FloorField: k.FloorField,
+			FavorableValues: k.FavorableValues, ConflictSteps: k.ConflictSteps, ConflictTheta: k.ConflictTheta,
+		}
 	}
 	for i, s := range f.Strategies {
 		st := domain.Strategy{
@@ -160,6 +179,12 @@ func Marshal(c domain.Characteristic) ([]byte, error) {
 		FavorableValues: c.FavorableValues, SignificantDiff: c.SignificantDiff, ConflictSteps: c.ConflictSteps,
 		ConflictTheta: c.ConflictTheta, ConflictEntities: c.ConflictEntities,
 		AskHotelier: c.AskHotelier, AskGuest: c.AskGuest, Origin: c.Origin, OriginText: c.OriginText, AddedAt: c.AddedAt,
+	}
+	if k := c.Category; k != nil {
+		f.Category = &fileCategory{
+			Values: k.Values, Ordered: k.Ordered, ValueField: k.ValueField, Target: k.Target, FloorField: k.FloorField,
+			FavorableValues: k.FavorableValues, ConflictSteps: k.ConflictSteps, ConflictTheta: k.ConflictTheta,
+		}
 	}
 	for _, s := range c.Strategies {
 		fs := fileStrategy{Tool: s.Tool, Strategy: s.Variant, BaseReliability: s.BaseReliability, IndependenceGroup: s.IndependenceGroup}

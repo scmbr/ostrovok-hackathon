@@ -75,6 +75,7 @@ Frontend — Feature-Sliced Design:
 - Расчёт по одному отелю и с параметрами: `go run ./cmd/collect sea-view -hotel 12 -param fan_half_deg=30`; регион — `-region <код>` (по умолчанию `barcelona`); описания инструментов и параметры — `go run ./cmd/collect tools`
 - Новая характеристика текстом: `go run ./cmd/collect add-characteristic "<описание>"` (без `LLM_API_KEY` — заготовки из кеша)
 - Агент-сборщик по отелю: `go run ./cmd/collect agent -hotel 161` (ключ задан — LLM с записью в кеш; нет ключа или `-cache` — из кеша; `-planner` — без LLM); проверка ключа: `go run ./cmd/collect llm-check`; журнал — `GET /api/hotels/{id}/trace`
+- Категории номеров: `go run ./cmd/collect mock-rooms [-hotel ID]` (мок категорий и размещения демо-отелей, «Sea View»), затем `go run ./cmd/collect rooms [-hotel ID]` (значения характеристик в категориях); описание — `docs/rooms.md`, API — `GET /api/hotels/{id}/rooms`
 - Сервер: `cd backend && go run ./cmd/server`
 - Фронтенд: `cd frontend && npm run dev`
 - Тесты: `cd backend && go test ./...`

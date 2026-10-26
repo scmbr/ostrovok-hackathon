@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -59,6 +60,9 @@ type Characteristic struct {
 	ConflictTheta    float64
 	ConflictEntities []string // сущности, у которых ищутся конфликты; пусто — у всех
 	Strategies       []Strategy
+	// Category — как характеристика уровня фасада читается в категории номеров (проекция по размещению);
+	// nil — на категорию не переносится.
+	Category *CategoryRule
 	// AskHotelier — вопрос отельеру, если расчёта нет или он неуверен. AskGuest — вопрос гостю в анкете после проживания.
 	AskHotelier string
 	AskGuest    string
@@ -67,6 +71,41 @@ type Characteristic struct {
 	Origin     string
 	OriginText string
 	AddedAt    string
+}
+
+// CategoryRule — правило переноса характеристики с фасадов на категорию номеров. Категория получает
+// собственное значение (поле ValueField свидетельства), вероятность Target и гарантию, см. AssessCategory.
+type CategoryRule struct {
+	Values     []string // значения у категории; у ступенчатого enum — по порядку
+	Ordered    bool
+	ValueField string // поле значения в claimed свидетельства категории
+	// Target — значение, которого ищет гость (вид есть, тихо).
+	Target string
+	// FloorField — поле факта фасада с этажом, с которого выполняется Target (sea_view: min_floor);
+	// ниже этого этажа и при пустом значении — последнее из Values. Пусто — значение берётся из поля
+	// значения самой характеристики и от этажа не зависит.
+	FloorField      string
+	FavorableValues []string
+	ConflictSteps   int
+	ConflictTheta   float64
+}
+
+// FacadeValueAt читает значение характеристики у фасада на этаже из claimed факта фасада.
+// valueField — поле значения характеристики. Нет нужного поля — значение неизвестно.
+func (r CategoryRule) FacadeValueAt(claimed map[string]any, valueField string, floor int) (string, bool) {
+	if r.FloorField == "" {
+		v, ok := claimed[valueField].(string)
+		return v, ok && slices.Contains(r.Values, v)
+	}
+	raw, present := claimed[r.FloorField]
+	if !present {
+		return "", false
+	}
+	min, ok := raw.(float64)
+	if !ok || floor < int(min) {
+		return r.Values[len(r.Values)-1], true
+	}
+	return r.Target, true
 }
 
 // OriginText — значение Characteristic.Origin для характеристик, добавленных текстом.
@@ -99,6 +138,16 @@ func (c Characteristic) TruthParams() TruthParams {
 		p.Kind = TruthNumber
 	default:
 		p.Kind = TruthSingle
+	}
+	if r := c.Category; r != nil {
+		cp := TruthParams{
+			Kind: TruthEnum, ValueField: r.ValueField, ConflictSteps: r.ConflictSteps, ConflictMinSide: r.ConflictTheta,
+			FavorableValues: r.FavorableValues,
+		}
+		if r.Ordered {
+			cp.Order = r.Values
+		}
+		p.ByEntity = map[string]TruthParams{EntityRoomCategory: cp}
 	}
 	return p
 }

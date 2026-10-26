@@ -30,11 +30,15 @@ type toolRunner struct {
 func newToolRunner(reg domain.Registry, rules map[string]domain.TruthParams, pool *pgxpool.Pool, region domain.Region, rawDir string) *toolRunner {
 	return &toolRunner{regionID: region.ID, run: map[string]func(context.Context, compute.Options) (string, error){
 		"sea-view": func(ctx context.Context, o compute.Options) (string, error) {
-			n, err := (&compute.SeaView{Registry: reg, Store: postgres.NewSeaViewStore(pool, rules)}).Run(ctx, o)
+			sv := postgres.NewSeaViewStore(pool, rules)
+			sv.SetAfterHotelSave(roomsRefresh(reg, pool, rules))
+			n, err := (&compute.SeaView{Registry: reg, Store: sv}).Run(ctx, o)
 			return fmt.Sprintf("sea_view рассчитан, отелей: %d", n), err
 		},
 		"noise-night": func(ctx context.Context, o compute.Options) (string, error) {
-			res, err := (&compute.NoiseNight{Registry: reg, Store: postgres.NewNoiseStore(pool, region.ID, rules)}).Run(ctx, o)
+			nn := postgres.NewNoiseStore(pool, region.ID, rules)
+			nn.SetAfterHotelSave(roomsRefresh(reg, pool, rules))
+			res, err := (&compute.NoiseNight{Registry: reg, Store: nn}).Run(ctx, o)
 			return fmt.Sprintf("noise_night рассчитан: фасадов %d, с картой BCN %d, только оценка OSM %d, расхождений источников %d",
 				res.Facades, res.BCN, res.OSMOnly, res.Conflicts), err
 		},

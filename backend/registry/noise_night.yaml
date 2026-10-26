@@ -11,6 +11,14 @@ favorable_values: [quiet]
 conflict_steps: 2 # quiet против loud — конфликт, соседние ступени только снижают уверенность
 conflict_theta: 1.0
 conflict_entities: [facade] # уровень отеля производный от фасада и своего конфликта не даёт
+# В категории номеров шум — преобладающий уровень по размещению номеров на фасадах (без этажей).
+category:
+  values: [quiet, moderate, loud]
+  ordered: true
+  value_field: level
+  target: quiet
+  favorable_values: [quiet]
+  conflict_steps: 2
 strategies:
   - tool: noise-night
     strategy: bcn

@@ -33,6 +33,7 @@ func districtScope(district string) evidenceScope {
 // Затем пишутся новые свидетельства, из всех активных свидетельств области движок правды собирает факты
 // (domain.AssembleFacts) и вклады свидетельств, прежние факты и конфликты области получают superseded.
 // Всё в одной транзакции.
+// Записанным свидетельствам evs проставляются id.
 // Пустой evs — только снять прежнее свидетельство инструмента (например, маршрут больше не найден).
 func saveEvidence(ctx context.Context, pool *pgxpool.Pool, rules map[string]domain.TruthParams, scope evidenceScope, key string,
 	authors []domain.Author, evs []domain.Evidence) error {
@@ -41,7 +42,15 @@ func saveEvidence(ctx context.Context, pool *pgxpool.Pool, rules map[string]doma
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
+	if err := saveEvidenceTx(ctx, tx, rules, scope, key, authors, evs); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
 
+// saveEvidenceTx — saveEvidence в чужой транзакции: вызывающий сам фиксирует или откатывает её.
+func saveEvidenceTx(ctx context.Context, tx pgx.Tx, rules map[string]domain.TruthParams, scope evidenceScope, key string,
+	authors []domain.Author, evs []domain.Evidence) error {
 	types := make([]string, len(authors))
 	ids := make([]string, len(authors))
 	for i, a := range authors {
@@ -54,10 +63,12 @@ WHERE status = $4 AND `+scope.clause+`
 		scope.arg, key, domain.FactSuperseded, domain.FactActive, types, ids); err != nil {
 		return err
 	}
-	for _, e := range evs {
-		if err := insertEvidence(ctx, tx, e); err != nil {
+	for i := range evs {
+		id, err := insertEvidence(ctx, tx, evs[i])
+		if err != nil {
 			return err
 		}
+		evs[i].ID = id // вызывающему нужны id записанных свидетельств (ссылки из room_placements)
 	}
 
 	active, err := loadActiveEvidence(ctx, tx, scope, key)
@@ -85,25 +96,27 @@ WHERE status = $4 AND `+scope.clause+`
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
-func insertEvidence(ctx context.Context, tx pgx.Tx, e domain.Evidence) error {
+func insertEvidence(ctx context.Context, tx pgx.Tx, e domain.Evidence) (int64, error) {
 	claimed, err := json.Marshal(e.Claimed)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	details, err := json.Marshal(e.Details)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	_, err = tx.Exec(ctx, `
+	var id int64
+	err = tx.QueryRow(ctx, `
 INSERT INTO evidence (entity_type, entity_id, characteristic_key, claimed_value, source, method,
                       author_type, author_id, reliability, contribution, observed_at, valid_until, details)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+RETURNING id`,
 		e.EntityType, e.EntityID, e.Key, claimed, e.Source, e.Method,
-		e.AuthorType, e.AuthorID, e.Reliability, e.Contribution(), e.ObservedAt, e.ValidUntil, details)
-	return err
+		e.AuthorType, e.AuthorID, e.Reliability, e.Contribution(), e.ObservedAt, e.ValidUntil, details).Scan(&id)
+	return id, err
 }
 
 // loadActiveEvidence читает активные свидетельства области в порядке записи.
@@ -199,12 +212,26 @@ type evidenceWriter struct {
 	pool *pgxpool.Pool
 	// rules — правила движка правды по характеристикам (реестр).
 	rules map[string]domain.TruthParams
+	// afterHotel вызывается после записи свидетельств отеля: категории номеров пересобирают свои свидетельства.
+	afterHotel HotelSaved
 }
+
+// HotelSaved — реакция на запись свидетельств характеристики key у отеля и его фасадов.
+type HotelSaved func(ctx context.Context, hotelID int64, key string) error
+
+// SetAfterHotelSave задаёт реакцию на запись свидетельств отеля; ошибка реакции возвращается из SaveHotelEvidence.
+func (w *evidenceWriter) SetAfterHotelSave(fn HotelSaved) { w.afterHotel = fn }
 
 // SaveHotelEvidence записывает свидетельства характеристики key у отеля и его фасадов, см. saveEvidence.
 func (w evidenceWriter) SaveHotelEvidence(ctx context.Context, hotelID int64, key string,
 	authors []domain.Author, evs []domain.Evidence) error {
-	return saveEvidence(ctx, w.pool, w.rules, hotelScope(hotelID), key, authors, evs)
+	if err := saveEvidence(ctx, w.pool, w.rules, hotelScope(hotelID), key, authors, evs); err != nil {
+		return err
+	}
+	if w.afterHotel != nil {
+		return w.afterHotel(ctx, hotelID, key)
+	}
+	return nil
 }
 
 // SaveDistrictEvidence записывает свидетельства характеристики key у района, см. saveEvidence.

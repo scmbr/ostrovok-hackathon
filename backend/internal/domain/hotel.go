@@ -130,6 +130,21 @@ type Stats struct {
 	SeaViewFloors5Plus int
 	// CoastalNoSeaView — береговые отели, для которых вида на море не нашлось: проверка правдоподобия.
 	CoastalNoSeaView []string
+
+	RoomCategories int // категорий номеров в БД
+	RoomsPlaced    int // категорий с размещением
+	RoomPlacements int
+	TitledSeaView  int // категорий, чьё название обещает вид на море
+	// SeaViewTitleConflicts — категории, где название обещает море, а расчёт по фасадам и размещению против:
+	// открытый конфликт движка правды; сигнал приукрашивания.
+	SeaViewTitleConflicts []TitleConflict
+}
+
+// TitleConflict — категория, название которой спорит с расчётом.
+type TitleConflict struct {
+	Hotel    string
+	Category string
+	Demo     bool
 }
 
 // NoStreetHotel — отель без фасада на улицу.

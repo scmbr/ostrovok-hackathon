@@ -25,8 +25,11 @@ const (
 	AskConfidence = 0.6
 	// MaxQuestions — вопросов отельеру на отель за один прогон.
 	MaxQuestions = 3
-	// MaxSteps — шагов агента (решений) за прогон.
-	MaxSteps = 20
+	// MaxLLMCalls — вызовов LLM за прогон (записи журнала и отказы не считаются).
+	MaxLLMCalls = 20
+	// MaxConsecutiveRejections — после стольких отказов подряд (без удачного действия между ними) прогон
+	// останавливается: модель зациклилась, лишние вызовы только стоят денег.
+	MaxConsecutiveRejections = 5
 )
 
 // HotelInfo — отель, по которому идёт прогон.
@@ -70,6 +73,8 @@ type Store interface {
 	RecomputeFact(ctx context.Context, hotelID int64, district, key string) error
 	// CreateQuestion пишет вопрос; created=false, если такой открытый вопрос уже есть.
 	CreateQuestion(ctx context.Context, q Question) (created bool, err error)
+	// CloseQuestion закрывает открытый вопрос отельеру по характеристике (данные появились); closed=false, если открытого нет.
+	CloseQuestion(ctx context.Context, hotelID int64, key, note string) (closed bool, err error)
 	AppendTrace(ctx context.Context, s TraceStep) error
 	ListTrace(ctx context.Context, hotelID int64, sessionID string) ([]TraceStep, error)
 }

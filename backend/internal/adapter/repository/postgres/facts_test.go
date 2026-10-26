@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"math"
 	"os"
 	"testing"
@@ -85,7 +86,7 @@ func TestSaveEvidenceKeepsHumanEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := insertEvidence(ctx, tx, hotelier); err != nil {
+	if _, err := insertEvidence(ctx, tx, hotelier); err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -144,5 +145,29 @@ func TestSaveEvidenceKeepsHumanEvidence(t *testing.T) {
 	}
 	if value != "from hotelier" {
 		t.Errorf("факт = %q, want ответ отельера", value)
+	}
+}
+
+// Запись свидетельств отеля вызывает реакцию с отелем и характеристикой; ошибка реакции возвращается вызывающему.
+func TestSaveHotelEvidenceCallsHook(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	cleanTestRows(t, pool)
+	t.Cleanup(func() { cleanTestRows(t, pool) })
+	w := &evidenceWriter{pool: pool}
+	tool := []domain.Author{domain.ToolAuthor("test_tool@1")}
+
+	var gotHotel int64
+	var gotKey string
+	w.SetAfterHotelSave(func(_ context.Context, hotelID int64, key string) error { gotHotel, gotKey = hotelID, key; return nil })
+	if err := w.SaveHotelEvidence(ctx, testHotelID, testKey, tool, []domain.Evidence{toolEvidence("x", 0.85)}); err != nil {
+		t.Fatal(err)
+	}
+	if gotHotel != testHotelID || gotKey != testKey {
+		t.Errorf("реакция получила отель %d, ключ %q", gotHotel, gotKey)
+	}
+	w.SetAfterHotelSave(func(context.Context, int64, string) error { return errors.New("проекция упала") })
+	if err := w.SaveHotelEvidence(ctx, testHotelID, testKey, tool, nil); err == nil {
+		t.Error("ошибка реакции должна вернуться вызывающему")
 	}
 }

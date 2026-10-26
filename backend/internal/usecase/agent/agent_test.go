@@ -16,6 +16,7 @@ type fakeStore struct {
 	facts     []domain.Fact
 	questions []Question
 	trace     []TraceStep
+	closed    map[string]bool
 }
 
 func (s *fakeStore) Hotel(context.Context, int64) (HotelInfo, error)          { return s.hotel, nil }
@@ -32,6 +33,18 @@ func (s *fakeStore) CreateQuestion(_ context.Context, q Question) (bool, error) 
 	s.questions = append(s.questions, q)
 	return true, nil
 }
+func (s *fakeStore) CloseQuestion(_ context.Context, _ int64, key, _ string) (bool, error) {
+	for i := range s.questions {
+		if s.questions[i].Key == key && !s.closed[key] {
+			if s.closed == nil {
+				s.closed = map[string]bool{}
+			}
+			s.closed[key] = true
+			return true, nil
+		}
+	}
+	return false, nil
+}
 func (s *fakeStore) AppendTrace(_ context.Context, t TraceStep) error {
 	s.trace = append(s.trace, t)
 	return nil
@@ -45,10 +58,14 @@ type fakeRunner struct {
 	store *fakeStore
 	calls []string
 	facts map[string][]domain.Fact
+	fail  map[string]bool // инструменты, которые завершаются ошибкой
 }
 
 func (r *fakeRunner) Run(_ context.Context, _ HotelInfo, tool string, _ map[string]float64) (string, error) {
 	r.calls = append(r.calls, tool)
+	if r.fail[tool] {
+		return "", fmt.Errorf("нет исходных данных для %s", tool)
+	}
 	r.store.facts = append(r.store.facts, r.facts[tool]...)
 	return "ok " + tool, nil
 }
@@ -186,12 +203,12 @@ func TestLLMGuards(t *testing.T) {
 	rn.facts["walk"] = []domain.Fact{hotelFact("walk_to_metro", 0.7)} // пляж так и не найден
 	st.facts = []domain.Fact{hotelFact("sea_view", 0.9)}
 	a.Chat = &scripted{replies: []Message{
-		call("1", "run_tool", map[string]any{"characteristic": "sea_view", "reason": "проверить"}),             // свежо: отказ
-		call("2", "ask_hotelier", map[string]any{"characteristic": "walk_to_beach", "reason": "спрошу сразу"}), // данных нет: вопрос разрешён
-		call("3", "run_tool", map[string]any{"characteristic": "walk_to_metro", "reason": "считаю"}),           // запуск walk
-		call("4", "run_tool", map[string]any{"characteristic": "walk_to_beach", "reason": "ещё раз"}),          // walk уже запускался: отказ
-		call("5", "ask_hotelier", map[string]any{"characteristic": "walk_to_metro", "reason": "на всякий"}),    // у метро нет вопроса: отказ
-		call("6", "set_fact", map[string]any{"characteristic": "sea_view", "reason": "запишу значение сам"}),   // такого инструмента нет
+		call("1", "run_tool", map[string]any{"characteristic": "sea_view", "reason": "проверить"}),                // свежо: отказ
+		call("2", "run_tool", map[string]any{"characteristic": "walk_to_metro", "reason": "считаю"}),              // запуск walk
+		call("3", "ask_hotelier", map[string]any{"characteristic": "walk_to_beach", "reason": "пляж не нашёлся"}), // после расчёта данных нет: вопрос разрешён
+		call("4", "run_tool", map[string]any{"characteristic": "walk_to_beach", "reason": "ещё раз"}),             // walk уже запускался: отказ
+		call("5", "ask_hotelier", map[string]any{"characteristic": "walk_to_metro", "reason": "на всякий"}),       // у метро нет вопроса: отказ
+		call("6", "set_fact", map[string]any{"characteristic": "sea_view", "reason": "запишу значение сам"}),      // такого инструмента нет
 	}}
 	a.ChatMode = ModeLLM
 
@@ -231,25 +248,203 @@ func TestAskRefusedWhenConfident(t *testing.T) {
 	}
 }
 
-func TestLLMStepLimit(t *testing.T) {
+func TestLLMCallLimitCountsModelCalls(t *testing.T) {
 	a, st, rn := newFixture(t)
-	a.MaxSteps = 1
+	a.MaxLLMCalls = 2
+	// Три отказа подряд в одном вызове не сжигают лимит: считаются вызовы модели, а не записи журнала.
 	a.Chat = &scripted{replies: []Message{
-		call("1", "run_tool", map[string]any{"characteristic": "sea_view", "reason": "раз"}),
-		call("2", "run_tool", map[string]any{"characteristic": "walk_to_beach", "reason": "два"}),
+		{Role: "assistant", ToolCalls: []ToolCall{
+			{ID: "a", Name: "set_fact", Arguments: `{}`}, {ID: "b", Name: "set_fact", Arguments: `{}`}, {ID: "c", Name: "set_fact", Arguments: `{}`},
+		}},
+		call("2", "run_tool", map[string]any{"characteristic": "sea_view", "reason": "раз"}),
+		call("3", "run_tool", map[string]any{"characteristic": "walk_to_beach", "reason": "три вызова — это уже лимит"}),
 	}}
 	if _, err := a.Run(context.Background(), 7); err != nil {
 		t.Fatal(err)
 	}
 	if len(rn.calls) != 1 {
-		t.Errorf("запуски = %v, want 1 (лимит шагов)", rn.calls)
+		t.Errorf("запуски = %v, want 1: второй вызов модели последний", rn.calls)
 	}
 	var stopped bool
 	for _, s := range st.trace {
-		stopped = stopped || strings.Contains(s.Decision, "лимит шагов")
+		stopped = stopped || strings.Contains(s.Decision, "лимит вызовов LLM")
 	}
 	if !stopped {
-		t.Error("в журнале нет записи о лимите шагов")
+		t.Error("в журнале нет записи о лимите вызовов LLM")
+	}
+}
+
+func TestStopAfterConsecutiveRejections(t *testing.T) {
+	a, st, rn := newFixture(t)
+	var replies []Message
+	for i := 0; i < MaxConsecutiveRejections+3; i++ {
+		replies = append(replies, call(strconv.Itoa(i), "set_fact", map[string]any{"characteristic": "sea_view", "reason": "пишу сам"}))
+	}
+	replies = append(replies, call("x", "run_tool", map[string]any{"characteristic": "sea_view", "reason": "уже не дойдём"}))
+	a.Chat, a.ChatMode = &scripted{replies: replies}, ModeLLM
+	if _, err := a.Run(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	rejected, stopped := 0, false
+	for _, s := range st.trace {
+		if strings.HasPrefix(s.Decision, "отказ:") {
+			rejected++
+		}
+		stopped = stopped || strings.Contains(s.Decision, "отказов подряд")
+	}
+	if rejected != MaxConsecutiveRejections || !stopped || len(rn.calls) != 0 {
+		t.Errorf("отказов %d (want %d), остановка в журнале %v, запуски %v", rejected, MaxConsecutiveRejections, stopped, rn.calls)
+	}
+}
+
+func TestSuccessResetsRejectionStreak(t *testing.T) {
+	a, st, rn := newFixture(t)
+	var replies []Message
+	for round := 0; round < 2; round++ { // по четыре отказа, между ними удачное действие: до пяти подряд не доходит
+		for i := 0; i < MaxConsecutiveRejections-1; i++ {
+			replies = append(replies, call(fmt.Sprint(round, i), "set_fact", map[string]any{"reason": "пишу сам"}))
+		}
+		if round == 0 {
+			replies = append(replies, call("ok", "run_tool", map[string]any{"characteristic": "sea_view", "reason": "считаю"}))
+		}
+	}
+	replies = append(replies, call("last", "run_tool", map[string]any{"characteristic": "walk_to_beach", "reason": "считаю"}))
+	a.Chat, a.ChatMode = &scripted{replies: replies}, ModeLLM
+	if _, err := a.Run(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range st.trace {
+		if strings.Contains(s.Decision, "отказов подряд") {
+			t.Fatal("удачный запуск должен сбрасывать счётчик отказов")
+		}
+	}
+	if len(rn.calls) != 2 {
+		t.Errorf("запуски = %v, want sea-view и walk", rn.calls)
+	}
+}
+
+func TestRecomputeAllowedAfterFailedRun(t *testing.T) {
+	a, st, rn := newFixture(t)
+	rn.fail = map[string]bool{"sea-view": true}
+	a.Chat = &scripted{replies: []Message{
+		call("1", "run_tool", map[string]any{"characteristic": "sea_view", "reason": "считаю"}),           // ошибка: нет данных
+		call("2", "recompute_fact", map[string]any{"characteristic": "sea_view", "reason": "пересоберу"}), // факт не пересобирался: можно
+	}}
+	if _, err := a.Run(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range st.trace {
+		if s.Tool == "recompute_fact" && strings.HasPrefix(s.Decision, "отказ:") {
+			t.Errorf("пересчёт после неудачного запуска отклонён: %s", s.Decision)
+		}
+	}
+}
+
+func TestStrategyByName(t *testing.T) {
+	reg, err := domain.NewRegistry([]domain.Characteristic{{
+		Key: "noise_night", Level: domain.LevelFacade,
+		Strategies: []domain.Strategy{{Tool: "noise-night", Variant: "bcn"}, {Tool: "noise-night", Variant: "osm"}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strategyNames(mustGet(t, reg, "noise_night")); got != "noise-night:bcn, noise-night:osm" {
+		t.Errorf("имена стратегий: %s", got)
+	}
+	var schema struct {
+		Properties map[string]struct {
+			Enum []string `json:"enum"`
+		} `json:"properties"`
+	}
+	for _, d := range toolDefs(reg) {
+		if d.Name != "run_tool" {
+			continue
+		}
+		if err := json.Unmarshal(d.Parameters, &schema); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Join(schema.Properties["strategy"].Enum, ","); got != "noise-night:bcn,noise-night:osm" {
+			t.Errorf("enum strategy = %s", got)
+		}
+		if _, old := schema.Properties["strategy_index"]; old {
+			t.Error("индекс стратегии остался в схеме")
+		}
+	}
+
+	a, st, rn := newFixture(t)
+	a.Chat = &scripted{replies: []Message{
+		call("1", "run_tool", map[string]any{"characteristic": "sea_view", "strategy": "magic", "reason": "угадываю"}),
+		call("2", "run_tool", map[string]any{"characteristic": "sea_view", "strategy": "sea-view", "reason": "по имени"}),
+	}}
+	if _, err := a.Run(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	if len(rn.calls) != 1 || rn.calls[0] != "sea-view" {
+		t.Errorf("запуски = %v", rn.calls)
+	}
+	var named bool
+	for _, s := range st.trace {
+		named = named || (strings.HasPrefix(s.Decision, "отказ:") && strings.Contains(s.Decision, `нет стратегии "magic" (есть: sea-view)`))
+	}
+	if !named {
+		t.Error("отказ должен называть допустимые стратегии")
+	}
+}
+
+func mustGet(t *testing.T, reg domain.Registry, key string) domain.Characteristic {
+	t.Helper()
+	c, ok := reg.Get(key)
+	if !ok {
+		t.Fatalf("нет %s", key)
+	}
+	return c
+}
+
+// get_hotel_facts говорит по каждой характеристике, можно ли её считать и спрашивать отельера, и почему нельзя.
+func TestViewReportsCapabilities(t *testing.T) {
+	a, st, _ := newFixture(t)
+	st.facts = []domain.Fact{hotelFact("sea_view", 0.9)}
+	a.Chat = &scripted{replies: []Message{call("1", "get_hotel_facts", map[string]any{"reason": "смотрю"})}}
+	if _, err := a.Run(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	var states []map[string]any
+	for _, s := range st.trace {
+		if s.Tool == "get_hotel_facts" {
+			states, _ = s.Output["characteristics"].([]map[string]any)
+			if states == nil {
+				raw, _ := json.Marshal(s.Output["characteristics"])
+				_ = json.Unmarshal(raw, &states)
+			}
+		}
+	}
+	by := map[string]map[string]any{}
+	for _, m := range states {
+		by[fmt.Sprint(m["key"])] = m
+	}
+	sea, walk, metro := by["sea_view"], by["walk_to_beach"], by["walk_to_metro"]
+	if sea["can_run"] != false || !strings.Contains(fmt.Sprint(sea["run_blocked_reason"]), "пересчёт не нужен") {
+		t.Errorf("sea_view свеж: %v", sea)
+	}
+	if sea["can_ask_hotelier"] != false || !strings.Contains(fmt.Sprint(sea["ask_blocked_reason"]), "вопрос не нужен") {
+		t.Errorf("sea_view свеж, вопрос не нужен: %v", sea)
+	}
+	if walk["can_run"] != true || walk["can_ask_hotelier"] != false || !strings.Contains(fmt.Sprint(walk["ask_blocked_reason"]), "сначала нужен расчёт") {
+		t.Errorf("walk_to_beach до расчёта: %v", walk)
+	}
+	if metro["can_run"] != true || !strings.Contains(fmt.Sprint(metro["ask_blocked_reason"]), "нет вопроса отельеру") {
+		t.Errorf("walk_to_metro: %v", metro)
+	}
+}
+
+func TestAskRefusedBeforeCalculation(t *testing.T) {
+	a, st, _ := newFixture(t)
+	a.Chat = &scripted{replies: []Message{call("1", "ask_hotelier", map[string]any{"characteristic": "sea_view", "reason": "спрошу сразу"})}}
+	if _, err := a.Run(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.questions) != 0 {
+		t.Errorf("вопрос создан до расчёта: %+v", st.questions)
 	}
 }
 
@@ -323,5 +518,38 @@ func TestRecomputeRefusedAfterToolRun(t *testing.T) {
 	}
 	if !refused {
 		t.Error("пересчёт после запуска инструмента не отклонён")
+	}
+}
+
+// Открытый вопрос отельеру закрывается, когда расчёт снял неуверенность (уверенность не ниже 0,6), и не дублируется;
+// вопрос по характеристике, где уверенность по-прежнему низкая, остаётся открытым.
+func TestOpenQuestionClosedWhenConfident(t *testing.T) {
+	a, st, _ := newFixture(t)
+	st.facts = []domain.Fact{hotelFact("sea_view", 0.85), hotelFact("night_services", 0.4)}
+	st.questions = []Question{{HotelID: 7, Key: "sea_view", Text: "Какие номера с видом?"}, {HotelID: 7, Key: "night_services", Text: "Что открыто ночью?"}}
+	if _, err := a.Run(context.Background(), 7); err != nil {
+		t.Fatal(err)
+	}
+	if !st.closed["sea_view"] {
+		t.Error("вопрос по sea_view (уверенность 0,85) должен быть закрыт")
+	}
+	if st.closed["night_services"] {
+		t.Error("вопрос по night_services закрыт, хотя после расчёта уверенность 0,5")
+	}
+	count := 0
+	for _, q := range st.questions {
+		if q.Key == "sea_view" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("вопросов по sea_view %d: дубликатов быть не должно", count)
+	}
+	var logged bool
+	for _, s := range st.trace {
+		logged = logged || strings.HasPrefix(s.Decision, "закрываю вопрос отельеру по sea_view")
+	}
+	if !logged {
+		t.Error("в журнале нет записи о закрытии вопроса")
 	}
 }
