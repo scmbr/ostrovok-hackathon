@@ -2,44 +2,63 @@
   "hotel": "188",
   "model": "gpt-4o-mini",
   "replies": {
-    "64eab297afc4d9981005110d8f1b473c00e9919452f2c1417e933da6720e25cf": {
-      "content": "Статус характеристики **noise_night** после расчёта:\n\n- **noise_night**: статус weak, уверенность 0.79.\n\nТеперь все характеристики обработаны. Итоговые статусы:\n\n- **night_pharmacy**: uncertain, уверенность 0.6.\n- **night_services**: uncertain, уверенность 0.6.\n- **walk_to_beach**: uncertain, уверенность 0.7.\n- **walk_to_metro**: uncertain, уверенность 0.7.\n- **noise_night**: weak, уверенность 0.79."
+    "28685597b7306c1d0b12db67f9eee75b02f6ed610c94dd39e1065d2e13f1f010": {
+      "tool_calls": [
+        {
+          "id": "call_8nfRzq4rJM53EzbY1mUhbHrn",
+          "name": "ask_hotelier",
+          "arguments": "{\"reason\": \"уверенность 0.60 для ночной аптеки\", \"characteristic\": \"night_pharmacy\"}"
+        },
+        {
+          "id": "call_cd7Sa4hvaKfrcb0EHWLLKuYr",
+          "name": "ask_hotelier",
+          "arguments": "{\"reason\": \"уверенность 0.60 для ночных сервисов\", \"characteristic\": \"night_services\"}"
+        },
+        {
+          "id": "call_cpu6nP1rAkZhw9x0UdTzk7Hh",
+          "name": "ask_hotelier",
+          "arguments": "{\"reason\": \"уверенность 0.70 для прогулки до пляжа\", \"characteristic\": \"walk_to_beach\"}"
+        }
+      ]
+    },
+    "67ef1d2d1cd1a29dee1733848132e4ed53d67ff0f02467ffb5023d0863ef4335": {
+      "content": "Итоговые статусы характеристик отеля «Barceló Antenea Mar»:\n- night_pharmacy: uncertain (уверенность 0.60)\n- night_services: uncertain (уверенность 0.60)\n- walk_to_beach: uncertain (уверенность 0.70)\n- walk_to_metro: uncertain (уверенность 0.70)\n- noise_night: weak (уверенность 0.79)"
+    },
+    "77355b3a3d5f67a46d83d39985f3d3e6f92d5112f674fc69ce0c1c08494fc2e0": {
+      "content": "Итоговые статусы характеристик отеля «Barceló Antenea Mar»:\n- night_pharmacy: uncertain (уверенность 0.60)\n- night_services: uncertain (уверенность 0.60)\n- walk_to_beach: uncertain (уверенность 0.70)\n- walk_to_metro: uncertain (уверенность 0.70)\n- noise_night: weak (уверенность 0.79)"
     },
     "8d64595f778fa70fbed3954139ce9d2f2c7adedb2aefe4ad93081c170ab57856": {
       "tool_calls": [
         {
-          "id": "call_4fo0gx8y3rZSyIwOu4HQfaCY",
+          "id": "call_GcfN3TAdGbroE8P28dNH2H7X",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75 для ночной аптеки\", \"characteristic\": \"night_pharmacy\"}"
         },
         {
-          "id": "call_DoHF1vgWYZpUzwgFXFcCFbpg",
+          "id": "call_WIRGmbD9SkXMSUSjWbmYGCDO",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75 для ночных сервисов\", \"characteristic\": \"night_services\"}"
         },
         {
-          "id": "call_xGNAQp12R0aHGgdGJ86IL0JH",
+          "id": "call_DGhSobQPXvfDMwv6CAnsta5m",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75 для прогулки до пляжа\", \"characteristic\": \"walk_to_beach\"}"
         },
         {
-          "id": "call_4uXIHEJssVjyFt2dCGhYZDKi",
+          "id": "call_eYxEA6COy2Vp4GTxCt4Uo6ms",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75 для прогулки до метро\", \"characteristic\": \"walk_to_metro\"}"
         }
       ]
     },
-    "94aaf4bb975495ab0cece49d54006c023f6b775e1174f87674038187526aca11": {
+    "8f0132b81b57e07aba5a950d099ac9e92840e70156df4da7a76645ecc72d4b84": {
       "tool_calls": [
         {
-          "id": "call_NsbpjzXFPNuI4FX3dALgFxqL",
+          "id": "call_c1bx7lWlTlFzUKcEfkovvb6s",
           "name": "run_tool",
-          "arguments": "{\"reason\":\"слабое расхождение источников для ночного шума\",\"characteristic\":\"noise_night\"}"
+          "arguments": "{\"reason\":\"слабое расхождение для ночного шума\",\"characteristic\":\"noise_night\"}"
         }
       ]
-    },
-    "f803d2644e747de3bb3c2757aa0b7b2521e6d646ba5d8a3728e7bb0e0393839e": {
-      "content": "Статусы характеристик отеля «Barceló Antenea Mar» после расчётов:\n\n- **night_pharmacy**: статус uncertain, уверенность 0.6.\n- **night_services**: статус uncertain, уверенность 0.6.\n- **walk_to_beach**: статус uncertain, уверенность 0.7.\n- **walk_to_metro**: статус uncertain, уверенность 0.7.\n\nВсе характеристики с статусом uncertain остались без изменений, уверенность ниже 0.75. Необходимо задать вопросы отельеру."
     }
   }
 }
