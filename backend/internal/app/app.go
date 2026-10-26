@@ -47,7 +47,7 @@ func Run() error {
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           apphttp.NewRouter(reg),
+		Handler:           apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules())),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

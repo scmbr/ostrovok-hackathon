@@ -16,15 +16,18 @@ import (
 var distFS embed.FS
 
 // NewRouter возвращает корневой обработчик: /health, /api/* и статика фронтенда.
-func NewRouter(reg domain.Registry) http.Handler {
+func NewRouter(reg domain.Registry, traces TraceSource) http.Handler {
 	static, _ := fs.Sub(distFS, "dist")
-	return newRouter(static, reg)
+	return newRouter(static, reg, traces)
 }
 
-func newRouter(static fs.FS, reg domain.Registry) http.Handler {
+func newRouter(static fs.FS, reg domain.Registry, traces TraceSource) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.Handle("GET /api/characteristics", handleCharacteristics(reg))
+	if traces != nil {
+		mux.Handle("GET /api/hotels/{id}/trace", handleTrace(traces))
+	}
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	})
