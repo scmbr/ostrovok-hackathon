@@ -98,3 +98,38 @@ func TestUpdateWithoutJudgeKeepsNewcomer(t *testing.T) {
 		t.Errorf("%+v, записей %d", u, len(st.saved))
 	}
 }
+
+type fakeSurveys struct{ reliable, total int }
+
+func (f fakeSurveys) GuestSurveyCounts(context.Context, int64) (int, int, error) {
+	return f.reliable, f.total, nil
+}
+
+// Репутация гостя: (добросовестных + 1) / (анкет + 2). Ленивый (небрежная анкета) падает ниже порога сигнала,
+// внимательный растёт; новичок без анкет остаётся на 0,5. Пересборка фактов — только при изменении веса.
+func TestUpdateGuest(t *testing.T) {
+	cases := []struct {
+		name            string
+		reliable, total int
+		want            float64
+		refreshed       int
+	}{
+		{"внимательный", 1, 1, 2.0 / 3, 1},
+		{"ленивый", 0, 1, 1.0 / 3, 1},
+		{"без анкет", 0, 0, 0.5, 0},
+	}
+	for _, c := range cases {
+		st := &fakeStore{}
+		s := &Service{Registry: registry(t), Store: st, Guests: fakeSurveys{c.reliable, c.total}}
+		u, err := s.UpdateGuest(context.Background(), 9)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if math.Abs(u.After-c.want) > 1e-9 || st.refreshed != c.refreshed {
+			t.Errorf("%s: репутация %.3f (want %.3f), пересборок %d (want %d)", c.name, u.After, c.want, st.refreshed, c.refreshed)
+		}
+		if u.Author.Type != domain.AuthorGuest || u.Author.ID != "9" {
+			t.Errorf("%s: автор %+v", c.name, u.Author)
+		}
+	}
+}

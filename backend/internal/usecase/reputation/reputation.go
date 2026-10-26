@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
@@ -28,11 +29,49 @@ type Store interface {
 	RefreshFacts(ctx context.Context, a domain.Author) error
 }
 
+// GuestSurveys — анкеты гостя для репутации.
+type GuestSurveys interface {
+	// GuestSurveyCounts — сколько анкет заполнено добросовестно (контрольный вопрос пройден, небрежности нет) и сколько всего.
+	GuestSurveyCounts(ctx context.Context, guestID int64) (reliable, total int, err error)
+}
+
 // Service пересчитывает репутацию.
 type Service struct {
 	Registry domain.Registry
 	Store    Store
-	Now      func() time.Time
+	// Guests нужен только для UpdateGuest.
+	Guests GuestSurveys
+	Now    func() time.Time
+}
+
+// UpdateGuest пересчитывает репутацию гостя заново по всем его анкетам: (добросовестных + 1) / (анкет + 2).
+// Наказывают контрольный вопрос и небрежность, несогласие с расчётом — нет (domain.GuestTrust). Если вес гостя
+// изменился, пересобираются факты, в которые входят его свидетельства.
+func (s *Service) UpdateGuest(ctx context.Context, guestID int64) (Update, error) {
+	a := domain.Author{Type: domain.AuthorGuest, ID: strconv.FormatInt(guestID, 10)}
+	u := Update{Author: a}
+	_, _, before, found, err := s.Store.Trust(ctx, a)
+	if err != nil {
+		return u, fmt.Errorf("репутация: %w", err)
+	}
+	if !found {
+		before = domain.DefaultTrust
+	}
+	reliable, total, err := s.Guests.GuestSurveyCounts(ctx, guestID)
+	if err != nil {
+		return u, fmt.Errorf("анкеты гостя: %w", err)
+	}
+	u.Agree, u.Total = reliable, total
+	u.Before, u.After = before, domain.GuestTrust(reliable, total)
+	if err := s.Store.SaveTrust(ctx, a, reliable, total, u.After); err != nil {
+		return u, fmt.Errorf("запись репутации: %w", err)
+	}
+	if math.Abs(u.After-u.Before) > 1e-9 {
+		if err := s.Store.RefreshFacts(ctx, a); err != nil {
+			return u, fmt.Errorf("пересборка фактов: %w", err)
+		}
+	}
+	return u, nil
 }
 
 // Judged — одно сравнённое утверждение, для журнала и отчёта.
