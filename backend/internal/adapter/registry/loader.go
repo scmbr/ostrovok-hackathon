@@ -51,6 +51,8 @@ type fileCategory struct {
 	FavorableValues []string `yaml:"favorable_values,omitempty"`
 	ConflictSteps   int      `yaml:"conflict_steps,omitempty"`
 	ConflictTheta   float64  `yaml:"conflict_theta,omitempty"`
+	// ConflictThetaHotelier — пониженный θ, если в споре участвует утверждение отельера.
+	ConflictThetaHotelier float64 `yaml:"conflict_theta_hotelier,omitempty"`
 }
 
 type fileStrategy struct {
@@ -86,7 +88,7 @@ func Parse(data []byte) (domain.Characteristic, error) {
 	if k := f.Category; k != nil {
 		c.Category = &domain.CategoryRule{
 			Values: k.Values, Ordered: k.Ordered, ValueField: k.ValueField, Target: k.Target, FloorField: k.FloorField,
-			FavorableValues: k.FavorableValues, ConflictSteps: k.ConflictSteps, ConflictTheta: k.ConflictTheta,
+			FavorableValues: k.FavorableValues, ConflictSteps: k.ConflictSteps, ConflictTheta: k.ConflictTheta, ConflictThetaHotelier: k.ConflictThetaHotelier,
 		}
 	}
 	for i, s := range f.Strategies {
@@ -183,7 +185,7 @@ func Marshal(c domain.Characteristic) ([]byte, error) {
 	if k := c.Category; k != nil {
 		f.Category = &fileCategory{
 			Values: k.Values, Ordered: k.Ordered, ValueField: k.ValueField, Target: k.Target, FloorField: k.FloorField,
-			FavorableValues: k.FavorableValues, ConflictSteps: k.ConflictSteps, ConflictTheta: k.ConflictTheta,
+			FavorableValues: k.FavorableValues, ConflictSteps: k.ConflictSteps, ConflictTheta: k.ConflictTheta, ConflictThetaHotelier: k.ConflictThetaHotelier,
 		}
 	}
 	for _, s := range c.Strategies {

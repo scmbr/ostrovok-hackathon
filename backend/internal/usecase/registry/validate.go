@@ -200,6 +200,9 @@ func validateCategory(c domain.Characteristic) []string {
 	case k.ConflictSteps > 1 && k.ConflictSteps > len(k.Values)-1:
 		add("conflict_steps %d больше числа ступеней %d", k.ConflictSteps, len(k.Values)-1)
 	}
+	if k.ConflictThetaHotelier < 0 {
+		add("conflict_theta_hotelier не может быть отрицательным")
+	}
 	if k.ConflictTheta < 0 {
 		add("conflict_theta не может быть отрицательным")
 	}

@@ -41,6 +41,9 @@ type TruthParams struct {
 	ConflictSteps int
 	// ConflictMinSide — порог θ: конфликт, если и «за», и «против» весят не меньше (в логарифме шансов).
 	ConflictMinSide float64
+	// ConflictMinSideHotelier — пониженный порог θ для спора, в котором участвует свидетельство отельера
+	// (утверждение «Sea View» после асимметрии весит ≈0,41 и при θ = 1,0 конфликта не дало бы); 0 — не применяется.
+	ConflictMinSideHotelier float64
 	// SignificantDiff — для чисел: расхождение больше этого значения — «против».
 	SignificantDiff float64
 	// FavorableValues — значения, выгодные отелю: к утверждению отельера о них применяется асимметрия.
@@ -267,13 +270,25 @@ func AssembleFact(es []Evidence, c TruthContext) (Fact, bool) {
 	}
 
 	if conflictAllowed(p, f.EntityType) && v.hasFar && v.againstFar > 0 {
-		if p.conflictMinSide() > 0 && v.forSum >= p.conflictMinSide() && v.againstFar >= p.conflictMinSide() {
+		if th := p.minSideFor(ws); v.forSum >= th && v.againstFar >= th {
 			f.Conflict = &Conflict{Description: describeConflict(ws, p)}
 		} else {
 			f.WeakDisagreement = true
 		}
 	}
 	return f, true
+}
+
+// minSideFor — порог θ спора: пониженный, если в нём участвует свидетельство отельера, иначе обычный.
+func (p TruthParams) minSideFor(ws []weighed) float64 {
+	if p.ConflictMinSideHotelier > 0 {
+		for _, w := range ws {
+			if w.ev.AuthorType == AuthorHotelier && w.role != roleIgnored {
+				return p.ConflictMinSideHotelier
+			}
+		}
+	}
+	return p.conflictMinSide()
 }
 
 func (p TruthParams) conflictMinSide() float64 {

@@ -14,7 +14,7 @@ category:
   favorable_values: [full]
   # Утверждение отельера «Sea View» после асимметрии весит ≈0,41 (ln 0,6/0,4) и при θ=1,0 конфликта с расчётом
   # не дало бы никогда: для названия категории порог ниже, расчёт при этом должен быть уверенно против.
-  conflict_theta: 0.3
+  conflict_theta_hotelier: 0.3
 strategies:
   - tool: sea-view
     params: { fan_half_deg: 45, fan_step_deg: 5, ray_max_m: 1500, min_fraction: 0.25 }
