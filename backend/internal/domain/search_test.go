@@ -79,6 +79,17 @@ func TestEvalHotelWishNearThreshold(t *testing.T) {
 	}
 }
 
+// Полоса «на границе» не шире половины порога: при пороге 5 и significant_diff 5 две минуты — это «совпало».
+func TestEvalHotelWishNearBandCappedByThreshold(t *testing.T) {
+	c := Characteristic{Key: "walk_to_metro", Level: LevelHotel, ValueType: ValueNumber, ValueField: "minutes", SignificantDiff: 5}
+	w := Desire{Key: "walk_to_metro", Op: OpLe, Value: 5.0, Importance: Must}
+	for minutes, want := range map[float64]Status{2: StatusMatch, 3: StatusNear, 5: StatusNear, 7: StatusNear, 8: StatusMismatch} {
+		if e := EvalHotelWish(c, w, &Fact{Value: map[string]any{"minutes": minutes}, Confidence: 0.7}); e.Status != want {
+			t.Errorf("%v мин: %s, ждали %s", minutes, e.Status, want)
+		}
+	}
+}
+
 func TestEvalHotelWishUnknownIsNotNo(t *testing.T) {
 	reg := searchRegistry(t)
 	c, _ := reg.Get("pets_allowed")

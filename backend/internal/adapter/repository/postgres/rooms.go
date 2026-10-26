@@ -185,7 +185,12 @@ ORDER BY f.id`, hotelID, domain.ConflictOpen, domain.FactActive)
 }
 
 func (s *RoomStore) evidenceViews(ctx context.Context, ids []int64) ([]rooms.EvidenceView, error) {
-	rows, err := s.pool.Query(ctx, `
+	return loadEvidenceViews(ctx, s.pool, ids)
+}
+
+// loadEvidenceViews читает свидетельства по id вместе с вкладом в факт.
+func loadEvidenceViews(ctx context.Context, pool *pgxpool.Pool, ids []int64) ([]rooms.EvidenceView, error) {
+	rows, err := pool.Query(ctx, `
 SELECT id, source, author_type, author_id, claimed_value, reliability, contribution, observed_at
 FROM evidence WHERE id = ANY($1) ORDER BY id`, ids)
 	if err != nil {

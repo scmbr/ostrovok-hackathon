@@ -55,6 +55,7 @@ const collectUsage = `использование: collect <команда> [-reg
   guest-signals  сигнал гостей: 3 надёжных гостя против расчёта ставят факт на пересчёт (stale), задача и запись в agent_trace
   recompute-tasks  выполнить задачи пересчёта: инструмент по отелю, итог (подтвердил расчёт или изменил) в agent_trace
   rooms        рассчитать значения характеристик в категориях номеров из фактов фасадов и размещения (после mock-rooms; -hotel ID — один отель)
+  search-demo  топ-5 по пяти запросам проверки поиска с вариантом номера и объяснением (спрос не пишется; после rooms; -hotel ID — как поиск «вид на море» оценивает один отель)
   select-demo  отметить демо-подмножество отелей (флаг hotels.demo)
   stats        показать сводку по собранным данным`
 
@@ -246,6 +247,8 @@ func RunCollect(args []string) error {
 			return err
 		}
 		fmt.Printf("категории номеров рассчитаны: отелей %d, категорий %d, свидетельств записано %d\n", res.Hotels, res.Categories, res.Evidence)
+	case "search-demo":
+		return runSearchDemo(ctx, reg, pool, region, opts.Filter.HotelID)
 	case "mock-stays", "guest-surveys", "guest-signals", "recompute-tasks":
 		return runGuests(ctx, cmd, reg, pool, region, opts.Filter, cfg)
 	case "select-demo":
@@ -271,12 +274,12 @@ const defaultRegion = "barcelona"
 var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
 	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
-	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "hotelier-round": true, "hotelier-reset": true, "hotelier-preview": true, "mock-stays": true, "guest-surveys": true, "guest-signals": true, "recompute-tasks": true, "mock-cards": true, "mock-rooms": true, "mock-hotelier": true, "rooms": true,
+	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "hotelier-round": true, "hotelier-reset": true, "hotelier-preview": true, "mock-stays": true, "guest-surveys": true, "guest-signals": true, "recompute-tasks": true, "mock-cards": true, "mock-rooms": true, "mock-hotelier": true, "rooms": true, "search-demo": true,
 	"select-demo": true, "stats": true,
 }
 
 // roomsCommands — команды по категориям номеров: работают по отелям (-hotel), но не расчётные инструменты реестра.
-var roomsCommands = map[string]bool{"mock-rooms": true, "mock-hotelier": true, "rooms": true, "mock-stays": true, "guest-surveys": true, "guest-signals": true, "recompute-tasks": true}
+var roomsCommands = map[string]bool{"mock-rooms": true, "mock-hotelier": true, "rooms": true, "mock-stays": true, "guest-surveys": true, "guest-signals": true, "recompute-tasks": true, "search-demo": true}
 
 // toolFlags — область и параметры запуска расчётного инструмента.
 type toolFlags struct {

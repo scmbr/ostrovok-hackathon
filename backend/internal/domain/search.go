@@ -348,7 +348,7 @@ func EvalHotelWish(c Characteristic, w Desire, f *Fact) WishEval {
 		}
 		e.Value = v
 		sat = (w.Op == OpLe && v <= t) || (w.Op == OpGe && v >= t)
-		near = c.SignificantDiff > 0 && math.Abs(v-t) <= c.SignificantDiff
+		near = c.SignificantDiff > 0 && math.Abs(v-t) <= nearBand(c, t)
 		if near {
 			e.Caveat = fmt.Sprintf("≈ %s%s, на границе", formatNum(v), unitSuffix(c))
 		}
@@ -356,7 +356,7 @@ func EvalHotelWish(c Characteristic, w Desire, f *Fact) WishEval {
 	if f.Conflict != nil {
 		e.Conflict = f.Conflict.Description
 	}
-	doubtful := f.Conflict != nil || f.WeakDisagreement || f.Stale || f.Confidence < MinConfidence
+	doubtful := f.Conflict != nil || f.WeakDisagreement || f.Stale || lowConfidence(f.Confidence)
 	switch {
 	case near:
 		e.Status, e.P = StatusNear, NearProbability
@@ -368,7 +368,7 @@ func EvalHotelWish(c Characteristic, w Desire, f *Fact) WishEval {
 		}
 	default:
 		e.Status = StatusMismatch
-		if f.Conflict != nil || f.Confidence < MinConfidence {
+		if f.Conflict != nil || lowConfidence(f.Confidence) {
 			e.Status = StatusUncertain
 		}
 	}
@@ -401,6 +401,15 @@ func unitSuffix(c Characteristic) string {
 		return " мин"
 	}
 	return ""
+}
+
+// nearBand — полоса «на границе» вокруг порога желания: significant_diff, но не шире половины самого порога
+// (иначе при пороге 5 минут и significant_diff 5 «на границе» было бы всё от 0 до 10).
+func nearBand(c Characteristic, threshold float64) float64 {
+	if threshold > 0 {
+		return math.Min(c.SignificantDiff, threshold/2)
+	}
+	return c.SignificantDiff
 }
 
 // enumSatisfies — подходит ли значение got под желание: eq или «не хуже» по упорядоченной шкале.
@@ -441,13 +450,16 @@ func EvalCategoryWish(c Characteristic, w Desire, in CategoryWishInput) WishEval
 	want, _ := w.Value.(string)
 	rule := c.Category
 	conf := NoFactConfidence
-	e := WishEval{Key: w.Key, Importance: w.Importance, Value: want, Guarantee: a.Guarantee}
+	e := WishEval{Key: w.Key, Importance: w.Importance, Value: dominantValue(rule.Values, a.Shares), Guarantee: a.Guarantee}
 	pBase := a.Probability
 	var factValue string
 	if f := in.Fact; f != nil {
 		conf = f.Confidence
 		e.FactID, e.ObservedAt, e.ValidUntil = f.ID, f.ObservedAt, f.ValidUntil
 		factValue, _ = f.Value[rule.ValueField].(string)
+		if factValue != "" {
+			e.Value = factValue
+		}
 		if f.Conflict != nil {
 			e.Conflict = f.Conflict.Description
 		}
@@ -477,13 +489,13 @@ func EvalCategoryWish(c Characteristic, w Desire, in CategoryWishInput) WishEval
 	e.Score = WishScore(e.P, conf)
 	weak := in.Fact != nil && (in.Fact.WeakDisagreement || in.Fact.Stale)
 	switch {
-	case e.P == 0 && conf >= MinConfidence:
+	case e.P == 0 && !lowConfidence(conf):
 		e.Status = StatusMismatch
 	case e.P == 0, disagree, e.Conflict != "":
 		e.Status = StatusUncertain
-	case e.Guarantee && conf >= MinConfidence && !weak:
+	case e.Guarantee && !lowConfidence(conf) && !weak:
 		e.Status = StatusMatch
-	case e.Guarantee || conf < MinConfidence || weak:
+	case e.Guarantee || lowConfidence(conf) || weak:
 		e.Status = StatusUncertain
 	default:
 		e.Status = StatusChance
@@ -625,6 +637,32 @@ type HotelResult struct {
 	Card     Card
 	Best     Variant
 	Alt      *Variant
+	// OtherConflicts — открытые конфликты в других категориях отеля по желаниям запроса (например, «Sea View»,
+	// чьё название спорит с расчётом): гость должен о них знать, даже если лучший вариант — другая категория.
+	OtherConflicts []VariantConflict
+}
+
+// VariantConflict — конфликт по желанию в категории номеров.
+type VariantConflict struct {
+	Category    string
+	Key         string
+	Description string
+}
+
+// ConflictsOutside собирает конфликты вариантов, кроме лучшего.
+func ConflictsOutside(vs []Variant, best int64) []VariantConflict {
+	var out []VariantConflict
+	for _, v := range vs {
+		if v.CategoryID == best {
+			continue
+		}
+		for _, e := range v.Evals {
+			if e.Conflict != "" {
+				out = append(out, VariantConflict{Category: v.Name, Key: e.Key, Description: e.Conflict})
+			}
+		}
+	}
+	return out
 }
 
 // Violations — нарушенные must лучшего варианта.
@@ -809,3 +847,7 @@ func QueryWeights(ws []Desire) map[string]float64 {
 	}
 	return out
 }
+
+// lowConfidence — уверенность ниже MinConfidence с допуском 0,01: свежесть чуть сдвигает уверенность факта из одного
+// свидетельства с базой 0,6 (0,5989), и «ровно 0,6» не должно превращаться в «под вопросом».
+func lowConfidence(c float64) bool { return c < MinConfidence-0.01 }

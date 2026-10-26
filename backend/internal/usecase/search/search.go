@@ -1,0 +1,377 @@
+// Пакет search — поиск отелей по структурному запросу гостя: лучший вариант номера для каждого отеля, оценка желаний
+// с объяснением, «похожий на этот». Формулы — в domain (search.go), описание — docs/search.md.
+package search
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+	"sync"
+
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/rooms"
+)
+
+// ErrNotFound — отеля нет.
+var ErrNotFound = errors.New("отель не найден")
+
+// ValidationError — запрос не прошёл проверку по схеме реестра.
+type ValidationError struct{ Msg string }
+
+func (e *ValidationError) Error() string { return e.Msg }
+
+// Candidate — отель, участвующий в поиске, с мок-карточкой.
+type Candidate struct {
+	ID       int64
+	Name     string
+	District string
+	Card     domain.Card
+	Lat, Lon float64
+}
+
+// FactView — факт со свидетельствами, из которых он сложен.
+type FactView struct {
+	Fact     domain.Fact
+	Evidence []rooms.EvidenceView
+}
+
+// Store — хранилище поиска. Реализация — adapter/repository/postgres.
+type Store interface {
+	// Candidates — отели региона, в которых можно искать: демо-отели с размещёнными категориями.
+	Candidates(ctx context.Context, regionID int64) ([]Candidate, error)
+	Candidate(ctx context.Context, hotelID int64) (Candidate, error)
+	// HotelFacts — активные факты отеля и его района со свидетельствами и открытым конфликтом.
+	HotelFacts(ctx context.Context, hotelID int64) ([]FactView, error)
+}
+
+// RoomsSource — категории номеров отеля с вероятностями (rooms.Service).
+type RoomsSource interface {
+	Hotel(ctx context.Context, hotelID int64) (rooms.HotelRooms, error)
+}
+
+// DemandRecorder — запись спроса: одна сессия увеличивает спрос по ключу один раз.
+type DemandRecorder interface {
+	Record(ctx context.Context, regionID int64, sessionID string, keys []string) error
+}
+
+// Service — поиск. Demand == nil — спрос не пишется (демо-прогоны и тесты).
+type Service struct {
+	Registry domain.Registry
+	Store    Store
+	Rooms    RoomsSource
+	Demand   DemandRecorder
+	RegionID int64
+}
+
+// Result — выдача поиска.
+type Result struct {
+	Query  domain.Query // нормализованный: значения по умолчанию подставлены
+	Hotels []domain.HotelResult
+	// Considered — сколько отелей рассмотрено; Dropped — отброшено фильтрами карточки (звёзды, цена).
+	Considered, Dropped int
+}
+
+// Search возвращает отели с лучшим вариантом номера, упорядоченные по оценке; отели с нарушенными must — в конце.
+func (s *Service) Search(ctx context.Context, q domain.Query) (Result, error) {
+	q, chars, err := s.normalize(q)
+	if err != nil {
+		return Result{}, err
+	}
+	cands, err := s.Store.Candidates(ctx, s.RegionID)
+	if err != nil {
+		return Result{}, fmt.Errorf("кандидаты: %w", err)
+	}
+	type slot struct {
+		res domain.HotelResult
+		ok  bool
+		err error
+	}
+	slots := make([]slot, len(cands))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 6)
+	for i, c := range cands {
+		if q.Filters.StarsMin > 0 && c.Card.Stars < q.Filters.StarsMin {
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			res, ok, err := s.evalHotel(ctx, c, q, chars)
+			slots[i] = slot{res, ok, err}
+		}()
+	}
+	wg.Wait()
+	out := Result{Query: q, Considered: len(cands)}
+	for _, sl := range slots {
+		if sl.err != nil {
+			return Result{}, sl.err
+		}
+		if sl.ok {
+			out.Hotels = append(out.Hotels, sl.res)
+		}
+	}
+	out.Dropped = out.Considered - len(out.Hotels)
+	domain.RankHotels(out.Hotels)
+	if len(out.Hotels) > q.Limit {
+		out.Hotels = out.Hotels[:q.Limit]
+	}
+	if s.Demand != nil && len(q.Wishes) > 0 {
+		keys := make([]string, len(q.Wishes))
+		for i, w := range q.Wishes {
+			keys[i] = w.Key
+		}
+		if err := s.Demand.Record(ctx, s.RegionID, q.SessionID, keys); err != nil {
+			return Result{}, fmt.Errorf("запись спроса: %w", err)
+		}
+	}
+	return out, nil
+}
+
+// normalize проверяет желания по схеме реестра и подставляет значения по умолчанию.
+func (s *Service) normalize(q domain.Query) (domain.Query, map[string]domain.Characteristic, error) {
+	if len(q.Wishes) == 0 && q.Filters == (domain.Filters{}) {
+		return q, nil, &ValidationError{"запрос пуст: нужны желания или фильтры"}
+	}
+	if q.Filters.PriceMax < 0 || q.Filters.StarsMin < 0 || q.Filters.StarsMin > 5 {
+		return q, nil, &ValidationError{"фильтры вне допустимых границ"}
+	}
+	switch {
+	case q.Limit <= 0:
+		q.Limit = domain.DefaultSearchLimit
+	case q.Limit > domain.MaxSearchLimit:
+		q.Limit = domain.MaxSearchLimit
+	}
+	chars := map[string]domain.Characteristic{}
+	ws := make([]domain.Desire, 0, len(q.Wishes))
+	for _, w := range q.Wishes {
+		if _, dup := chars[w.Key]; dup {
+			return q, nil, &ValidationError{fmt.Sprintf("желание %q указано дважды", w.Key)}
+		}
+		nw, c, err := domain.NormalizeWish(s.Registry, w)
+		if err != nil {
+			return q, nil, &ValidationError{err.Error()}
+		}
+		chars[w.Key] = c
+		ws = append(ws, nw)
+	}
+	q.Wishes = ws
+	return q, chars, nil
+}
+
+// evalHotel строит лучший вариант номера отеля; ok == false — у отеля нет подходящих вариантов (фильтр цены, нет категорий).
+func (s *Service) evalHotel(ctx context.Context, c Candidate, q domain.Query, chars map[string]domain.Characteristic) (domain.HotelResult, bool, error) {
+	hr, err := s.Rooms.Hotel(ctx, c.ID)
+	if errors.Is(err, rooms.ErrNotFound) {
+		return domain.HotelResult{}, false, nil
+	}
+	if err != nil {
+		return domain.HotelResult{}, false, fmt.Errorf("категории отеля %d: %w", c.ID, err)
+	}
+	facts, err := s.Store.HotelFacts(ctx, c.ID)
+	if err != nil {
+		return domain.HotelResult{}, false, fmt.Errorf("факты отеля %d: %w", c.ID, err)
+	}
+	byKey := hotelFacts(facts)
+	azimuth := map[int64]float64{}
+	for _, f := range hr.Facades {
+		azimuth[f.ID] = f.AzimuthDeg
+	}
+	wishGuaranteed := wishGuarantee(byKey)
+
+	hotelEvals := map[string]domain.WishEval{}
+	categoryKeys := map[string]bool{}
+	for _, w := range q.Wishes {
+		ch := chars[w.Key]
+		if domain.CategoryLevel(ch) {
+			categoryKeys[w.Key] = true
+			continue
+		}
+		var f *domain.Fact
+		var src []rooms.EvidenceView
+		if fv, ok := byKey[w.Key]; ok {
+			f, src = &fv.Fact, fv.Evidence
+		}
+		e := domain.EvalHotelWish(ch, w, f)
+		e.Sources = sources(src)
+		hotelEvals[w.Key] = e
+	}
+
+	var variants []domain.Variant
+	for _, cv := range hr.Categories {
+		price := domain.CategoryPriceEUR(c.Card, cv.Category.Name)
+		if q.Filters.PriceMax > 0 && price > q.Filters.PriceMax {
+			continue
+		}
+		evals := make([]domain.WishEval, 0, len(q.Wishes))
+		for _, w := range q.Wishes {
+			if !categoryKeys[w.Key] {
+				evals = append(evals, hotelEvals[w.Key])
+				continue
+			}
+			target, _ := w.Value.(string)
+			a, ok := hr.AssessAt(cv.Category.ID, w.Key, target, w.MinFloor)
+			if !ok {
+				evals = append(evals, domain.WishEval{Key: w.Key, Importance: w.Importance, Status: domain.StatusUnknown, Score: domain.UnknownScore,
+					Caveat: "категория не оценена — спросим отель"})
+				continue
+			}
+			in := domain.CategoryWishInput{Assessment: a, WishGuaranteed: wishGuaranteed,
+				AzimuthOf: func(id int64) float64 { return azimuth[id] }}
+			var src []rooms.EvidenceView
+			for _, chv := range cv.Characteristics {
+				if chv.Key == w.Key && chv.Fact != nil {
+					in.Fact, src = &chv.Fact.Fact, chv.Fact.Evidence
+				}
+			}
+			e := domain.EvalCategoryWish(chars[w.Key], w, in)
+			e.Sources = sources(src)
+			evals = append(evals, e)
+		}
+		variants = append(variants, domain.NewVariant(cv.Category.ID, cv.Category.Name, cv.Category.Rooms, price, evals, categoryKeys))
+	}
+	best, alt, ok := domain.ChooseVariants(variants)
+	if !ok {
+		return domain.HotelResult{}, false, nil
+	}
+	return domain.HotelResult{HotelID: c.ID, Name: c.Name, District: c.District, Card: c.Card, Best: best, Alt: alt}, true, nil
+}
+
+// hotelFacts — факты уровня отеля по ключу.
+func hotelFacts(fs []FactView) map[string]FactView {
+	out := map[string]FactView{}
+	for _, f := range fs {
+		if f.Fact.EntityType == domain.EntityHotel {
+			out[f.Fact.Key] = f
+		}
+	}
+	return out
+}
+
+// wishGuarantee — отельер сообщил, что гарантирует пожелания к номеру.
+func wishGuarantee(byKey map[string]FactView) bool {
+	fv, ok := byKey[domain.WishGuaranteeKey]
+	if !ok {
+		return false
+	}
+	v, _ := fv.Fact.Value["available"].(bool)
+	return v
+}
+
+func sources(evs []rooms.EvidenceView) []domain.EvidenceSource {
+	out := make([]domain.EvidenceSource, len(evs))
+	for i, e := range evs {
+		out[i] = domain.EvidenceSource{ID: e.ID, Source: e.Source, AuthorType: e.AuthorType, AuthorID: e.AuthorID,
+			Reliability: e.Reliability, Contribution: e.Contribution, ObservedAt: e.ObservedAt, Claimed: e.Claimed}
+	}
+	return out
+}
+
+// HotelCard — карточка отеля: мок-карточка, факты с источниками, категории с вероятностями и конфликтами.
+type HotelCard struct {
+	Candidate
+	Facts []FactView
+	Rooms *rooms.HotelRooms // nil — у отеля нет категорий
+}
+
+// Hotel собирает карточку отеля.
+func (s *Service) Hotel(ctx context.Context, id int64) (HotelCard, error) {
+	c, err := s.Store.Candidate(ctx, id)
+	if err != nil {
+		return HotelCard{}, err
+	}
+	out := HotelCard{Candidate: c}
+	if out.Facts, err = s.Store.HotelFacts(ctx, id); err != nil {
+		return out, fmt.Errorf("факты отеля: %w", err)
+	}
+	hr, err := s.Rooms.Hotel(ctx, id)
+	switch {
+	case errors.Is(err, rooms.ErrNotFound):
+	case err != nil:
+		return out, fmt.Errorf("категории отеля: %w", err)
+	default:
+		out.Rooms = &hr
+	}
+	return out, nil
+}
+
+// SimilarHotel — отель, похожий на заданный, и чем они различаются.
+type SimilarHotel struct {
+	Candidate
+	Distance float64
+	// Dims — характеристики по убыванию различия (первые — главное отличие).
+	Dims []domain.Dim
+}
+
+// Similar ищет отели с близким профилем фактов (без звёзд и цены). weights — веса характеристик, по умолчанию 1.
+func (s *Service) Similar(ctx context.Context, id int64, limit int, weights map[string]float64) ([]SimilarHotel, error) {
+	base, err := s.Store.Candidate(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	baseFacts, err := s.Store.HotelFacts(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	bp := domain.BuildProfile(s.Registry, plainFacts(baseFacts))
+	if len(bp) == 0 {
+		return nil, fmt.Errorf("у отеля %d нет фактов для профиля", id)
+	}
+	cands, err := s.Store.Candidates(ctx, s.RegionID)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 5
+	}
+	var out []SimilarHotel
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 6)
+	var firstErr error
+	for _, c := range cands {
+		if c.ID == base.ID {
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			fs, err := s.Store.HotelFacts(ctx, c.ID)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				firstErr = err
+				return
+			}
+			d, dims := domain.ProfileDistance(s.Registry, bp, domain.BuildProfile(s.Registry, plainFacts(fs)), weights)
+			sort.SliceStable(dims, func(i, j int) bool { return dims[i].Distance*dims[i].Weight > dims[j].Distance*dims[j].Weight })
+			out = append(out, SimilarHotel{Candidate: c, Distance: d, Dims: dims})
+		}()
+	}
+	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Distance != out[j].Distance {
+			return out[i].Distance < out[j].Distance
+		}
+		return out[i].ID < out[j].ID
+	})
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func plainFacts(fs []FactView) []domain.Fact {
+	out := make([]domain.Fact, len(fs))
+	for i, f := range fs {
+		out[i] = f.Fact
+	}
+	return out
+}
