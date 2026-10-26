@@ -52,6 +52,16 @@ type run struct {
 	recomputed map[string]bool
 	askedKeys  map[string]bool
 	states     map[string]State
+	// deferred — записи о закрытии вопросов отельеру. Закрытие есть в журнале, только если вопрос был открыт в БД,
+	// а номер шага входит в тексты, которые видит модель («посчитано запуском walk на шаге 7»): запись посреди
+	// прогона сдвигала бы нумерацию и ломала воспроизведение из кеша на сиде, где вопрос уже закрыт.
+	// Поэтому такие записи пишутся в конце прогона.
+	deferred []deferredLog
+}
+
+type deferredLog struct {
+	decision string
+	in, out  map[string]any
 }
 
 // Run выполняет один прогон по отелю.
@@ -82,6 +92,11 @@ func (a *Agent) Run(ctx context.Context, hotelID int64) (Result, error) {
 	}
 	if err != nil {
 		return Result{}, err
+	}
+	for _, d := range r.deferred {
+		if err := r.log(ctx, d.decision, "", d.in, d.out); err != nil {
+			return Result{}, err
+		}
 	}
 	out := map[string]any{"actions": r.actions, "questions": r.asked, "skipped": r.skipped, "states": r.views(nil)}
 	if err := r.log(ctx, "прогон завершён", "", nil, out); err != nil {
@@ -246,10 +261,8 @@ func (r *run) closeResolved(ctx context.Context) error {
 			return err
 		}
 		if closed {
-			if err := r.log(ctx, fmt.Sprintf("закрываю вопрос отельеру по %s: %s", c.Key, note), "",
-				map[string]any{"characteristic": c.Key}, map[string]any{"closed": true, "confidence": *st.Confidence}); err != nil {
-				return err
-			}
+			r.deferred = append(r.deferred, deferredLog{fmt.Sprintf("закрываю вопрос отельеру по %s: %s", c.Key, note),
+				map[string]any{"characteristic": c.Key}, map[string]any{"closed": true, "confidence": *st.Confidence}})
 		}
 	}
 	return nil

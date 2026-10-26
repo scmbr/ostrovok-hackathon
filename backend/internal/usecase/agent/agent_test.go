@@ -552,6 +552,15 @@ func TestOpenQuestionClosedWhenConfident(t *testing.T) {
 	if !logged {
 		t.Error("в журнале нет записи о закрытии вопроса")
 	}
+	// Запись о закрытии не сдвигает нумерацию шагов с запусками: она идёт в конце, перед «прогон завершён».
+	for i, s := range st.trace {
+		if strings.HasPrefix(s.Decision, "закрываю вопрос") && st.trace[len(st.trace)-1].Decision != "прогон завершён" {
+			t.Errorf("запись о закрытии (шаг %d) не перед завершением прогона", i+1)
+		}
+		if s.Tool == "run_tool" && i > 0 && strings.HasPrefix(st.trace[i-1].Decision, "закрываю вопрос") {
+			t.Errorf("запись о закрытии стоит между шагами с запуском (шаг %d)", i)
+		}
+	}
 }
 
 // Запуск общего инструмента обрабатывает все его характеристики: can_run=false с номером шага запуска,
