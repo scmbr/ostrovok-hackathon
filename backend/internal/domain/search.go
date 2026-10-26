@@ -44,8 +44,8 @@ const (
 	MinConfidence = 0.6
 	// NoFactConfidence — уверенность, когда у категории нет итогового факта.
 	NoFactConfidence = 0.5
-	// NearProbability — вероятность числа, лежащего у порога желания в пределах significant_diff.
-	NearProbability = 0.5
+	// ViolationProbability — ниже этой вероятности известное значение нарушает желание («не совпало»).
+	ViolationProbability = 0.05
 	// WishFulfilProbability — вероятность, что отель выполнит пожелание к брони, пока он его не подтвердил (мок).
 	WishFulfilProbability = 0.7
 	// WishGuaranteedProbability — то же, если отельер сообщил, что гарантирует пожелания (wish_guarantee).
@@ -325,7 +325,7 @@ func EvalHotelWish(c Characteristic, w Desire, f *Fact) WishEval {
 	}
 	e := WishEval{Key: w.Key, Importance: w.Importance, Value: raw, Confidence: f.Confidence,
 		FactID: f.ID, ObservedAt: f.ObservedAt, ValidUntil: f.ValidUntil}
-	sat, near := false, false
+	sat, near, numP := false, false, 0.0
 	switch c.ValueType {
 	case ValueBool:
 		got, ok := toBool(raw)
@@ -347,8 +347,9 @@ func EvalHotelWish(c Characteristic, w Desire, f *Fact) WishEval {
 			return unknownEval(w, "значение факта не разобрано")
 		}
 		e.Value = v
-		sat = (w.Op == OpLe && v <= t) || (w.Op == OpGe && v >= t)
-		near = c.SignificantDiff > 0 && math.Abs(v-t) <= nearBand(c, t)
+		numP = NumberProbability(c, w.Op, v, t)
+		sat = numP >= MatchProbability
+		near = numP >= ViolationProbability && !sat
 		if near {
 			e.Caveat = fmt.Sprintf("≈ %s%s, на границе", formatNum(v), unitSuffix(c))
 		}
@@ -359,7 +360,7 @@ func EvalHotelWish(c Characteristic, w Desire, f *Fact) WishEval {
 	doubtful := f.Conflict != nil || f.WeakDisagreement || f.Stale || lowConfidence(f.Confidence)
 	switch {
 	case near:
-		e.Status, e.P = StatusNear, NearProbability
+		e.Status, e.P = StatusNear, numP
 	case sat:
 		e.P = 1
 		e.Status = StatusMatch
@@ -404,12 +405,30 @@ func unitSuffix(c Characteristic) string {
 }
 
 // nearBand — полоса «на границе» вокруг порога желания: significant_diff, но не шире половины самого порога
-// (иначе при пороге 5 минут и significant_diff 5 «на границе» было бы всё от 0 до 10).
+// (иначе при пороге 5 минут и significant_diff 5 «на границе» было бы всё от 0 до 10 минут).
 func nearBand(c Characteristic, threshold float64) float64 {
 	if threshold > 0 {
 		return math.Min(c.SignificantDiff, threshold/2)
 	}
 	return c.SignificantDiff
+}
+
+// NumberProbability — вероятность, что число v выполняет желание «v ≤ t» (OpLe) или «v ≥ t» (OpGe). Внутри полосы
+// вокруг порога вероятность плавная: p = clamp(0,5 + (t − v) / (2·полоса), 0, 1) для le (для ge разность с обратным знаком),
+// на пороге 0,5, на краю полосы изнутри 1, снаружи 0. Без significant_diff — жёсткое 0 или 1.
+func NumberProbability(c Characteristic, op Op, v, t float64) float64 {
+	d := t - v
+	if op == OpGe {
+		d = v - t
+	}
+	band := nearBand(c, t)
+	if band <= 0 {
+		if d >= 0 {
+			return 1
+		}
+		return 0
+	}
+	return math.Min(1, math.Max(0, 0.5+d/(2*band)))
 }
 
 // enumSatisfies — подходит ли значение got под желание: eq или «не хуже» по упорядоченной шкале.

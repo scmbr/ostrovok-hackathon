@@ -52,34 +52,45 @@ func TestNormalizeWishFromRegistry(t *testing.T) {
 	}
 }
 
-// Число у порога: в пределах significant_diff — «почти», p = 0,5, нарушением must не считается.
+// Число у порога: внутри полосы вероятность плавная, p = clamp(0,5 + (порог − значение) / (2·полоса), 0, 1).
+// Порог 10, полоса 2: нарушением must считается только p < 0,05 для известного значения.
 func TestEvalHotelWishNearThreshold(t *testing.T) {
 	reg := searchRegistry(t)
 	c, _ := reg.Get("walk_to_beach")
 	w, _, _ := NormalizeWish(reg, Desire{Key: "walk_to_beach", Value: 10.0, Importance: Must})
 	cases := []struct {
 		minutes float64
+		p       float64
 		status  Status
 		violate bool
 		caveat  string
 	}{
-		{9.5, StatusNear, false, "≈ 9,5 мин, на границе"},
-		{10.5, StatusNear, false, "≈ 10,5 мин, на границе"},
-		{14, StatusMismatch, true, ""},
-		{6, StatusMatch, false, ""},
+		{6, 1, StatusMatch, false, ""},
+		{8, 1, StatusMatch, false, ""},
+		{9.5, 0.625, StatusNear, false, "≈ 9,5 мин, на границе"},
+		{10, 0.5, StatusNear, false, "≈ 10 мин, на границе"},
+		{10.5, 0.375, StatusNear, false, "≈ 10,5 мин, на границе"},
+		{12, 0, StatusMismatch, true, ""},
+		{14, 0, StatusMismatch, true, ""},
 	}
 	for _, tc := range cases {
 		e := EvalHotelWish(c, w, &Fact{Value: map[string]any{"minutes": tc.minutes}, Confidence: 0.7})
-		if e.Status != tc.status || e.Violated() != tc.violate || e.Caveat != tc.caveat {
-			t.Errorf("%.1f мин: статус %s, нарушение %v, оговорка %q", tc.minutes, e.Status, e.Violated(), e.Caveat)
+		if e.Status != tc.status || e.Violated() != tc.violate || e.Caveat != tc.caveat || math.Abs(e.P-tc.p) > 1e-9 {
+			t.Errorf("%.1f мин: p %v, статус %s, нарушение %v, оговорка %q", tc.minutes, e.P, e.Status, e.Violated(), e.Caveat)
 		}
-		if tc.status == StatusNear && e.P != NearProbability {
-			t.Errorf("%.1f мин: p = %v, ждали 0,5", tc.minutes, e.P)
-		}
+	}
+	// ge — зеркально: «не меньше 10».
+	wge := Desire{Key: "walk_to_beach", Op: OpGe, Value: 10.0, Importance: Must}
+	if p := NumberProbability(c, wge.Op, 10.5, 10); math.Abs(p-0.625) > 1e-9 {
+		t.Errorf("ge, 10,5 при пороге 10: %v", p)
+	}
+	// Без significant_diff — жёсткий порог.
+	if NumberProbability(Characteristic{}, OpLe, 10.5, 10) != 0 || NumberProbability(Characteristic{}, OpLe, 10, 10) != 1 {
+		t.Error("без significant_diff порог жёсткий")
 	}
 }
 
-// Полоса «на границе» не шире половины порога: при пороге 5 и significant_diff 5 две минуты — это «совпало».
+// Полоса не шире половины порога: при пороге 5 и significant_diff 5 (полоса 2,5) две минуты — «совпало», 8 — «не совпало».
 func TestEvalHotelWishNearBandCappedByThreshold(t *testing.T) {
 	c := Characteristic{Key: "walk_to_metro", Level: LevelHotel, ValueType: ValueNumber, ValueField: "minutes", SignificantDiff: 5}
 	w := Desire{Key: "walk_to_metro", Op: OpLe, Value: 5.0, Importance: Must}
