@@ -141,3 +141,26 @@ func TestValidateReportsAllErrorsAtOnce(t *testing.T) {
 		t.Errorf("ожидалось несколько ошибок разом: %v", err)
 	}
 }
+
+func TestValidateOrigin(t *testing.T) {
+	c := valid()
+	c.Origin, c.OriginText, c.AddedAt = domain.OriginText, "есть ли рядом аптека", "2026-10-26"
+	if err := check(t, c); err != nil {
+		t.Errorf("корректный origin: %v", err)
+	}
+	for name, tt := range map[string]struct {
+		mutate func(*domain.Characteristic)
+		want   string
+	}{
+		"нет фразы":          {func(c *domain.Characteristic) { c.OriginText = "" }, "origin_text"},
+		"плохая дата":        {func(c *domain.Characteristic) { c.AddedAt = "26.10.2026" }, "YYYY-MM-DD"},
+		"неизвестный origin": {func(c *domain.Characteristic) { c.Origin = "llm" }, "допустимо text"},
+		"фраза без origin":   {func(c *domain.Characteristic) { c.Origin = "" }, "только вместе с origin"},
+	} {
+		x := c
+		tt.mutate(&x)
+		if err := check(t, x); err == nil || !strings.Contains(err.Error(), tt.want) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}

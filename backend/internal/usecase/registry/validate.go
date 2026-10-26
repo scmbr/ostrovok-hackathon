@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/compute"
@@ -67,9 +68,31 @@ func validateOne(c domain.Characteristic, tools []compute.Spec) []string {
 	if c.TTLDays <= 0 {
 		add("ttl_days должен быть больше нуля")
 	}
+	out = append(out, validateOrigin(c)...)
 	out = append(out, validateValues(c)...)
 	out = append(out, validateStrategies(c, tools)...)
 	return out
+}
+
+func validateOrigin(c domain.Characteristic) []string {
+	switch c.Origin {
+	case "":
+		if c.OriginText != "" || c.AddedAt != "" {
+			return []string{"origin_text и added_at задаются только вместе с origin: text"}
+		}
+	case domain.OriginText:
+		var out []string
+		if strings.TrimSpace(c.OriginText) == "" {
+			out = append(out, "у origin: text нужна исходная фраза origin_text")
+		}
+		if _, err := time.Parse(time.DateOnly, c.AddedAt); err != nil {
+			out = append(out, fmt.Sprintf("added_at должна быть датой YYYY-MM-DD, получено %q", c.AddedAt))
+		}
+		return out
+	default:
+		return []string{fmt.Sprintf("origin %q: допустимо text или пусто", c.Origin)}
+	}
+	return nil
 }
 
 func validateValues(c domain.Characteristic) []string {
