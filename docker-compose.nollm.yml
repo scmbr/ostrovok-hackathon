@@ -1,0 +1,6 @@
+# Проверка режима жюри без ключа LLM (режим кеша):
+#   docker compose -p clean-check -f docker-compose.yml -f docker-compose.nollm.yml up --build
+services:
+  app:
+    environment:
+      LLM_API_KEY: ""
