@@ -9,7 +9,6 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 )
 
-
 func TestLoadRegionBarcelona(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()

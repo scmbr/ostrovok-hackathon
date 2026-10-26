@@ -59,7 +59,7 @@ func (s *NoiseStore) ReplaceNoiseFacades(ctx context.Context, segs []domain.Nois
 	for _, g := range segs {
 		b.Queue(`
 INSERT INTO noise_facades (catastro_ref, geom, ln_db, lden_db, oci_ln_db, map_year, region_id)
-VALUES ($1, ST_Transform(ST_GeomFromText($2, ` + domain.MetricSRID + `), 4326), $3, $4, $5, $6, $7)`,
+VALUES ($1, ST_Transform(ST_GeomFromText($2, `+domain.MetricSRID+`), 4326), $3, $4, $5, $6, $7)`,
 			g.CatastroRef, wkt.MarshalString(g.Line), g.LnDB, g.LdenDB, g.OciLnDB, domain.NoiseMapYear, s.regionID)
 	}
 	br := tx.SendBatch(ctx, b)
@@ -125,11 +125,11 @@ JOIN hotels h ON h.id = f.hotel_id
 JOIN buildings b ON b.id = h.building_id
 JOIN noise_facades n ON n.catastro_ref = b.catastro_ref
 CROSS JOIN LATERAL (
-  SELECT ST_Length(ST_Intersection(ST_Transform(n.geom, ` + domain.MetricSRID + `),
-                                   ST_Buffer(ST_Transform(f.geom, ` + domain.MetricSRID + `), $1::float8))) AS ov,
-         ST_Length(ST_Transform(n.geom, ` + domain.MetricSRID + `)) AS len
+  SELECT ST_Length(ST_Intersection(ST_Transform(n.geom, `+domain.MetricSRID+`),
+                                   ST_Buffer(ST_Transform(f.geom, `+domain.MetricSRID+`), $1::float8))) AS ov,
+         ST_Length(ST_Transform(n.geom, `+domain.MetricSRID+`)) AS len
 ) o
-WHERE f.id = ANY($3::bigint[]) AND ST_DWithin(ST_Transform(f.geom, ` + domain.MetricSRID + `), ST_Transform(n.geom, ` + domain.MetricSRID + `), $1::float8)
+WHERE f.id = ANY($3::bigint[]) AND ST_DWithin(ST_Transform(f.geom, `+domain.MetricSRID+`), ST_Transform(n.geom, `+domain.MetricSRID+`), $1::float8)
   AND o.ov >= LEAST($2::float8, o.len / 2)
 ORDER BY f.id, n.id`, p.FacadeBufferM, p.MinOverlapM, facadeIDs)
 	if err != nil {
@@ -155,7 +155,7 @@ ORDER BY f.id, n.id`, p.FacadeBufferM, p.MinOverlapM, facadeIDs)
 	rows, err = s.pool.Query(ctx, `
 WITH m AS (
   SELECT f.id AS fid, ST_LineInterpolatePoint(f.geom, 0.5) AS p4326,
-         ST_Transform(ST_LineInterpolatePoint(f.geom, 0.5), ` + domain.MetricSRID + `) AS p,
+         ST_Transform(ST_LineInterpolatePoint(f.geom, 0.5), `+domain.MetricSRID+`) AS p,
          radians(f.azimuth_deg::float8) AS az, h.building_id AS b1, h.osm_building_id AS b2
   FROM facades f JOIN hotels h ON h.id = f.hotel_id WHERE f.id = ANY($3::bigint[])
 )
@@ -163,11 +163,11 @@ SELECT DISTINCT ON (m.fid, COALESCE(r.name, r.osm_id::text), r.highway)
        m.fid, r.highway, ST_Distance(c.cp, m.p), COALESCE(degrees(ST_Azimuth(m.p, c.cp)), -1),
        EXISTS (SELECT 1 FROM buildings bl
                WHERE NOT bl.shadowed AND bl.id IS DISTINCT FROM m.b1 AND bl.id IS DISTINCT FROM m.b2
-                 AND ST_Intersects(ST_Transform(bl.geom, ` + domain.MetricSRID + `),
+                 AND ST_Intersects(ST_Transform(bl.geom, `+domain.MetricSRID+`),
                        ST_MakeLine(ST_Translate(m.p, sin(m.az) * $2::float8, cos(m.az) * $2::float8), c.cp)))
 FROM m
 JOIN roads r ON r.geom && ST_Expand(m.p4326, 0.003)
-CROSS JOIN LATERAL (SELECT ST_ClosestPoint(ST_Transform(r.geom, ` + domain.MetricSRID + `), m.p) AS cp) c
+CROSS JOIN LATERAL (SELECT ST_ClosestPoint(ST_Transform(r.geom, `+domain.MetricSRID+`), m.p) AS cp) c
 WHERE ST_DWithin(c.cp, m.p, $1::float8)
 ORDER BY m.fid, COALESCE(r.name, r.osm_id::text), r.highway, ST_Distance(c.cp, m.p)`, p.OSMRadiusM, domain.RayOriginOffsetM, facadeIDs)
 	if err != nil {
@@ -191,18 +191,18 @@ ORDER BY m.fid, COALESCE(r.name, r.osm_id::text), r.highway, ST_Distance(c.cp, m
 	rows, err = s.pool.Query(ctx, `
 WITH m AS (
   SELECT f.id AS fid, ST_LineInterpolatePoint(f.geom, 0.5) AS p4326,
-         ST_Transform(ST_LineInterpolatePoint(f.geom, 0.5), ` + domain.MetricSRID + `) AS p,
+         ST_Transform(ST_LineInterpolatePoint(f.geom, 0.5), `+domain.MetricSRID+`) AS p,
          radians(f.azimuth_deg::float8) AS az, h.building_id AS b1, h.osm_building_id AS b2
   FROM facades f JOIN hotels h ON h.id = f.hotel_id WHERE f.id = ANY($4::bigint[])
 )
 SELECT m.fid, q.kind, ST_Distance(q.pp, m.p), COALESCE(degrees(ST_Azimuth(m.p, q.pp)), -1),
        EXISTS (SELECT 1 FROM buildings bl
                WHERE NOT bl.shadowed AND bl.id IS DISTINCT FROM m.b1 AND bl.id IS DISTINCT FROM m.b2
-                 AND ST_Intersects(ST_Transform(bl.geom, ` + domain.MetricSRID + `),
+                 AND ST_Intersects(ST_Transform(bl.geom, `+domain.MetricSRID+`),
                        ST_MakeLine(ST_Translate(m.p, sin(m.az) * $3::float8, cos(m.az) * $3::float8), q.pp)))
 FROM m
 JOIN pois q0 ON q0.geom && ST_Expand(m.p4326, 0.003)
-CROSS JOIN LATERAL (SELECT q0.kind AS kind, ST_Transform(q0.geom, ` + domain.MetricSRID + `) AS pp) q
+CROSS JOIN LATERAL (SELECT q0.kind AS kind, ST_Transform(q0.geom, `+domain.MetricSRID+`) AS pp) q
 WHERE q.kind = ANY($2::text[]) AND ST_DWithin(q.pp, m.p, $1::float8)
 ORDER BY m.fid, q0.id`, p.OSMRadiusM, domain.NoiseNightlifeKinds(), domain.RayOriginOffsetM, facadeIDs)
 	if err != nil {
@@ -221,4 +221,3 @@ ORDER BY m.fid, q0.id`, p.OSMRadiusM, domain.NoiseNightlifeKinds(), domain.RayOr
 	rows.Close()
 	return out, rows.Err()
 }
-

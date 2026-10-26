@@ -60,7 +60,7 @@ WITH own AS (SELECT geom FROM buildings WHERE id = $1),
 e AS (
   SELECT (x.ord - 1)::int AS i,
          ST_GeomFromText(x.wkt, 4326) AS g4326,
-         ST_Transform(ST_GeomFromText(x.wkt, 4326), ` + domain.MetricSRID + `) AS g
+         ST_Transform(ST_GeomFromText(x.wkt, 4326), `+domain.MetricSRID+`) AS g
   FROM unnest($2::text[]) WITH ORDINALITY AS x(wkt, ord)
 ),
 -- Меряем центральную половину ребра, а допуск сужаем до четверти длины: иначе буфер угла соседнего
@@ -72,7 +72,7 @@ m AS (
 SELECT m.i, COALESCE(
        COALESCE((
          SELECT ST_Length(ST_CollectionExtract(
-                  ST_Intersection(m.core, ST_Union(ST_Buffer(ST_MakeValid(ST_Transform(b.geom, ` + domain.MetricSRID + `)), m.tol))), 2))
+                  ST_Intersection(m.core, ST_Union(ST_Buffer(ST_MakeValid(ST_Transform(b.geom, `+domain.MetricSRID+`)), m.tol))), 2))
          FROM buildings b, own
          WHERE b.id <> $1
            AND b.geom && ST_Expand(m.g4326, 0.0003)
@@ -108,7 +108,7 @@ func (s *FacadeStore) FacesStreet(ctx context.Context, buildingID int64, probes 
 WITH own AS (SELECT geom FROM buildings WHERE id = $1),
 p AS (
   SELECT (x.ord - 1)::int AS i,
-         ST_Transform(ST_SetSRID(ST_MakePoint(x.lon, x.lat), 4326), ` + domain.MetricSRID + `) AS mid,
+         ST_Transform(ST_SetSRID(ST_MakePoint(x.lon, x.lat), 4326), `+domain.MetricSRID+`) AS mid,
          radians(x.az) AS a
   FROM unnest($2::float8[], $3::float8[], $4::float8[]) WITH ORDINALITY AS x(lon, lat, az, ord)
 ),
@@ -122,13 +122,13 @@ SELECT pr.i, r.d IS NOT NULL AND (bl.d IS NULL OR r.d < bl.d)
 FROM pr
 LEFT JOIN LATERAL (
   SELECT min(ST_Distance(pr.mid, ST_Intersection(pr.probe, q.rg))) AS d
-  FROM (SELECT ST_Transform(rd.geom, ` + domain.MetricSRID + `) AS rg FROM roads rd
+  FROM (SELECT ST_Transform(rd.geom, `+domain.MetricSRID+`) AS rg FROM roads rd
         WHERE rd.geom && ST_Transform(ST_Expand(pr.probe, 5), 4326)) q
   WHERE ST_Intersects(pr.probe, q.rg)
 ) r ON true
 LEFT JOIN LATERAL (
   SELECT min(ST_Distance(pr.mid, ST_Intersection(pr.probe, q.bg))) AS d
-  FROM (SELECT ST_MakeValid(ST_Transform(b.geom, ` + domain.MetricSRID + `)) AS bg
+  FROM (SELECT ST_MakeValid(ST_Transform(b.geom, `+domain.MetricSRID+`)) AS bg
         FROM buildings b, own
         WHERE b.geom && ST_Transform(ST_Expand(pr.probe, 5), 4326)
           AND (b.id = $1 OR NOT `+selfBuilding+`)) q

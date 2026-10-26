@@ -14,7 +14,9 @@ type NightStore struct {
 	evidenceWriter
 }
 
-func NewNightStore(pool *pgxpool.Pool) *NightStore { return &NightStore{pool: pool, evidenceWriter: evidenceWriter{pool}} }
+func NewNightStore(pool *pgxpool.Pool) *NightStore {
+	return &NightStore{pool: pool, evidenceWriter: evidenceWriter{pool}}
+}
 
 // NightTargets возвращает отели с заведениями в радиусе radiusM (расстояние по прямой, м) и их opening_hours.
 // Отели без заведений тоже возвращаются: «ничего рядом» — тоже результат.
@@ -48,4 +50,3 @@ ORDER BY h.id, p.id`, radiusM, flt.RegionID, flt.HotelID)
 	}
 	return out, rows.Err()
 }
-

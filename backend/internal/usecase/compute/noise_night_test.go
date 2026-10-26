@@ -1,8 +1,8 @@
 package compute
 
 import (
-	"math"
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -70,7 +70,6 @@ func TestNoiseNightFacts(t *testing.T) {
 		len(disputed.EvidenceIDs) != 2 || math.Abs(disputed.Confidence-0.7908) > 1e-3 {
 		t.Errorf("расхождение: %+v, конфликт %v, weak %v, уверенность %.4f", disputed.Value, disputed.Conflict, disputed.WeakDisagreement, disputed.Confidence)
 	}
-
 
 	if hotel.EntityType != domain.EntityHotel || hotel.Value["level"] != domain.NoiseQuiet ||
 		hotel.Value["loudest_level"] != domain.NoiseLoud || hotel.Value["quietest_facade"] != int64(73) ||
