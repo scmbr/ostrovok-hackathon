@@ -186,6 +186,8 @@ type run struct {
 	notes   []string
 	parsed  bool
 	removed []string
+	// applied — что сделал ответ гостя на предыдущее уточнение.
+	applied string
 
 	// Непонятое: тексты в порядке появления; нормализация и предложение модели, если она их дала.
 	unmet     []string
@@ -219,6 +221,7 @@ func (r *run) applyPending() {
 		return
 	}
 	if what := r.e.answerPending(&r.st, r.req.Choice); what != "" {
+		r.applied = what
 		r.tr.step("применяю ответ на уточнение", "apply_choice", map[string]any{"choice": r.req.Choice}, map[string]any{"applied": what})
 	}
 }

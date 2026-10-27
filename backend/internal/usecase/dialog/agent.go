@@ -49,7 +49,11 @@ var toolDefs = []agent.ToolDef{
 // userPrompt — сообщение гостя и состояние сессии: то, чего модель не помнит между ходами.
 func (r *run) userPrompt() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Сообщение гостя: «%s»\n", r.req.Message)
+	if strings.TrimSpace(r.req.Message) == "" {
+		fmt.Fprintf(&b, "Гость ответил на уточнение кнопкой; система уже применила ответ (%s). Новых слов нет: вызови search и ответь.\n", r.applied)
+	} else {
+		fmt.Fprintf(&b, "Сообщение гостя: «%s»\n", r.req.Message)
+	}
 	if len(r.st.Wishes) > 0 || r.st.Filters != (domain.Filters{}) {
 		fmt.Fprintf(&b, "Уже накоплено в запросе: %s.\n", r.e.understood(domain.Query{Wishes: r.st.Wishes, Filters: r.st.Filters}))
 	}
@@ -68,8 +72,8 @@ func (r *run) userPrompt() string {
 
 // turnLLM — ход с моделью. handled=false: модель недоступна или промах кеша — ход нужно повторить по правилам.
 func (e *Engine) turnLLM(ctx context.Context, req Request, emit func(Event)) (bool, error) {
-	if strings.TrimSpace(req.Message) == "" {
-		return false, nil // ответ кнопкой: модель не нужна
+	if strings.TrimSpace(req.Message) == "" && req.Choice == "" {
+		return false, nil
 	}
 	mode := e.ChatMode
 	if mode == "" {
@@ -296,15 +300,16 @@ func (r *run) toolSearch(args string) (string, error) {
 	if !r.parsed {
 		r.parse(r.req.Message)
 	}
+	// Сначала «убрать», потом «добавить»: желание, названное в обоих списках, остаётся.
+	for _, k := range a.Remove {
+		r.st.Merge(r.e.Registry, domain.ParseResult{Remove: []string{k}})
+	}
 	for _, d := range a.Wishes {
 		nd, _, err := domain.NormalizeWish(r.e.Registry, d)
 		if err != nil {
 			return "", fmt.Errorf("желание отклонено: %w", err)
 		}
 		r.st.Wishes = upsert(r.st.Wishes, r.st.withFloor(r.e.Registry, nd))
-	}
-	for _, k := range a.Remove {
-		r.st.Merge(r.e.Registry, domain.ParseResult{Remove: []string{k}})
 	}
 	if a.PriceMax > 0 {
 		r.st.Filters.PriceMax = a.PriceMax

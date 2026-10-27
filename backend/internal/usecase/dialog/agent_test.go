@@ -196,14 +196,24 @@ func TestAgentStopsAfterConsecutiveRejections(t *testing.T) {
 	}
 }
 
-// Ответ кнопкой идёт без модели.
-func TestAgentChoiceTurnSkipsModel(t *testing.T) {
-	r, c := llmRig(t, seaOrBeach, call("parse_baseline", `{"text":"у моря"}`), call("ask_clarification", `{"phrase":"у моря"}`))
+// Модель называет желание и в remove, и в wishes (так делал gpt-4o-mini): желание остаётся, а не стирается.
+func TestAgentSearchRemoveThenAdd(t *testing.T) {
+	r, _ := llmRig(t, same, call("search", `{"remove":["pets_allowed"],"wishes":[{"key":"pets_allowed","importance":"prefer"}]}`), say("Готово."))
+	ev := turn(t, r, Request{SessionID: "s", Message: "с собакой"})
+	res, _ := find[ResultsEvent](ev, EventResults)
+	if _, ok := has(res.Query, "pets_allowed"); !ok {
+		t.Errorf("желание потерялось: %+v", res.Query.Wishes)
+	}
+}
+
+// Ответ кнопкой применяет код; модель только пересказывает выдачу, а поиск выполняется в любом случае.
+func TestAgentChoiceTurn(t *testing.T) {
+	r, c := llmRig(t, seaOrBeach, call("parse_baseline", `{"text":"у моря"}`), call("ask_clarification", `{"phrase":"у моря"}`), say("Нашла варианты."))
 	turn(t, r, Request{SessionID: "s", Message: "у моря"})
 	before := c.calls
 	ev := turn(t, r, Request{SessionID: "s", Choice: "sea_view"})
-	if c.calls != before {
-		t.Error("ответ кнопкой не требует модели")
+	if c.calls != before+1 {
+		t.Errorf("при ответе кнопкой модель вызывается один раз, вызовов %d", c.calls-before)
 	}
 	res, ok := find[ResultsEvent](ev, EventResults)
 	if !ok || !slices.ContainsFunc(res.Query.Wishes, func(w domain.Desire) bool { return w.Key == "sea_view" }) {
