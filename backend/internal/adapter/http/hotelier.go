@@ -95,7 +95,7 @@ func handleHotelierInbox(svc HotelierService) http.HandlerFunc {
 			q := it.Question
 			out.Items = append(out.Items, inboxItemDTO{
 				ID: q.ID, Characteristic: q.Key, Title: it.Title, Format: q.Format, EntityType: q.EntityType, EntityID: q.EntityID,
-				Question: q.Text, Reason: q.Reason, ReasonKind: it.ReasonKind, Value: q.Score.Value, Status: q.Status, SentAt: q.SentAt,
+				Question: q.Text, Reason: firstNonEmpty(it.Reason, q.Reason), ReasonKind: it.ReasonKind, Value: q.Score.Value, Status: q.Status, SentAt: q.SentAt,
 				Score: scoreDTO{q.Score.Demand, q.Score.DemandNorm, q.Score.Uncertainty, q.Score.Impact, q.Score.CategoriesChanged, q.Score.Categories},
 			})
 		}
@@ -267,4 +267,14 @@ func hotelierError(w http.ResponseWriter, what string, err error) {
 		log.Printf("кабинет отельера, %s: %v", what, err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "внутренняя ошибка"})
 	}
+}
+
+// firstNonEmpty — первая непустая строка: причина по текущему состоянию, иначе сохранённая в вопросе.
+func firstNonEmpty(ss ...string) string {
+	for _, s := range ss {
+		if s != "" {
+			return s
+		}
+	}
+	return ""
 }

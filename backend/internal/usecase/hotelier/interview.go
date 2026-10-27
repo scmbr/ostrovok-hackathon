@@ -411,7 +411,9 @@ func (i *Interviewer) currentValue(ctx context.Context, h Hotel, c domain.Charac
 	if !forCategory(c, *q) {
 		return hotelFactValue(facts, c.Key, h.ID), true
 	}
-	issues, err := i.Store.CategoryIssues(ctx, h.ID)
+	// Значение для подтверждения — расчётное свидетельство категории, а не итоговый факт: вопрос подтверждает расчёт,
+	// и после того как спор снят (вес отельера упал, гости перевесили), категории нет среди спорных.
+	issues, err := i.Store.CategoryCalcs(ctx, h.ID)
 	if err != nil {
 		return nil, false
 	}

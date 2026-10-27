@@ -463,7 +463,7 @@ export interface Booking {
 
 // Кабинет отельера.
 
-export type ReasonKind = 'no_data' | 'low_confidence' | 'conflict' | 'guests'
+export type ReasonKind = 'no_data' | 'low_confidence' | 'conflict' | 'guests' | 'unconfirmed'
 export type QuestionFormat = 'confirm' | 'open'
 
 export interface InboxQuestion {

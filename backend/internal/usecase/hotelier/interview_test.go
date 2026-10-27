@@ -22,6 +22,7 @@ type fakeStore struct {
 	evidence  []domain.Evidence
 	trace     []agent.TraceStep
 	issues    []CategoryIssue
+	calcs     []CategoryIssue // категории с расчётом без открытого конфликта
 	reopened  map[int64]string
 	refs      map[int64]FactRef
 	stale     []int64
@@ -343,6 +344,9 @@ func TestGuestsSearched(t *testing.T) {
 func (f *fakeStore) CategoryIssues(context.Context, int64) ([]CategoryIssue, error) {
 	return f.issues, nil
 }
+func (f *fakeStore) CategoryCalcs(context.Context, int64) ([]CategoryIssue, error) {
+	return append(append([]CategoryIssue{}, f.issues...), f.calcs...), nil
+}
 func (f *fakeStore) Reopen(_ context.Context, id int64, text, _ string) error {
 	if f.reopened == nil {
 		f.reopened = map[int64]string{}
@@ -533,5 +537,70 @@ func TestPhraseKeepsConfirmQuestion(t *testing.T) {
 	}}
 	if text, mode = newInterviewer(t, baseStore(), good).phrase(context.Background(), h, c, d, domain.FormatConfirm); mode != agent.ModeCache || text == d {
 		t.Errorf("нормальная переформулировка принимается: %q (%s)", text, mode)
+	}
+}
+
+// Вопрос о категории, спор по которой снят (вес отельера упал, гости перевесили), подтверждает расчётное значение
+// категории: «нет» даёт противоположное значение, «да» — значение расчёта, а не итогового факта.
+func TestConfirmCategoryWithoutOpenConflict(t *testing.T) {
+	q := Question{ID: 9, HotelID: 5, Key: domain.SeaViewKey, EntityType: domain.EntityRoomCategory, EntityID: "77",
+		Format: domain.FormatConfirm, Status: StatusOpen, Persona: domain.PersonaEmbellishing}
+	for _, tc := range []struct{ answer, view string }{{"Нет, вы ошибаетесь: вид есть.", "full"}, {"Да, верно", "none"}} {
+		st := categoryStore()
+		st.issues = nil
+		// Итоговый факт «none» (гости перевесили), расчёт «full»: вопрос опирается на расчёт.
+		st.calcs = []CategoryIssue{{CategoryID: 77, Name: "Vista mar", Key: domain.SeaViewKey, Confidence: 0.85, Value: "none", CalcValue: "none"}}
+		out, err := categoryInterviewer(t, st).Answer(context.Background(), q, tc.answer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.Status != StatusAnswered || len(st.evidence) != 1 || st.evidence[0].Claimed["view"] != tc.view {
+			t.Errorf("%q: статус %s, свидетельств %d (%+v)", tc.answer, out.Status, len(st.evidence), st.evidence)
+		}
+	}
+}
+
+// Расчёт и итоговый факт расходятся: «да» подтверждает расчёт.
+func TestConfirmCategoryUsesCalcNotFact(t *testing.T) {
+	q := Question{ID: 9, HotelID: 5, Key: domain.SeaViewKey, EntityType: domain.EntityRoomCategory, EntityID: "77",
+		Format: domain.FormatConfirm, Status: StatusOpen}
+	st := categoryStore()
+	st.issues = nil
+	st.calcs = []CategoryIssue{{CategoryID: 77, Name: "Vista mar", Key: domain.SeaViewKey, Confidence: 0.84, Value: "none", CalcValue: "full"}}
+	if _, err := categoryInterviewer(t, st).Answer(context.Background(), q, "Да"); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.evidence) != 1 || st.evidence[0].Claimed["view"] != "full" {
+		t.Errorf("«да» подтверждает расчёт full, получено %+v", st.evidence)
+	}
+}
+
+// Нет расчётного свидетельства категории — как раньше: ответ «нет» не даёт значения, вопрос возвращается с уточнением.
+func TestConfirmCategoryWithoutCalcAsksFollowUp(t *testing.T) {
+	q := Question{ID: 9, HotelID: 5, Key: domain.SeaViewKey, EntityType: domain.EntityRoomCategory, EntityID: "77",
+		Format: domain.FormatConfirm, Status: StatusOpen}
+	st := categoryStore()
+	st.issues = nil
+	st.qs = []Question{q}
+	out, err := categoryInterviewer(t, st).Answer(context.Background(), q, "Нет")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Status != StatusOpen || len(st.evidence) != 0 {
+		t.Errorf("статус %s, свидетельств %d", out.Status, len(st.evidence))
+	}
+}
+
+func TestReasonNowForClosedCategoryConflict(t *testing.T) {
+	q := Question{Key: domain.SeaViewKey, EntityType: domain.EntityRoomCategory, EntityID: "77"}
+	calcs := []CategoryIssue{{CategoryID: 77, Key: domain.SeaViewKey, Confidence: 0.849}}
+	kind, text := reasonNow(q, nil, nil, calcs, 5)
+	if kind != ReasonUnconfirmed || text != "утверждение отеля не подтверждено расчётом (уверенность 0,85)" {
+		t.Errorf("%s: %q", kind, text)
+	}
+	// Конфликт открыт — прежняя причина, текст остаётся сохранённым в вопросе.
+	open := []CategoryIssue{{CategoryID: 77, Key: domain.SeaViewKey, GuestAgainst: 3}}
+	if kind, text := reasonNow(q, nil, open, calcs, 5); kind != ReasonGuests || text != "" {
+		t.Errorf("гости: %s %q", kind, text)
 	}
 }

@@ -371,6 +371,15 @@ WHERE id = $1`, id, text, previousAnswer)
 // CategoryIssues — категории отеля с открытым конфликтом по характеристике: утверждение отеля (название) против
 // расчёта. Расчётное значение берётся из свидетельства инструмента, где стоят и размещения категории.
 func (s *HotelierStore) CategoryIssues(ctx context.Context, hotelID int64) ([]hotelier.CategoryIssue, error) {
+	return s.categoryIssues(ctx, hotelID, true)
+}
+
+// CategoryCalcs — категории с расчётным свидетельством, конфликт не обязателен (Conflict пуст у категорий без спора).
+func (s *HotelierStore) CategoryCalcs(ctx context.Context, hotelID int64) ([]hotelier.CategoryIssue, error) {
+	return s.categoryIssues(ctx, hotelID, false)
+}
+
+func (s *HotelierStore) categoryIssues(ctx context.Context, hotelID int64, conflictsOnly bool) ([]hotelier.CategoryIssue, error) {
 	rs := NewRoomStore(s.pool, s.rules)
 	cats, err := rs.Categories(ctx, hotelID)
 	if err != nil {
@@ -386,7 +395,7 @@ func (s *HotelierStore) CategoryIssues(ctx context.Context, hotelID int64) ([]ho
 	}
 	var out []hotelier.CategoryIssue
 	for _, cf := range cfs {
-		if cf.Fact.Conflict == nil {
+		if conflictsOnly && cf.Fact.Conflict == nil {
 			continue
 		}
 		var cat *domain.RoomCategory
@@ -398,7 +407,10 @@ func (s *HotelierStore) CategoryIssues(ctx context.Context, hotelID int64) ([]ho
 		if cat == nil {
 			continue
 		}
-		is := hotelier.CategoryIssue{CategoryID: cat.ID, Name: cat.Name, Key: cf.Fact.Key, Confidence: cf.Fact.Confidence, Conflict: cf.Fact.Conflict.Description}
+		is := hotelier.CategoryIssue{CategoryID: cat.ID, Name: cat.Name, Key: cf.Fact.Key, Confidence: cf.Fact.Confidence}
+		if cf.Fact.Conflict != nil {
+			is.Conflict = cf.Fact.Conflict.Description
+		}
 		if c, ok := cf.Fact.Value["view"]; ok {
 			is.Value = fmt.Sprint(c)
 		}
