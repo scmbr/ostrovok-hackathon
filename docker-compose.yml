@@ -33,6 +33,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+      start_period: 180s # миграции и заливка сида на медленной машине занимают больше минуты
 
 volumes:
   dbdata:
