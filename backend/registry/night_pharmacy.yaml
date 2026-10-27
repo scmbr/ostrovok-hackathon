@@ -1,5 +1,7 @@
 key: night_pharmacy
 title: Ночная аптека рядом
+title_met: с ночной аптекой рядом
+title_unmet: без ночной аптеки рядом
 description: Есть ли в 300 м от отеля аптека, открытая ночью
 level: hotel
 value_type: bool

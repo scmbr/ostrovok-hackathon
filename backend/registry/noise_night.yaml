@@ -1,5 +1,7 @@
 key: noise_night
 title: Тишина ночью
+title_met: тихо ночью
+title_unmet: ночью шумнее
 description: Насколько тихо ночью со стороны каждого фасада
 level: facade
 value_type: enum

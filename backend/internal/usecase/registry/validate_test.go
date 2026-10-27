@@ -264,3 +264,44 @@ func TestCheckAmbiguous(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateTitleForms(t *testing.T) {
+	c := valid()
+	c.TitleMet, c.TitleUnmet = "у пляжа", "до пляжа дальше"
+	if err := check(t, c); err != nil {
+		t.Fatalf("корректные формы отклонены: %v", err)
+	}
+	for name, mod := range map[string]func(*domain.Characteristic){
+		"пустая":    func(c *domain.Characteristic) { c.TitleMet = "   " },
+		"длинная":   func(c *domain.Characteristic) { c.TitleUnmet = strings.Repeat("я", MaxTitleFormRunes+1) },
+		"совпадают": func(c *domain.Characteristic) { c.TitleUnmet = "У пляжа" },
+	} {
+		d := valid()
+		d.TitleMet, d.TitleUnmet = "у пляжа", "до пляжа дальше"
+		mod(&d)
+		if err := check(t, d); err == nil {
+			t.Errorf("%s: форма должна отклоняться", name)
+		}
+	}
+}
+
+func TestCheckTitleFormsDuplicates(t *testing.T) {
+	mk := func(key, met string) domain.Characteristic {
+		c := valid()
+		c.Key, c.TitleMet = key, met
+		return c
+	}
+	reg := func(cs ...domain.Characteristic) domain.Registry {
+		r, err := domain.NewRegistry(cs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	if errs := checkTitleForms(reg(mk("a", "у пляжа"), mk("b", "у метро"))); len(errs) != 0 {
+		t.Fatalf("разные формы отклонены: %v", errs)
+	}
+	if errs := checkTitleForms(reg(mk("a", "у пляжа"), mk("b", "У пляжа"))); len(errs) == 0 {
+		t.Fatal("одинаковая форма у двух характеристик должна отклоняться")
+	}
+}

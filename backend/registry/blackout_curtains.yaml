@@ -1,5 +1,7 @@
 key: blackout_curtains
 title: Затемняющие шторы
+title_met: с затемняющими шторами
+title_unmet: без затемняющих штор
 description: Есть ли в номерах плотные шторы, не пропускающие уличный свет
 level: hotel
 value_type: bool

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 // Группы выдачи: если отелей, где есть всё сразу, мало, показываем честные компромиссы — блоки «всё, кроме X».
@@ -214,6 +215,31 @@ func joinAnd(ss []string) string {
 	return strings.Join(ss[:len(ss)-1], ", ") + " и " + ss[len(ss)-1]
 }
 
+// metTitle — форма выполненного желания в заголовке группы: title_met, иначе название характеристики.
+func metTitle(reg Registry, key string) string {
+	if c, ok := reg.Get(key); ok && c.TitleMet != "" {
+		return c.TitleMet
+	}
+	return wishTitle(reg, key)
+}
+
+// unmetTitle — форма невыполненного желания: title_unmet (human = true), иначе название строчными буквами.
+func unmetTitle(reg Registry, key string) (title string, human bool) {
+	if c, ok := reg.Get(key); ok && c.TitleUnmet != "" {
+		return c.TitleUnmet, true
+	}
+	return strings.ToLower(wishTitle(reg, key)), false
+}
+
+func upperFirst(s string) string {
+	r := []rune(s)
+	if len(r) == 0 {
+		return s
+	}
+	r[0] = unicode.ToUpper(r[0])
+	return string(r)
+}
+
 func wishTitle(reg Registry, key string) string {
 	if c, ok := reg.Get(key); ok && c.Title != "" {
 		return c.Title
@@ -222,7 +248,8 @@ func wishTitle(reg Registry, key string) string {
 }
 
 // GroupTitle — заголовок блока компромисса: «<выполнено>, но <что не так, с цифрой из лучшего отеля блока>»,
-// например «Тишина ночью, но пешком до пляжа от 18 мин». Для обязательного желания добавляется «не выполнено обязательное».
+// например «Тихо ночью, но до пляжа дальше (от 18 мин)». Формы берутся из title_met и title_unmet реестра, без них — из title (шаблон «Тишина ночью, но пешком до пляжа от 18 мин»).
+// Для обязательного желания добавляется «не выполнено обязательное».
 func GroupTitle(reg Registry, g Group) string {
 	if g.Kind == GroupOpen {
 		return "Ничего не нарушено, но часть данных под вопросом"
@@ -234,27 +261,31 @@ func GroupTitle(reg Registry, g Group) string {
 	var ok []string
 	for _, e := range best.Best.Evals {
 		if e.Key != g.FailedKey {
-			ok = append(ok, wishTitle(reg, e.Key))
+			ok = append(ok, metTitle(reg, e.Key))
 		}
 	}
-	bad := strings.ToLower(wishTitle(reg, g.FailedKey))
+	bad, human := unmetTitle(reg, g.FailedKey)
 	for _, e := range best.Best.Evals {
 		if e.Key != g.FailedKey {
 			continue
 		}
 		if c, found := reg.Get(e.Key); found && c.ValueType == ValueNumber {
 			if v, okNum := minNumber(g, c); okNum {
-				bad += " от " + formatNum(v) + unitSuffix(c)
+				if human {
+					bad += " (от " + formatNum(v) + unitSuffix(c) + ")"
+				} else {
+					bad += " от " + formatNum(v) + unitSuffix(c)
+				}
 			}
 		} else if e.Status == StatusChance {
 			bad += fmt.Sprintf(" (шанс не выше %s)", percent(bestP(g)))
-		} else {
+		} else if !human {
 			bad += " — не совпало"
 		}
 	}
 	lead := "Всё остальное"
 	if len(ok) > 0 {
-		lead = strings.Join(ok, ", ")
+		lead = upperFirst(strings.Join(ok, ", "))
 	}
 	t := lead + ", но " + bad
 	if g.MustViolated {

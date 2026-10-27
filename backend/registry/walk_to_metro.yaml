@@ -1,5 +1,7 @@
 key: walk_to_metro
 title: Пешком до метро
+title_met: у метро
+title_unmet: до метро дальше
 description: Минуты пешком от отеля до ближайшего входа в метро по пешеходному графу OSM
 level: hotel
 value_type: number

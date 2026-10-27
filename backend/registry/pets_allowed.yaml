@@ -1,5 +1,7 @@
 key: pets_allowed
 title: Можно с питомцем
+title_met: с питомцем можно
+title_unmet: с питомцем нельзя
 description: Принимает ли отель гостей с животными; виды, вес и цена — в деталях ответа отельера, не в значении
 level: hotel
 value_type: bool
