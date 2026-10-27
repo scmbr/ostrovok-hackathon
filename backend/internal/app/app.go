@@ -65,13 +65,17 @@ func Run() error {
 		return fmt.Errorf("агент диалога: %w", err)
 	}
 	log.Println("диалог: " + mode)
+	examples, err := dialog.Examples()
+	if err != nil {
+		return fmt.Errorf("демо-диалоги: %w", err)
+	}
 	guest := &booking.Service{Registry: reg, Search: searchSvc, Sessions: postgres.NewDialogStore(pool, dialog.SessionTTL), Hotelier: cabinet,
 		Demand: searchStore, Bookings: postgres.NewBookingStore(pool), Trace: postgres.NewAgentStore(pool, reg.Rules()), RegionID: region.ID}
 	chat.Compare = guest
 	srv := &http.Server{
 		Addr: ":" + cfg.Port,
 		Handler: apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules()),
-			roomSvc, cabinet, apphttp.WithSearch(searchSvc), apphttp.WithChat(chat), apphttp.WithGuestFlow(guest)),
+			roomSvc, cabinet, apphttp.WithSearch(searchSvc), apphttp.WithChat(chat), apphttp.WithGuestFlow(guest), apphttp.WithDialogExamples(examples)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

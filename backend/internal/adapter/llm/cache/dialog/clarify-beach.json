@@ -2,71 +2,76 @@
   "hotel": "clarify-beach",
   "model": "gpt-4o-mini",
   "replies": {
-    "122cc4c04903389b9da14b62b496271226451b0fce9d607066ee5971e96ce290": {
+    "070fd341161c41c8ef5ed4a2600ea0379fa6c8b82b2ba46bcebda10277063cd0": {
       "tool_calls": [
         {
-          "id": "call_Q8uQ1rrZUYsELAsxVX5VvcHR",
+          "id": "call_MnmGoUMF4zi2Ce0nX4ne2RDA",
           "name": "ask_clarification",
-          "arguments": "{\"phrase\":\"чтобы можно было с собакой\"}"
+          "arguments": "{\"phrase\":\"и чтобы рядом было метро\"}"
         }
       ]
     },
-    "1949062fc78ff4becd71b2a6bfb0558b015d2e2dd2f45d0e152153352f83dd09": {
-      "tool_calls": [
-        {
-          "id": "call_p5ZoikkV15C6Sncgug23n2xh",
-          "name": "ask_clarification",
-          "arguments": "{\"phrase\":\"у моря\"}"
-        }
-      ]
+    "25db15e1d647e5ae02efc0b9de737c2dbd2c66b400d17b629e1e70f3453303c2": {
+      "content": "Понято, что вам важно, чтобы рядом с отелем было метро. Я нашел несколько вариантов, которые соответствуют вашим требованиям. Рекомендую отель **Lugarus Beach**."
     },
-    "41be4326629829ef564a074590660d14a1aaac84ce61ebbf38ef65c179104147": {
+    "2afa8987836037ae4efc9b79bf9832d13d34538c1e0449e622a7dcfc1d67e6b5": {
       "tool_calls": [
         {
-          "id": "call_s7BgJV3ztdSFtjsjk2d3vJiA",
+          "id": "call_5VS9DYjdAK6uz7QbwRtZN4yK",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\": \"у моря\"}"
+        },
+        {
+          "id": "call_rxQDAPStpRikb7iXyF7bDH9Z",
           "name": "search",
-          "arguments": "{\"wishes\":[{\"key\":\"pets_allowed\",\"importance\":\"prefer\"}],\"remove\":[\"pets_allowed\"]}"
+          "arguments": "{\"wishes\": [{\"key\": \"pets_allowed\", \"importance\": \"prefer\"}]}"
         }
       ]
     },
-    "60a84fc5f56ba31a2ee3f5df501bb80cc2ec2c6bc0cf7dff1df81e1b497a3efb": {
-      "content": "Я нашёл несколько отелей, которые могут вас заинтересовать. Лучший вариант — SB Icaria Barcelona, где гарантирована тишина ночью и до пляжа всего 7 минут пешком."
+    "3ce1d47cb2b55c236ea421ccecc7f45560a3fb9a920ba2d07b198a919825fe54": {
+      "content": "Я нашёл несколько отелей, которые подходят под ваши пожелания. Лучший вариант — отель Lugarus Beach, где можно находиться с питомцем и до пляжа всего 7 минут пешком."
     },
-    "7aceb7790ccf258959b31117ece251479d180602b4997538f5a2c4d55a736eb9": {
-      "content": "Я нашёл несколько отелей, которые соответствуют вашим пожеланиям. Лучший вариант — SB Icaria Barcelona, где гарантирована тишина ночью и до пляжа всего 7 минут пешком."
-    },
-    "89a67149f32ae4d2175837dfbed1555d2d8df270f3f72ec491781a869cdcee73": {
-      "content": "Понято, что вам важно, чтобы в отеле можно было остановиться с собакой. Один из лучших вариантов — Hotel Attica 21, стоимостью 164 € за ночь. Уточним информацию о возможности размещения с питомцем."
-    },
-    "afcdf1efb67a3d0ca677454cf7adaa240972e996b46578ed95364b34ae10d9c1": {
+    "514ff0edc7c05a960850d3f2e6812d784edd467a3e25008863d90d577215a01e": {
       "tool_calls": [
         {
-          "id": "call_ONHkteBRcqy75LfPkqMkuWJW",
+          "id": "call_qJ6YxrC5UPv3GV3vK3NDX7bH",
           "name": "parse_baseline",
-          "arguments": "{\"text\":\"и чтобы можно было с собакой\"}"
+          "arguments": "{\"text\":\"хочу отель у моря, чтобы можно было с собакой\"}"
         }
       ]
     },
-    "e4df62c5fc601a11259b7503e2f58f6fc8dce402fa7969ec281a767338f06b18": {
+    "52084b02bb2c88c1a7328f6eaaf7a1a8285277056746a998827f50d41c085f4f": {
       "tool_calls": [
         {
-          "id": "call_ldqvJG23u3RtmZCxocpsynFZ",
+          "id": "call_GQYscPQI3oYUR9UgLolvGgdD",
           "name": "search",
           "arguments": "{}"
         }
       ]
     },
-    "e5b6a02dcff2d7914b5c1a408f7c903500bc7854de0a3ba3836579eba9436ba5": {
+    "9855c0ebe1104a4fa0f06b38d4dd2ff169c773ec480572b9e90d0fabe5a9306c": {
+      "content": "Я нашёл несколько отелей, которые соответствуют вашим пожеланиям: можно с питомцем (желательно) и пешком до пляжа (желательно). Лучший вариант — отель Lugarus Beach, где вы сможете находиться с питомцем и до пляжа всего 7 минут пешком."
+    },
+    "abb6abf59edfc9ef35e0df132d659c267449ed02cf0f6bbb64164c8b75111816": {
+      "content": "Понято, что вам важно, чтобы рядом с отелем было метро. Рекомендую отель **Lugarus Beach**."
+    },
+    "d7ecb3afaa2ddc4c9587cf6b63cfc6f93552eb46ae09444a0bdb6a95bf67fc35": {
       "tool_calls": [
         {
-          "id": "call_DnBtxF65RSkeOGcvMSFqauWq",
+          "id": "call_vJS0yPCvIvoVgvvHqZgVAp9X",
           "name": "parse_baseline",
-          "arguments": "{\"text\":\"Хочу тихий отель у моря, до 200 евро за ночь\"}"
+          "arguments": "{\"text\":\"и чтобы рядом было метро\"}"
         }
       ]
     },
-    "ea3aff55cd220a05a7b87a7e6a5e4d999ce70eaac783ed92de8dc5c7e56f64a2": {
-      "content": "Понято, что вам важно, чтобы в отеле можно было остановиться с собакой. Рекомендуем Hotel Attica 21, стоимостью 164 € за ночь."
+    "f042c7c1bf1acbee397b999d229b73cdc9e3ac673b78e4dab8bb8cf5845ef754": {
+      "tool_calls": [
+        {
+          "id": "call_XHWacPXGm4jlbdCaknEKDgkC",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"walk_to_metro\",\"value\":10,\"importance\":\"prefer\"}]}"
+        }
+      ]
     }
   }
 }

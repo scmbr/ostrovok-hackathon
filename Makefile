@@ -1,4 +1,4 @@
-.PHONY: up down test test-replay seed
+.PHONY: up down test test-replay test-replay-dialog seed
 
 up:
 	docker compose up --build
@@ -18,6 +18,18 @@ test-replay:
 	docker compose -p clean-check up --build -d --wait && \
 	( cd backend && AGENT_REPLAY_DATABASE_URL="postgres://tima:tima@localhost:5432/tima?sslmode=disable" \
 	  go test ./internal/app -run TestAgentReplayFromSeedHasNoMisses -count=1 -v ) || status=$$?; \
+	docker compose -p clean-check down -v; \
+	docker compose start; \
+	exit $$status
+
+# Реплей демо-диалогов (backend/internal/usecase/dialog/demo_dialogs.json) из кеша без ключа: 0 промахов по всем ходам.
+# Тот же проект clean-check, что у test-replay; рабочий стек на время проверки останавливается.
+test-replay-dialog:
+	docker compose stop
+	status=0; \
+	docker compose -p clean-check up --build -d --wait && \
+	( cd backend && AGENT_REPLAY_DATABASE_URL="postgres://tima:tima@localhost:5432/tima?sslmode=disable" \
+	  go test ./internal/app -run TestDialogReplayFromSeedHasNoMisses -count=1 -v ) || status=$$?; \
 	docker compose -p clean-check down -v; \
 	docker compose start; \
 	exit $$status

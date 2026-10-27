@@ -43,6 +43,9 @@ func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms Room
 	if deps.chat != nil {
 		mux.Handle("POST /api/chat", handleChat(deps.chat, reg))
 	}
+	if deps.examples != nil {
+		mux.Handle("GET /api/dialog/examples", handleDialogExamples(deps.examples))
+	}
 	if deps.guest != nil {
 		mux.Handle("GET /api/sessions/{id}/shortlist", handleShortlist(deps.guest))
 		mux.Handle("POST /api/sessions/{id}/shortlist/{hotel_id}", handleShortlistChange(deps.guest, true))

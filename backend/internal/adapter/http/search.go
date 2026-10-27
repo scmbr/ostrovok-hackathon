@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/dialog"
 	"log"
 	"net/http"
 	"strconv"
@@ -25,9 +26,10 @@ type SearchService interface {
 type Option func(*routerDeps)
 
 type routerDeps struct {
-	search SearchService
-	chat   ChatService
-	guest  GuestFlow
+	search   SearchService
+	chat     ChatService
+	guest    GuestFlow
+	examples []dialog.Example
 }
 
 // WithSearch подключает поиск.
