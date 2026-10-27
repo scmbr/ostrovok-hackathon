@@ -15,7 +15,7 @@ const (
 	// SourceGuest — источник свидетельства гостя (evidence.source).
 	SourceGuest = "guest_survey"
 	// GuestBaseReliability — база надёжности свидетельства гостя (раздел «Источники и логика правды»).
-	GuestBaseReliability = 0.6
+	GuestBaseReliability = 0.7
 	// MinSurveySeconds — анкета быстрее считается небрежной («за пару секунд»).
 	MinSurveySeconds = 8
 	// MinAnswersForUniform — одинаковые ответы считаются небрежностью, только если ответов не меньше.

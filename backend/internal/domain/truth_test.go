@@ -318,9 +318,10 @@ func TestCategoryOrdinaryThetaForGuestsWithoutHotelier(t *testing.T) {
 	}
 }
 
-// Калибровка базы гостя (0,6): надёжный гость (репутация 0,67) против расчёта 0,85 в категории. Один гость — только
-// weak_disagreement, двое — конфликт, трое — перевес на их стороне.
-func TestGuestBaseCalibrationOneTwoThree(t *testing.T) {
+// База гостя 0,7 (попытка снизить до 0,6 отклонена 28.10): надёжный гость (репутация 0,67) против расчёта 0,85 в
+// категории. Каждый такой гость весит ≈1,51 ≥ θ, поэтому уже один даёт конфликт; трое переворачивают значение с
+// уверенностью ≥ ConfidentFact, и факт без отельера служит судьёй его утверждения (сценарий 156: доверие 0,50 → 0,75).
+func TestGuestBaseOneTwoThreeReliableGuests(t *testing.T) {
 	run := func(n int) Fact {
 		ev := []Evidence{catEv(1, ToolAuthor(RoomProjectionMethod), 0.85, "full")}
 		ctx := catCtx()
@@ -333,13 +334,13 @@ func TestGuestBaseCalibrationOneTwoThree(t *testing.T) {
 		f, _ := AssembleFact(ev, ctx)
 		return f
 	}
-	if f := run(1); f.Conflict != nil || !f.WeakDisagreement || f.Value["view"] != "full" {
-		t.Errorf("один гость: ожидался weak_disagreement без конфликта: %+v", f)
+	if f := run(1); f.Conflict == nil || f.Value["view"] != "full" {
+		t.Errorf("один надёжный гость: ожидался конфликт, значение full: %+v", f)
 	}
-	if f := run(2); f.Conflict == nil {
-		t.Errorf("двое гостей: ожидался конфликт: %+v", f)
+	if f := run(2); f.Conflict == nil || f.Value["view"] != "none" {
+		t.Errorf("двое гостей: ожидался конфликт, значение none: %+v", f)
 	}
-	if f := run(3); f.Conflict == nil || f.Value["view"] != "none" {
-		t.Errorf("трое гостей: ожидался конфликт, значение none: %+v", f)
+	if f := run(3); f.Conflict == nil || f.Value["view"] != "none" || f.Confidence < ConfidentFact {
+		t.Errorf("трое гостей: ожидался конфликт, none с уверенностью не ниже %.2f: %+v", ConfidentFact, f)
 	}
 }
