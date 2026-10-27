@@ -19,9 +19,9 @@ func LoadConfig() Config {
 	return Config{
 		Port:        getenv("PORT", "8080"),
 		DatabaseURL: getenv("DATABASE_URL", "postgres://tima:tima@localhost:5432/tima?sslmode=disable"),
-		LLMBaseURL:  os.Getenv("LLM_BASE_URL"),
+		LLMBaseURL:  getenv("LLM_BASE_URL", "https://api.openai.com/v1"),
 		LLMAPIKey:   os.Getenv("LLM_API_KEY"),
-		LLMModel:    os.Getenv("LLM_MODEL"),
+		LLMModel:    getenv("LLM_MODEL", "gpt-4o-mini"),
 		RawDataDir:  getenv("RAW_DATA_DIR", "../data/raw"),
 		SeedFile:    getenv("SEED_FILE", "../data/demo/seed.sql.gz"),
 	}
