@@ -51,6 +51,14 @@ func saveEvidence(ctx context.Context, pool *pgxpool.Pool, rules map[string]doma
 // saveEvidenceTx — saveEvidence в чужой транзакции: вызывающий сам фиксирует или откатывает её.
 func saveEvidenceTx(ctx context.Context, tx pgx.Tx, rules map[string]domain.TruthParams, scope evidenceScope, key string,
 	authors []domain.Author, evs []domain.Evidence) error {
+	if err := writeEvidenceTx(ctx, tx, scope, key, authors, evs); err != nil {
+		return err
+	}
+	return assembleScopeTx(ctx, tx, rules, scope, key)
+}
+
+// writeEvidenceTx снимает активные свидетельства авторов authors в области и пишет новые evs; факты не трогает.
+func writeEvidenceTx(ctx context.Context, tx pgx.Tx, scope evidenceScope, key string, authors []domain.Author, evs []domain.Evidence) error {
 	types := make([]string, len(authors))
 	ids := make([]string, len(authors))
 	for i, a := range authors {
@@ -70,7 +78,12 @@ WHERE status = $4 AND `+scope.clause+`
 		}
 		evs[i].ID = id // вызывающему нужны id записанных свидетельств (ссылки из room_placements)
 	}
+	return nil
+}
 
+// assembleScopeTx собирает факты области из активных свидетельств движком правды: прежние факты и конфликты получают
+// superseded, причина закрытия конфликтов пишется в conflicts.resolution.
+func assembleScopeTx(ctx context.Context, tx pgx.Tx, rules map[string]domain.TruthParams, scope evidenceScope, key string) error {
 	active, err := loadActiveEvidence(ctx, tx, scope, key)
 	if err != nil {
 		return err

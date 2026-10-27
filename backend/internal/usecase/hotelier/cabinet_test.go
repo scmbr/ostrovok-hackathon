@@ -219,3 +219,52 @@ func TestAnswerCommentIsStoredNotParsed(t *testing.T) {
 		t.Errorf("длинный комментарий: %v", err)
 	}
 }
+
+type fakeReputation struct {
+	up                  reputation.Update
+	refreshed, recalced int
+}
+
+func (f *fakeReputation) Update(context.Context, domain.Author) (reputation.Update, error) {
+	return f.up, nil
+}
+func (f *fakeReputation) Recalculate(context.Context, domain.Author) (reputation.Update, error) {
+	f.recalced++
+	return f.up, nil
+}
+func (f *fakeReputation) Refresh(context.Context, domain.Author) error { f.refreshed++; return nil }
+
+// Порядок при ответе: записать свидетельство → пересчитать репутацию → одна сборка факта. Репутация изменилась —
+// факты пересобирает Refresh (там же и этот факт), иначе факт этого свидетельства собирается отдельно; промежуточной
+// сборки со старой репутацией нет.
+func TestAnswerBuildsFactOnceAfterReputation(t *testing.T) {
+	for _, c := range []struct {
+		name                        string
+		up                          reputation.Update
+		wantRefresh, wantRebuildOne int
+	}{
+		{"репутация изменилась", reputation.Update{Before: 0.5, After: 1.0 / 3}, 1, 0},
+		{"репутация прежняя", reputation.Update{Before: 0.5, After: 0.5}, 0, 1},
+	} {
+		st := baseStore()
+		rep := &fakeReputation{up: c.up}
+		iv := newInterviewer(t, st, nil)
+		iv.Reputation = rep
+		if _, err := iv.Round(context.Background(), 5, Options{}); err != nil {
+			t.Fatal(err)
+		}
+		var open Question
+		for _, q := range st.qs {
+			if q.Status == StatusOpen && q.Key == "pets_allowed" {
+				open = q
+			}
+		}
+		if _, err := iv.AnswerQuestion(context.Background(), open.ID, "да"); err != nil {
+			t.Fatal(err)
+		}
+		if rep.recalced != 1 || rep.refreshed != c.wantRefresh || st.rebuilds != c.wantRebuildOne || len(st.evidence) != 1 {
+			t.Errorf("%s: пересчётов репутации %d, пересборок автора %d, сборок области %d, свидетельств %d",
+				c.name, rep.recalced, rep.refreshed, st.rebuilds, len(st.evidence))
+		}
+	}
+}

@@ -24,39 +24,61 @@ func calc(view string, r float64) Evidence {
 		AuthorType: AuthorTool, AuthorID: RoomProjectionMethod, Reliability: r}
 }
 
+func guestClaim(id, view string) Evidence {
+	return Evidence{EntityType: EntityRoomCategory, EntityID: "1", Key: "sea_view", Claimed: map[string]any{"view": view},
+		AuthorType: AuthorGuest, AuthorID: id, Reliability: 0.7}
+}
+
 func TestJudgeClaim(t *testing.T) {
 	ctx := repCtx()
-	// «Sea View» против расчёта «нет вида» с r = 0,85: расхождение засчитывается.
+	// 326: «Sea View» против расчёта «нет вида» (r = 0,85): судья — расчёт, расхождение засчитывается.
 	v := JudgeClaim(catClaim("5", "full"), []Evidence{calc("none", 0.85)}, ctx)
 	if !v.Counted || v.Agree || v.Against != "none" {
 		t.Errorf("расхождение: %+v", v)
 	}
-	// Совпадение.
 	if v := JudgeClaim(catClaim("5", "none"), []Evidence{calc("none", 0.85)}, ctx); !v.Counted || !v.Agree {
 		t.Errorf("совпадение: %+v", v)
 	}
-	// Сильное расхождение не важнее слабого: порог только по надёжности судьи, ровно 0,8 подходит.
+	// Ровно 0,8 подходит; слабый судья (0,6) утверждение не оценивает.
 	if v := JudgeClaim(catClaim("5", "full"), []Evidence{calc("none", 0.8)}, ctx); !v.Counted || v.Agree {
-		t.Errorf("r = 0,8: %+v", v)
+		t.Errorf("уверенность 0,8: %+v", v)
 	}
-	// Слабый судья (r < 0,8) утверждение не оценивает.
 	if v := JudgeClaim(catClaim("5", "full"), []Evidence{calc("none", 0.6)}, ctx); v.Counted {
-		t.Errorf("r = 0,6 не судья: %+v", v)
+		t.Errorf("уверенность 0,6 не судья: %+v", v)
 	}
-	// Своё же прежнее свидетельство судьёй не служит.
+	// Без свидетельств других авторов судьи нет: своё же свидетельство судьёй не служит, даже самое сильное.
 	own := catClaim("5", "none")
 	own.Reliability = 0.97
 	if v := JudgeClaim(catClaim("5", "full"), []Evidence{own}, ctx); v.Counted {
 		t.Errorf("тот же автор: %+v", v)
 	}
-	// Из нескольких судей берётся сильнейший.
-	if v := JudgeClaim(catClaim("5", "full"), []Evidence{calc("none", 0.82), calc("full", 0.9)}, ctx); !v.Agree {
-		t.Errorf("сильнейший судья: %+v", v)
+	if v := JudgeClaim(catClaim("5", "full"), nil, ctx); v.Counted {
+		t.Errorf("нет других свидетельств: %+v", v)
 	}
 	// Диапазон (вид отеля по этажам) и неизвестная характеристика не сравниваются.
 	hotelLevel := Evidence{EntityType: EntityHotel, EntityID: "1", Key: "sea_view", Claimed: map[string]any{"min_floor": 3.0}, AuthorType: AuthorHotelier, AuthorID: "5"}
 	if v := JudgeClaim(hotelLevel, []Evidence{calc("none", 0.9)}, ctx); v.Counted {
 		t.Errorf("диапазон не сравнивается: %+v", v)
+	}
+}
+
+// 156: расчёт говорит «видно» (1,73), три надёжных гостя (репутация 0,67) — «закрыто» (3 × 1,49). Факт без автора:
+// S(none) = 4,48 − 1,73 = 2,75, уверенность 0,94 — судья «none». Ответ отельера «нет» совпал, «да» — нет.
+func TestJudgeClaimGuestsAgainstCalc(t *testing.T) {
+	ctx := repCtx()
+	ctx.Trust = map[Author]float64{{AuthorGuest, "g1"}: 2.0 / 3, {AuthorGuest, "g2"}: 2.0 / 3, {AuthorGuest, "g3"}: 2.0 / 3}
+	others := []Evidence{calc("full", 0.85), guestClaim("g1", "none"), guestClaim("g2", "none"), guestClaim("g3", "none")}
+	v := JudgeClaim(catClaim("156", "none"), others, ctx)
+	if !v.Counted || !v.Agree || v.Against != "none" || math.Abs(v.ByConfidence-0.94) > 0.01 {
+		t.Errorf("«нет»: %+v", v)
+	}
+	if v := JudgeClaim(catClaim("156", "full"), others, ctx); !v.Counted || v.Agree {
+		t.Errorf("«да»: %+v", v)
+	}
+	// Репутация гостей входит в вес: у новичков (0,5) гости весят меньше, и судьи нет.
+	ctx.Trust = nil
+	if v := JudgeClaim(catClaim("156", "none"), others, ctx); v.Counted {
+		t.Errorf("гости с репутацией 0,5 судьёй не служат: %+v", v)
 	}
 }
 

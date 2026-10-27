@@ -74,6 +74,11 @@ WHERE status = $1 AND entity_type = $2 AND entity_id = $3 AND characteristic_key
 	return out, nil
 }
 
+// Trusts — репутация всех авторов-людей.
+func (s *ReputationStore) Trusts(ctx context.Context) (map[domain.Author]float64, error) {
+	return loadTrust(ctx, s.pool)
+}
+
 // Authors — авторы типа authorType, у которых есть активные свидетельства или запись репутации.
 func (s *ReputationStore) Authors(ctx context.Context, authorType string) ([]domain.Author, error) {
 	rows, err := s.pool.Query(ctx, `

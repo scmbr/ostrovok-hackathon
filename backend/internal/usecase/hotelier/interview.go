@@ -490,15 +490,12 @@ func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q 
 		if err != nil {
 			return nil, fmt.Errorf("факт до ответа: %w", err)
 		}
-		if err := i.Store.SaveAnswerEvidence(ctx, ev); err != nil {
-			return nil, fmt.Errorf("свидетельство отельера: %w", err)
+		up, err := i.saveWithReputation(ctx, ev)
+		if err != nil {
+			return nil, err
 		}
-		if i.Reputation != nil {
-			up, err := i.Reputation.Update(ctx, domain.HotelierAuthor(h.ID))
-			if err != nil {
-				return nil, fmt.Errorf("репутация: %w", err)
-			}
-			trustUpdate = &up
+		if up != nil {
+			trustUpdate = up
 			parsedJSON["trust"] = map[string]any{"before": round2(up.Before), "after": round2(up.After), "agree": up.Agree, "total": up.Total}
 			i.trace(ctx, s, h, agent.ModePlanner, fmt.Sprintf("репутация отельера: %.2f → %.2f (подтверждено %d из %d)", up.Before, up.After, up.Agree, up.Total),
 				"reputation", map[string]any{"author": up.Author.ID}, map[string]any{"before": up.Before, "after": up.After, "agree": up.Agree, "total": up.Total})
