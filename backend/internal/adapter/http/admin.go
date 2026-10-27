@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/admin"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/agent"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/explain"
@@ -20,6 +21,7 @@ type AdminSource interface {
 	Conflicts(ctx context.Context, f admin.ConflictFilter) ([]admin.ConflictView, error)
 	Tasks(ctx context.Context, hotelID int64, limit int) ([]admin.Task, error)
 	StaleFacts(ctx context.Context, hotelID int64, limit int) ([]admin.StaleFact, error)
+	Summary(ctx context.Context) (admin.Summary, error)
 }
 
 // ExplainSource — порт разбора фактов на свидетельства (usecase/explain.Service).
@@ -317,6 +319,42 @@ func handleAdminConflicts(src AdminSource) http.HandlerFunc {
 		}
 		for _, f := range stale {
 			out.Stale = append(out.Stale, staleDTO{EntityType: f.EntityType, EntityID: f.EntityID, Key: f.Key, HotelID: f.HotelID, ValidUntil: f.ValidUntil})
+		}
+		writeJSON(w, http.StatusOK, out)
+	}
+}
+
+type coverageDTO struct {
+	Key           string  `json:"key"`
+	Hotels        int     `json:"hotels"`
+	AvgConfidence float64 `json:"avg_confidence"`
+	LowConfidence int     `json:"low_confidence"`
+}
+
+func handleAdminSummary(src AdminSource, reg domain.Registry) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sm, err := src.Summary(r.Context())
+		if err != nil {
+			adminError(w, "сводка", err)
+			return
+		}
+		out := struct {
+			DemoHotels    int            `json:"demo_hotels"`
+			Coverage      []coverageDTO  `json:"coverage"`
+			OpenConflicts int            `json:"open_conflicts"`
+			WeakFacts     int            `json:"weak_disagreement_facts"`
+			StaleFacts    int            `json:"stale_facts"`
+			Questions     map[string]int `json:"questions"`
+			HotelsAsked   int            `json:"hotels_asked"`
+			// QuestionShare — доля демо-отелей, которым задавали вопрос.
+			QuestionShare float64 `json:"question_share"`
+		}{DemoHotels: sm.DemoHotels, Coverage: []coverageDTO{}, OpenConflicts: sm.OpenConflicts, WeakFacts: sm.WeakFacts, StaleFacts: sm.StaleFacts,
+			Questions: sm.Questions, HotelsAsked: sm.HotelsAsked}
+		if sm.DemoHotels > 0 {
+			out.QuestionShare = round3(float64(sm.HotelsAsked) / float64(sm.DemoHotels))
+		}
+		for _, c := range sm.Coverage {
+			out.Coverage = append(out.Coverage, coverageDTO{Key: titleOf(reg, c.Key), Hotels: c.Hotels, AvgConfidence: round3(c.AvgConfidence), LowConfidence: c.LowConfidence})
 		}
 		writeJSON(w, http.StatusOK, out)
 	}

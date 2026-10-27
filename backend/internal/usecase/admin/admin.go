@@ -79,6 +79,27 @@ type Store interface {
 	Question(ctx context.Context, hotelID int64, key, entityID string) (QuestionRef, bool, error)
 	Tasks(ctx context.Context, hotelID int64, limit int) ([]Task, error)
 	StaleFacts(ctx context.Context, hotelID int64, limit int) ([]StaleFact, error)
+	Summary(ctx context.Context) (Summary, error)
+}
+
+// Coverage — покрытие характеристики: у скольких демо-отелей есть активный факт уровня отеля и какая у них уверенность.
+type Coverage struct {
+	Key           string
+	Hotels        int
+	AvgConfidence float64
+	LowConfidence int // уверенность ниже порога «уверенного факта» (domain.ConfidentFact)
+}
+
+// Summary — счётчики из существующих данных; полные метрики качества — этап 8.
+type Summary struct {
+	DemoHotels    int
+	Coverage      []Coverage
+	OpenConflicts int
+	WeakFacts     int
+	StaleFacts    int
+	// Questions — вопросы отельерам по статусам; HotelsAsked — демо-отелей, которым хотя бы раз задан вопрос.
+	Questions   map[string]int
+	HotelsAsked int
 }
 
 // Service — чтение для «под капотом».
@@ -206,3 +227,6 @@ func (s *Service) Tasks(ctx context.Context, hotelID int64, limit int) ([]Task, 
 func (s *Service) StaleFacts(ctx context.Context, hotelID int64, limit int) ([]StaleFact, error) {
 	return s.Store.StaleFacts(ctx, hotelID, limit)
 }
+
+// Summary — счётчики для сводки «под капотом».
+func (s *Service) Summary(ctx context.Context) (Summary, error) { return s.Store.Summary(ctx) }

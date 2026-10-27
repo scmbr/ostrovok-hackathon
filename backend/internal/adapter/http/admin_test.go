@@ -143,12 +143,15 @@ func (f fakeRegistryAdmin) Job(id string) (registry.JobView, bool) {
 func TestAdminCharacteristicDraftSaveCompute(t *testing.T) {
 	mk := func(f fakeRegistryAdmin) *struct {
 		do func(m, u, b string) (int, string)
-	} { h := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, nil, WithRegistryAdmin(f), WithLLMMode(LLMModeCache, "")); return &struct {
-		do func(m, u, b string) (int, string)
-	}{func(m, u, b string) (int, string) {
-		rec := do(h, m, u, b)
-		return rec.Code, rec.Body.String()
-	}} }
+	} {
+		h := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, nil, WithRegistryAdmin(f), WithLLMMode(LLMModeCache, ""))
+		return &struct {
+			do func(m, u, b string) (int, string)
+		}{func(m, u, b string) (int, string) {
+			rec := do(h, m, u, b)
+			return rec.Code, rec.Body.String()
+		}}
+	}
 	ok := mk(fakeRegistryAdmin{})
 	if code, body := ok.do("POST", "/api/admin/characteristics/draft", `{"text":"есть ли рядом круглосуточный магазин"}`); code != 200 ||
 		!strings.Contains(body, `"mode":"cache"`) || !strings.Contains(body, `"errors":["night_shop: нужна проверка"]`) {
@@ -180,4 +183,17 @@ func TestAdminCharacteristicDraftSaveCompute(t *testing.T) {
 	if code, _ := ok.do("GET", "/api/admin/jobs/zzz", ``); code != 404 {
 		t.Errorf("нет задания: %d", code)
 	}
+}
+
+func TestAdminSummary(t *testing.T) {
+	h := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, nil, WithAdmin(&fakeAdmin{}, fakeExplain{}))
+	rec := do(h, "GET", "/api/admin/summary", "")
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"question_share":0.25`) || !strings.Contains(rec.Body.String(), `"open_conflicts":3`) {
+		t.Errorf("сводка: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func (f *fakeAdmin) Summary(context.Context) (admin.Summary, error) {
+	return admin.Summary{DemoHotels: 60, Coverage: []admin.Coverage{{Key: "pets_allowed", Hotels: 30, AvgConfidence: 0.7}}, OpenConflicts: 3,
+		Questions: map[string]int{"open": 5}, HotelsAsked: 15}, nil
 }

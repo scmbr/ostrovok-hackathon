@@ -209,3 +209,12 @@ func contains(ss []string, s string) bool {
 	}
 	return false
 }
+
+// Строка БД с ключом встроенной характеристики — ошибка загрузки реестра (старт сервера), а не тихая перезапись.
+func TestLoadRegistryWithRejectsDuplicateKey(t *testing.T) {
+	dup := "key: sea_view\ntitle: Дубль\ndescription: x\nlevel: hotel\nvalue_type: bool\nttl_days: 30\nask_hotelier: x\norigin: text\norigin_text: x\nadded_at: 2026-10-27\nsynonyms: [дубль]\n"
+	_, err := LoadRegistryWith([]usecaseregistry.CustomRow{{Key: "sea_view", YAML: dup, OriginText: "x", AddedAt: "2026-10-27"}})
+	if err == nil || !strings.Contains(err.Error(), "sea_view") {
+		t.Fatalf("ожидалась ошибка про sea_view: %v", err)
+	}
+}

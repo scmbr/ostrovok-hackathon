@@ -172,3 +172,56 @@ FROM facts f WHERE f.status = $1 AND f.stale) x WHERE ($2::bigint = 0 OR hotel_i
 	}
 	return out, rows.Err()
 }
+
+// Summary — покрытие характеристик у демо-отелей, число конфликтов и вопросов отельерам.
+func (s *AdminStore) Summary(ctx context.Context) (admin.Summary, error) {
+	var sm admin.Summary
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM hotels WHERE demo`).Scan(&sm.DemoHotels); err != nil {
+		return sm, err
+	}
+	rows, err := s.pool.Query(ctx, `
+SELECT characteristic_key, count(*), avg(confidence), count(*) FILTER (WHERE confidence < $2)
+FROM facts WHERE status = $1 AND entity_type = 'hotel' AND entity_id IN (SELECT id::text FROM hotels WHERE demo)
+GROUP BY characteristic_key ORDER BY characteristic_key`, domain.FactActive, domain.ConfidentFact)
+	if err != nil {
+		return sm, err
+	}
+	for rows.Next() {
+		var c admin.Coverage
+		if err := rows.Scan(&c.Key, &c.Hotels, &c.AvgConfidence, &c.LowConfidence); err != nil {
+			rows.Close()
+			return sm, err
+		}
+		sm.Coverage = append(sm.Coverage, c)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return sm, err
+	}
+	if err := s.pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM conflicts WHERE status = 'open'),
+       (SELECT count(*) FROM facts WHERE status = $1 AND weak_disagreement),
+       (SELECT count(*) FROM facts WHERE status = $1 AND stale)`, domain.FactActive).Scan(&sm.OpenConflicts, &sm.WeakFacts, &sm.StaleFacts); err != nil {
+		return sm, err
+	}
+	sm.Questions = map[string]int{}
+	qrows, err := s.pool.Query(ctx, `SELECT status, count(*) FROM hotelier_questions GROUP BY status`)
+	if err != nil {
+		return sm, err
+	}
+	defer qrows.Close()
+	for qrows.Next() {
+		var st string
+		var n int
+		if err := qrows.Scan(&st, &n); err != nil {
+			return sm, err
+		}
+		sm.Questions[st] = n
+	}
+	if err := qrows.Err(); err != nil {
+		return sm, err
+	}
+	qrows.Close()
+	err = s.pool.QueryRow(ctx, `SELECT count(DISTINCT hotel_id) FROM hotelier_questions WHERE hotel_id IN (SELECT id FROM hotels WHERE demo)`).Scan(&sm.HotelsAsked)
+	return sm, err
+}
