@@ -1,6 +1,6 @@
 # Поиск: лучший вариант номера, оценка и объяснение
 
-Реализация — `backend/internal/domain/search.go` (формулы, тесты в `search_test.go`), сервис — `backend/internal/usecase/search`, HTTP — `backend/internal/adapter/http/search.go`. Разбор текста гостя в запрос и SSE — задача 6.2; здесь вход — структурный запрос.
+Реализация — `backend/internal/domain/search.go` (формулы, тесты в `search_test.go`), сервис — `backend/internal/usecase/search`, HTTP — `backend/internal/adapter/http/search.go`. Разбор текста гостя в запрос, уточнения и SSE — `docs/dialog.md`; здесь вход — структурный запрос.
 
 ## Запрос
 
@@ -133,7 +133,7 @@ DTO отделены от домена (`adapter/http/search.go`). В поиск
 
 ## Спрос
 
-Поиск увеличивает `characteristic_demand` (`source = 'search'`) по ключам желаний. **Одна сессия поиска (`session_id`) увеличивает спрос по ключу один раз** (таблица `demand_sessions`); запрос без `session_id` считается отдельной сессией. Мок спроса (`source = 'mock'`) остаётся отдельной строкой (миграция `0019`: PK `(characteristic_key, region_id, source)`); ценность вопросов отельеру читает сумму. `collect search-demo` и тесты спрос не пишут: прогоны демо не должны двигать `value_score` и дайджест.
+Поиск увеличивает `characteristic_demand` (`source = 'search'`) по ключам желаний. **Одна сессия поиска (`session_id`) увеличивает спрос по ключу один раз** (таблица `demand_sessions`); запрос без `session_id` считается отдельной сессией. Мок спроса (`source = 'mock'`) остаётся отдельной строкой (миграция `0019`: PK `(characteristic_key, region_id, source)`); ценность вопросов отельеру читает сумму. `collect search-demo` и тесты спрос не пишут: прогоны демо не должны двигать `value_score` и дайджест. Пробные поиски правила уточнения диалога (`Query.NoDemand`) тоже спрос не пишут: гость не искал эти трактовки.
 
 `make seed` сам удаляет строки `characteristic_demand` с `source = 'search'` перед дампом: в сид попадает только мок спроса.
 
