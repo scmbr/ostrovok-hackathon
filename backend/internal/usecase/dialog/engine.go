@@ -60,9 +60,11 @@ type ResultsEvent struct {
 	Query        domain.Query
 	Hotels       []domain.HotelResult
 	Explanations []domain.HotelExplanation
-	Similar      *SimilarView
-	Considered   int
-	Dropped      int
+	// Groups — выдача по группам: «всё сразу» и блоки компромиссов; Hotels — тот же поиск плоским списком.
+	Groups     []domain.Group
+	Similar    *SimilarView
+	Considered int
+	Dropped    int
 }
 
 // MessageEvent — текст ответа. Source: "template" — собран кодом, "llm" — пересказ модели, прошедший проверку.
@@ -431,16 +433,10 @@ func (r *run) finish(candidate string, emit func(Event)) error {
 		msg(text, src)
 	case r.srch != nil:
 		o := r.srch
-		emit(Event{EventResults, ResultsEvent{Kind: "search", Query: o.res.Query, Hotels: o.res.Hotels, Explanations: o.exps,
+		emit(Event{EventResults, ResultsEvent{Kind: "search", Query: o.res.Query, Hotels: o.res.Hotels, Explanations: o.exps, Groups: o.res.Groups,
 			Considered: o.res.Considered, Dropped: o.res.Dropped}})
 		lead, rest := r.e.resultsParts(o.res, o.exps, r.notes, unmet)
-		var shown, guaranteed []string
-		for i, h := range o.res.Hotels {
-			shown = append(shown, h.Name)
-			if i < len(o.exps) && strings.Contains(o.exps[i].Text(), guaranteeMark) {
-				guaranteed = append(guaranteed, h.Name)
-			}
-		}
+		shown, guaranteed := shownAndGuaranteed(r.e.textHotels(o.res))
 		text, src := r.e.finalText(r.ctx, r.tr, candidate, lead, rest, r.req.Message+" "+strings.Join(r.notes, " "), shown, guaranteed)
 		msg(text, src)
 	case r.simRef != nil:
@@ -592,7 +588,59 @@ func (e *Engine) resultsText(res search.Result, exps []domain.HotelExplanation, 
 	return lead + rest
 }
 
+// Сколько отелей группы попадает в текст ответа (в событие results — все).
+const (
+	textFullHotels       = topN
+	textCompromiseHotels = 2
+	textCompromiseBlocks = 2
+	textOpenHotels       = 2
+)
+
+// textHotel — отель, показанный в тексте ответа, с объяснением.
+type textHotel struct {
+	group domain.Group
+	exp   domain.HotelExplanation
+	hotel domain.HotelResult
+}
+
+// textHotels выбирает отели для текста по группам; ранги сквозные.
+func (e *Engine) textHotels(res search.Result) []textHotel {
+	var out []textHotel
+	blocks := 0
+	for _, g := range res.Groups {
+		n := textFullHotels
+		switch g.Kind {
+		case domain.GroupCompromise:
+			if blocks++; blocks > textCompromiseBlocks {
+				continue
+			}
+			n = textCompromiseHotels
+		case domain.GroupOpen:
+			n = textOpenHotels
+		}
+		for i, h := range g.Hotels {
+			if i >= n {
+				break
+			}
+			out = append(out, textHotel{group: g, hotel: h, exp: domain.ExplainHotel(e.Registry, len(out)+1, h)})
+		}
+	}
+	return out
+}
+
+// shownAndGuaranteed — названия показанных отелей и тех, у кого шаблон говорит «гарантировано».
+func shownAndGuaranteed(hs []textHotel) (shown, guaranteed []string) {
+	for _, t := range hs {
+		shown = append(shown, t.hotel.Name)
+		if strings.Contains(t.exp.Text(), guaranteeMark) {
+			guaranteed = append(guaranteed, t.hotel.Name)
+		}
+	}
+	return shown, guaranteed
+}
+
 // resultsParts делит ответ на вводную («Ищу: …», её может заменить модель) и остальное (строит только код).
+// Если отелей, где есть всё сразу, мало, текст идёт блоками компромиссов с заголовками из структуры оценок.
 func (e *Engine) resultsParts(res search.Result, exps []domain.HotelExplanation, notes, unmet []string) (lead, rest string) {
 	lead = "Ищу: " + e.understood(res.Query) + "."
 	var b strings.Builder
@@ -604,16 +652,28 @@ func (e *Engine) resultsParts(res search.Result, exps []domain.HotelExplanation,
 	if len(unmet) > 0 {
 		fmt.Fprintf(&b, "\nПока не умею учитывать: %s — записала в журнал пожеланий.", quoted(unmet))
 	}
-	if len(exps) == 0 {
+	if len(res.Hotels) == 0 {
 		b.WriteString("\nПодходящих отелей не нашлось: попробуйте смягчить условия.")
 		return lead, b.String()
 	}
-	b.WriteString("\nЛучшие варианты:")
-	for i, x := range exps {
-		if i >= topN {
-			break
+	glead := domain.GroupLead(e.Registry, res.Query.Wishes, res.Groups)
+	if glead != "" {
+		b.WriteString("\n" + glead)
+	} else {
+		b.WriteString("\nЛучшие варианты:")
+	}
+	var prev domain.Group
+	for i, t := range e.textHotels(res) {
+		if i == 0 || t.group.Kind != prev.Kind || t.group.FailedKey != prev.FailedKey {
+			switch {
+			case t.group.Kind == domain.GroupCompromise:
+				b.WriteString("\n\n" + domain.GroupTitle(e.Registry, t.group) + ":")
+			case t.group.Kind == domain.GroupOpen:
+				b.WriteString("\n\n" + domain.GroupTitle(e.Registry, t.group) + ":")
+			}
 		}
-		b.WriteString("\n" + x.Text())
+		prev = t.group
+		b.WriteString("\n" + t.exp.Text())
 	}
 	return lead, b.String()
 }

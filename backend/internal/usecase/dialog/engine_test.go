@@ -33,7 +33,7 @@ func (f *fakeSearch) Search(_ context.Context, q domain.Query) (search.Result, e
 	if q.Limit > 0 && len(hs) > q.Limit {
 		hs = hs[:q.Limit]
 	}
-	return search.Result{Query: q, Hotels: hs, Considered: 9}, nil
+	return search.Result{Query: q, Hotels: hs, Groups: domain.BuildGroups(hs, q.Limit), Considered: 9}, nil
 }
 
 func (f *fakeSearch) Similar(_ context.Context, id int64, limit int, _ map[string]float64) ([]search.SimilarHotel, error) {
@@ -150,7 +150,7 @@ func TestClarificationAskedWhenTop3Differs(t *testing.T) {
 	if !ok {
 		t.Fatalf("ждали уточнение, события: %v", ev)
 	}
-	if !strings.Contains(q.Question, "вид из окна или пляж в паре минут") || len(q.Options) != 2 {
+	if !strings.Contains(q.Question, "вид из окна или пляж рядом (до 10 минут)") || len(q.Options) != 2 {
 		t.Errorf("вопрос и кнопки: %+v", q)
 	}
 	if _, got := find[ResultsEvent](ev, EventResults); got {
@@ -191,8 +191,8 @@ func TestClarificationSkippedWhenTop3Same(t *testing.T) {
 	if !ok {
 		t.Fatal("ждали выдачу")
 	}
-	if w, ok := has(res.Query, "walk_to_beach"); !ok || w.Value != 5.0 {
-		t.Errorf("по умолчанию «у моря» — пляж в паре минут: %+v", res.Query.Wishes)
+	if w, ok := has(res.Query, "walk_to_beach"); !ok || w.Value != 10.0 {
+		t.Errorf("по умолчанию «у моря» — пляж рядом (до 10 минут): %+v", res.Query.Wishes)
 	}
 	if _, ok := has(res.Query, "sea_view"); ok {
 		t.Error("вид из окна по умолчанию не подставляется")
@@ -214,7 +214,7 @@ func TestClarificationSessionLimit(t *testing.T) {
 		t.Fatal("лимит сессии исчерпан, вопроса быть не должно")
 	}
 	msg, _ := find[MessageEvent](ev, EventMessage)
-	if !strings.Contains(msg.Text, "я поняла как «пляж в паре минут»") {
+	if !strings.Contains(msg.Text, "я поняла как «пляж рядом (до 10 минут)»") {
 		t.Errorf("допущение должно быть названо: %s", msg.Text)
 	}
 }
@@ -396,5 +396,35 @@ func TestDedupeUnmet(t *testing.T) {
 	}
 	if got := dedupeUnmet([]string{"балкон с джакузи и морской воздух", "балкон"}); len(got) != 2 {
 		t.Errorf("часть не покрывает составное: %v", got)
+	}
+}
+
+// Нет отелей «всё сразу» — шаблон говорит об этом сам (из структуры оценок) и строит блоки компромиссов.
+func TestResultsPartsCompromiseBlocks(t *testing.T) {
+	r := newRig(t, same)
+	mk := func(id int64, score, minutes float64) domain.HotelResult {
+		return domain.HotelResult{HotelID: id, Name: hotelNames[id], Best: domain.Variant{Name: "Стандарт", PriceEUR: 90, Score: score, Evals: []domain.WishEval{
+			{Key: "noise_night", Status: domain.StatusMatch, Importance: domain.Prefer, Confidence: 0.9},
+			{Key: "walk_to_beach", Status: domain.StatusMismatch, Importance: domain.Prefer, Value: minutes, Confidence: 0.7},
+		}}}
+	}
+	hs := []domain.HotelResult{mk(1, 0.7, 18), mk(2, 0.6, 44)}
+	res := search.Result{Hotels: hs, Groups: domain.BuildGroups(hs, 5), Query: domain.Query{Wishes: []domain.Desire{
+		{Key: "noise_night", Importance: domain.Prefer}, {Key: "walk_to_beach", Importance: domain.Prefer}}}}
+	_, rest := r.e.resultsParts(res, nil, nil, nil)
+	for _, want := range []string{
+		"Отелей, где есть всё сразу, не нашлось: тишина ночью и пешком до пляжа вместе не встречаются. Варианты:",
+		"Тишина ночью, но пешком до пляжа от 18 мин:",
+		"1. Hotel Arts — Стандарт",
+		"2. Hotel Omm — Стандарт",
+	} {
+		if !strings.Contains(rest, want) {
+			t.Errorf("в ответе нет %q:\n%s", want, rest)
+		}
+	}
+	// Вводная модели не может отменить факт «полного совпадения нет»: он в строках кода.
+	text, src := r.e.finalText(context.Background(), &tracer{ctx: context.Background(), e: r.e, emit: func(Event) {}}, "Нашла Hotel Arts.", "Ищу.", rest, "", []string{"Hotel Arts", "Hotel Omm"}, nil)
+	if src != "llm" || !strings.Contains(text, "не нашлось") {
+		t.Errorf("строки кода остаются при вводной модели: %s %s", src, text)
 	}
 }

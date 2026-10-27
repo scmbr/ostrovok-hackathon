@@ -351,16 +351,25 @@ func (r *run) toolSearch(args string) (string, error) {
 		Lines    []string `json:"lines"`
 		Notes    []string `json:"notes,omitempty"`
 	}
-	hs := []hotel{}
-	for i, x := range r.srch.exps {
-		if i >= topN {
-			break
+	type group struct {
+		Kind   string  `json:"kind"`
+		Title  string  `json:"title,omitempty"`
+		Hotels []hotel `json:"hotels"`
+	}
+	var gs []group
+	var cur *group
+	var prev domain.Group
+	for i, t := range r.e.textHotels(r.srch.res) {
+		if i == 0 || t.group.Kind != prev.Kind || t.group.FailedKey != prev.FailedKey {
+			gs = append(gs, group{Kind: string(t.group.Kind), Title: domain.GroupTitle(r.e.Registry, t.group)})
+			cur = &gs[len(gs)-1]
 		}
-		h := r.srch.res.Hotels[i]
-		hs = append(hs, hotel{Rank: i + 1, ID: h.HotelID, Name: h.Name, Category: h.Best.Name, PriceEUR: h.Best.PriceEUR, Lines: x.Lines, Notes: x.Notes})
+		prev = t.group
+		cur.Hotels = append(cur.Hotels, hotel{Rank: i + 1, ID: t.hotel.HotelID, Name: t.hotel.Name, Category: t.hotel.Best.Name,
+			PriceEUR: t.hotel.Best.PriceEUR, Lines: t.exp.Lines, Notes: t.exp.Notes})
 	}
 	return marshal(map[string]any{
-		"found": len(r.srch.res.Hotels), "hotels": hs,
+		"found": len(r.srch.res.Hotels), "full_match_found": domain.FullCount(r.srch.res.Groups) > 0, "groups": gs,
 		"explanation_template": r.e.resultsText(r.srch.res, r.srch.exps, r.notes, r.unmet),
 	})
 }
