@@ -45,6 +45,7 @@ function CategoryBlock({ cat, selected, onToggle, onBook }: { cat: Category; sel
             {c.fact && (
               <div className="mt-2">
                 <FactCard
+                  charKey={c.key}
                   fact={{ ...c.fact, title: `Итог по категории: ${c.title}`, observed_at: c.fact.evidence[0]?.observed_at }}
                 />
               </div>
@@ -86,7 +87,7 @@ export function HotelFacts({ hotel, wishes, onBook }: Props) {
         </p>
         <div className="grid gap-2 md:grid-cols-2">
           {hotel.facts.map((f) => (
-            <FactCard key={f.id} fact={f} valueField={field(f.key)} />
+            <FactCard key={f.id} fact={f} valueField={field(f.key)} charKey={f.key} />
           ))}
         </div>
       </section>

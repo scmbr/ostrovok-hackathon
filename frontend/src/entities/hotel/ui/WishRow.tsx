@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { WishEval } from '@/shared/api'
-import { authorLabel, formatDate, pct, showValue, sourceLabel } from '@/shared/lib'
+import { authorLabel, formatDate, pct, sourceLabel, valueLabel } from '@/shared/lib'
 import { WishBadge } from './WishBadge'
 
 // Одно желание гостя в карточке выдачи: значок статуса, а «откуда известно» — по раскрытию.
@@ -14,7 +14,7 @@ export function WishRow({ wish }: { wish: WishEval }) {
         {wish.importance === 'must' && <span className="text-xs text-slate-500">обязательно</span>}
         <WishBadge wish={wish} />
         {wish.value !== undefined && wish.value !== null && wish.status !== 'unknown' && (
-          <span className="text-slate-600">{showValue(wish.value)}</span>
+          <span className="text-slate-600">{typeof wish.value === 'object' ? '' : valueLabel(wish.key, wish.value)}</span>
         )}
         {hasDetails && (
           <button type="button" className="ml-auto text-xs text-sky-800 hover:underline" onClick={() => setOpen(!open)}>
