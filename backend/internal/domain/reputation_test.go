@@ -39,12 +39,14 @@ func TestJudgeClaim(t *testing.T) {
 	if v := JudgeClaim(catClaim("5", "none"), []Evidence{calc("none", 0.85)}, ctx); !v.Counted || !v.Agree {
 		t.Errorf("совпадение: %+v", v)
 	}
-	// Ровно 0,8 подходит; слабый судья (0,6) утверждение не оценивает.
-	if v := JudgeClaim(catClaim("5", "full"), []Evidence{calc("none", 0.8)}, ctx); !v.Counted || v.Agree {
-		t.Errorf("уверенность 0,8: %+v", v)
+	// Ровно 0,75 (ConfidentFact) подходит; слабый судья (0,7 и 0,6) утверждение не оценивает.
+	if v := JudgeClaim(catClaim("5", "full"), []Evidence{calc("none", ConfidentFact)}, ctx); !v.Counted || v.Agree {
+		t.Errorf("уверенность 0,75: %+v", v)
 	}
-	if v := JudgeClaim(catClaim("5", "full"), []Evidence{calc("none", 0.6)}, ctx); v.Counted {
-		t.Errorf("уверенность 0,6 не судья: %+v", v)
+	for _, r := range []float64{0.7, 0.6} {
+		if v := JudgeClaim(catClaim("5", "full"), []Evidence{calc("none", r)}, ctx); v.Counted {
+			t.Errorf("уверенность %.2f не судья: %+v", r, v)
+		}
 	}
 	// Без свидетельств других авторов судьи нет: своё же свидетельство судьёй не служит, даже самое сильное.
 	own := catClaim("5", "none")

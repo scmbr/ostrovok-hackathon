@@ -19,8 +19,11 @@ const (
 // Отметки уверенности совпадают с порогами агента-сборщика: ниже 0,6 — спрашиваем, от 0,75 — факт свежий и надёжный.
 // Переход через отметку меняет решение (выдача, объяснение), поэтому считается влиянием ответа.
 const (
-	AskConfidenceMark   = 0.6
-	FreshConfidenceMark = 0.75
+	AskConfidenceMark = 0.6
+	// ConfidentFact — уверенный факт: уверенность от 0,75. Одна константа для агента-сборщика (уверенный факт
+	// пропускается), влияния ответа на выдачу и судьи репутации (факт без автора служит судьёй при такой уверенности).
+	ConfidentFact       = 0.75
+	FreshConfidenceMark = ConfidentFact
 )
 
 var confidenceMarks = []float64{AskConfidenceMark, FreshConfidenceMark}

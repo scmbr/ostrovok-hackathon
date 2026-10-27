@@ -20,7 +20,7 @@ const AgentName = "collector"
 // Пороги правил агента (до бюджета вопросов этапа 5).
 const (
 	// FreshConfidence — факт с такой уверенностью и выше, не stale и без weak_disagreement, агент пропускает.
-	FreshConfidence = 0.75
+	FreshConfidence = domain.ConfidentFact
 	// AskConfidence — вопрос отельеру создаётся, если уверенность ниже или данных нет.
 	AskConfidence = 0.6
 	// MaxQuestions — вопросов отельеру на отель за один прогон.
