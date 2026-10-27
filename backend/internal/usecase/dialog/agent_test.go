@@ -232,3 +232,14 @@ func TestAgentSearchAfterSimilarRejected(t *testing.T) {
 		t.Fatalf("ответ должен остаться «похожими»: %+v", res)
 	}
 }
+
+// Модель вызывает similar, хотя гость «похожих» не просил, — отказ, ответ даёт обычный поиск.
+func TestAgentSimilarWithoutRequestRejected(t *testing.T) {
+	r, _ := llmRig(t, same, say("Нашла."), call("similar", `{"current":true}`), say("Готово."))
+	turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
+	ev := turn(t, r, Request{SessionID: "s", Message: "важно тихо ночью"})
+	res, ok := find[ResultsEvent](ev, EventResults)
+	if !ok || res.Kind != "search" {
+		t.Fatalf("ждали обычную выдачу: %+v", res)
+	}
+}

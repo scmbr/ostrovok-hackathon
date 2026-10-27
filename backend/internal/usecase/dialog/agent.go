@@ -380,6 +380,9 @@ func (r *run) toolSimilar(args string) (string, error) {
 	if !r.parsed {
 		r.parse(r.req.Message)
 	}
+	if r.simRef == nil {
+		return "", errors.New("гость не просил похожие отели (в его фразе нет «похожий на …»): вызови search")
+	}
 	if err := r.runSimilar(domain.SimilarRef{Ordinal: a.Ordinal, Current: a.Current, Name: a.Name}); err != nil {
 		return "", err
 	}
