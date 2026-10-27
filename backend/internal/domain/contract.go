@@ -71,17 +71,7 @@ func contractLine(c Characteristic, e WishEval, withWish bool) ContractLine {
 		l.Text = "шанс " + percent(e.P)
 		if withWish && e.Wish != nil {
 			l.Probability = e.Wish.Probability
-			switch {
-			case e.Wish.HotelConfirmed:
-				l.Kind = ContractWishConfirmed
-				l.Text = "с пожеланием: отель гарантирует пожелания (шанс " + percent(l.Probability) + ")"
-			case e.Wish.HotelRefused:
-				l.Kind = ContractWishRefused
-				l.Text = "с пожеланием: отель не гарантирует пожелания (шанс " + percent(l.Probability) + ")"
-			default:
-				l.Kind = ContractWishPending
-				l.Text = "с пожеланием, если отель подтвердит (шанс " + percent(l.Probability) + ")"
-			}
+			l.Kind, l.Text = wishKind(*e.Wish, l.Probability)
 		} else if e.Wish != nil {
 			l.Text += "; с пожеланием выше, если отель подтвердит"
 		}
@@ -92,12 +82,25 @@ func contractLine(c Characteristic, e WishEval, withWish bool) ContractLine {
 			l.Text += " — " + e.Caveat
 		}
 	case StatusMismatch:
+		if e.Conflict != "" {
+			// Название категории или гости спорят с расчётом: честно говорим «под вопросом», а не «не совпадёт».
+			l.Kind = ContractUncertain
+			l.Text = "под вопросом — источники спорят: " + e.Conflict
+			break
+		}
 		l.Kind = ContractMismatch
 		l.Text = "не совпадёт"
 		if v := displayValue(c, e); v != "" {
 			l.Text += " (" + v + ")"
 		}
 	case StatusUncertain:
+		if withWish && e.Wish != nil && e.PWish > 0 && e.Conflict == "" {
+			// Расчёт неуверенный, но гость бронирует с пожеланием: показываем шанс с пожеланием и ответ отеля.
+			l.Probability = e.Wish.Probability
+			l.Kind, l.Text = wishKind(*e.Wish, l.Probability)
+			l.Text += "; уверенность в расчёте " + percent(e.Confidence)
+			break
+		}
 		l.Kind = ContractUncertain
 		l.Text = "под вопросом"
 		if e.Caveat != "" {
@@ -108,7 +111,7 @@ func contractLine(c Characteristic, e WishEval, withWish bool) ContractLine {
 		l.Text = "неизвестно — спросим отель"
 		l.Source = ""
 	}
-	l.CanAsk = l.Kind == ContractUncertain || l.Kind == ContractUnknown
+	l.CanAsk = l.Kind == ContractUncertain || l.Kind == ContractUnknown || e.Status == StatusUncertain
 	return l
 }
 
@@ -129,4 +132,15 @@ func WishText(w VariantWish) string {
 		return fmt.Sprintf("%s сторона, этаж %d+", side, w.MinFloor)
 	}
 	return side + " сторона"
+}
+
+// wishKind — вид пункта и текст для пожелания к брони: отель подтвердил, отказал или ещё не ответил.
+func wishKind(w VariantWish, p float64) (kind, text string) {
+	switch {
+	case w.HotelConfirmed:
+		return ContractWishConfirmed, "с пожеланием: отель гарантирует пожелания (шанс " + percent(p) + ")"
+	case w.HotelRefused:
+		return ContractWishRefused, "с пожеланием: отель не гарантирует пожелания (шанс " + percent(p) + ")"
+	}
+	return ContractWishPending, "с пожеланием, если отель подтвердит (шанс " + percent(p) + ")"
 }

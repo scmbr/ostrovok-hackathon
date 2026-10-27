@@ -178,3 +178,50 @@ func TestParseCompareCommand(t *testing.T) {
 		}
 	}
 }
+
+// Шанс из пожелания к брони называется честно: «~70 % с пожеланием», а не просто «шанс».
+func TestShortStatusNamesWish(t *testing.T) {
+	reg := searchRegistry(t)
+	c, _ := reg.Get("sea_view")
+	chance := WishEval{Key: "sea_view", Status: StatusChance, P: 0.56, PBase: 0.25, PWish: 0.56, Wish: &VariantWish{Probability: 0.56}}
+	if got := shortStatus(c, chance); got != "шанс ~56 % с пожеланием" {
+		t.Errorf("шанс: %q", got)
+	}
+	doubt := WishEval{Key: "sea_view", Status: StatusUncertain, P: 0.7, PBase: 0.39, PWish: 0.7, Wish: &VariantWish{Probability: 0.7}}
+	if got := shortStatus(c, doubt); got != "под вопросом, ~70 % с пожеланием" {
+		t.Errorf("под вопросом: %q", got)
+	}
+}
+
+// Несовпадение с открытым конфликтом («Sea View» против расчёта) в контракте и сравнении — «под вопросом».
+func TestMismatchWithConflictIsUncertain(t *testing.T) {
+	reg := searchRegistry(t)
+	e := WishEval{Key: "sea_view", Importance: Must, Status: StatusMismatch, Confidence: 0.79, Conflict: "view=full: hotelier 0.41; view=none: computed 1.73"}
+	l := ContractLines(reg, variant("Sea View", 100, e), false)[0]
+	if l.Kind != ContractUncertain || !l.CanAsk || l.Conflict == "" || !strings.Contains(l.Text, "источники спорят") {
+		t.Errorf("контракт: %+v", l)
+	}
+	c, _ := reg.Get("sea_view")
+	if got := shortStatus(c, e); got != "под вопросом (источники спорят)" {
+		t.Errorf("сравнение: %q", got)
+	}
+	plain := e
+	plain.Conflict = ""
+	if l := ContractLines(reg, variant("X", 100, plain), false)[0]; l.Kind != ContractMismatch {
+		t.Errorf("без конфликта остаётся «не совпадёт»: %+v", l)
+	}
+}
+
+// Расчёт неуверенный (уверенность 50 %), но гость бронирует с пожеланием: видны шанс с пожеланием и ответ отеля.
+func TestContractUncertainWithWish(t *testing.T) {
+	reg := searchRegistry(t)
+	e := WishEval{Key: "sea_view", Importance: Prefer, Status: StatusUncertain, Confidence: 0.5, P: 0.7, PBase: 0.39, PWish: 0.7,
+		Wish: &VariantWish{Probability: 0.7, HotelConfirmed: true}}
+	l := ContractLines(reg, variant("Standard", 100, e), true)[0]
+	if l.Kind != ContractWishConfirmed || l.Probability != 0.7 || !l.CanAsk || !strings.Contains(l.Text, "уверенность в расчёте 50 %") {
+		t.Errorf("%+v", l)
+	}
+	if l := ContractLines(reg, variant("Standard", 100, e), false)[0]; l.Kind != ContractUncertain {
+		t.Errorf("без пожелания остаётся «под вопросом»: %+v", l)
+	}
+}

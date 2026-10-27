@@ -182,15 +182,21 @@ func shortStatus(c Characteristic, e WishEval) string {
 		}
 		return "совпало"
 	case StatusChance:
-		return "шанс ~" + percent(e.P)
+		return "шанс ~" + percent(e.P) + withWishSuffix(e)
 	case StatusNear:
 		return "на границе"
 	case StatusMismatch:
+		if e.Conflict != "" {
+			return "под вопросом (источники спорят)"
+		}
 		if v := displayValue(c, e); v != "" {
 			return "не совпало (" + v + ")"
 		}
 		return "не совпало"
 	case StatusUncertain:
+		if e.Wish != nil && e.PWish > 0 {
+			return "под вопросом, ~" + percent(e.PWish) + " с пожеланием"
+		}
 		return "под вопросом"
 	}
 	return "данных нет"
@@ -355,7 +361,8 @@ func uncertain(reg Registry, sides []CompareSide) []CompareUncertain {
 	var out []CompareUncertain
 	for i, s := range sides {
 		for _, e := range s.Variant.Evals {
-			if e.Status != StatusUncertain && e.Status != StatusUnknown {
+			disputed := e.Status == StatusMismatch && e.Conflict != ""
+			if e.Status != StatusUncertain && e.Status != StatusUnknown && !disputed {
 				continue
 			}
 			reason := e.Caveat
@@ -391,4 +398,12 @@ func dayGroups(ds []CompareDifference) []DayGroup {
 		}
 	}
 	return out
+}
+
+// withWishSuffix — « с пожеланием», если шанс дало пожелание к брони, а не доля подходящих номеров.
+func withWishSuffix(e WishEval) string {
+	if e.Wish != nil && e.PWish > e.PBase {
+		return " с пожеланием"
+	}
+	return ""
 }
