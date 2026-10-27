@@ -2,24 +2,33 @@
   "hotel": "similar-hotel",
   "model": "gpt-4o-mini",
   "replies": {
+    "22c613f465eb7aca0e48b5115d285ebba7e0687905d268892414a8145897ca70": {
+      "tool_calls": [
+        {
+          "id": "call_nr3KKMBlt414vFf1i3FAjf42",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"sea_view\",\"importance\":\"prefer\",\"value\":null},{\"key\":\"noise_night\",\"importance\":\"must\",\"value\":\"quiet\"}]}"
+        }
+      ]
+    },
     "405d2ecc5ffbd2994c9b2c8a54d695c886d7030b924779e54ff5249a5fdc0abd": {
       "tool_calls": [
         {
-          "id": "call_irA8VquFLwX4bTNj07rVEySm",
+          "id": "call_feobCTQ6tLufqKtChAM10aLN",
           "name": "similar",
           "arguments": "{\"ordinal\":2}"
         }
       ]
     },
-    "452239f9ea7f1ee967fe227003881f77c229e7ca68fd057c39c4862e9790c121": {
-      "content": "Я понял ваши пожелания о море и тишине ночью. Рекомендую отель Vincci Marítimo, который предлагает хороший шанс на вид на море и гарантирует тишину ночью."
+    "86ca4b70cf9aa5a13d91f062e0974f7e598ba600f8e863f36a927d31f9971f95": {
+      "content": "Я понял ваши пожелания о наличии вида на море и тишине ночью. Рекомендую вам отель Vincci Marítimo, который соответствует вашим требованиям."
     },
     "a278378801aad88d1ef5a4e5895b2d32d3f8fa5c53a389aa7f11df07194e4a6d": {
       "tool_calls": [
         {
-          "id": "call_5kSv3k5xBy3lh0ceiASfw4f2",
+          "id": "call_I7tbNT0xBu8hIDQ46rB2qwrb",
           "name": "search",
-          "arguments": "{\"wishes\":[{\"key\":\"sea_view\",\"importance\":\"prefer\"},{\"key\":\"noise_night\",\"value\":\"quiet\",\"importance\":\"must\"}]}"
+          "arguments": "{\"wishes\":[{\"key\":\"sea_view\",\"importance\":\"prefer\",\"value\":4},{\"key\":\"noise_night\",\"importance\":\"must\",\"value\":\"quiet\"}]}"
         }
       ]
     },
@@ -29,12 +38,12 @@
     "df81960c84c4d643b5a3dfc0507d89fa67452219764875817e46c7cc949a3fa9": {
       "tool_calls": [
         {
-          "id": "call_awtop9ZCclog1Czcp5HeLLPD",
+          "id": "call_milYg97mQtzZFt9BF6AaTE6e",
           "name": "parse_baseline",
           "arguments": "{\"text\": \"Хочу вид на море с 4 этажа и чтобы обязательно было тихо ночью\"}"
         },
         {
-          "id": "call_l7yRDCxSQosoTJdlAglAQODP",
+          "id": "call_N0pOMx16OdMOUR3AxsBCqxgF",
           "name": "list_characteristics",
           "arguments": "{}"
         }

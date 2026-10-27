@@ -154,6 +154,20 @@ loop:
 			}
 		}
 	}
+	// Одна просьба переписать: модель часто нарушает форму (три предложения, «соответствует»), а причина ей понятна.
+	if strings.TrimSpace(final) != "" && r.ask == nil && calls < agent.MaxLLMCalls {
+		if reason := r.checkIntro(final); reason != nil {
+			r.tr.step("вводная не прошла проверку — прошу модель переписать", "retry_text",
+				map[string]any{"text": final}, map[string]any{"reason": reason.Error()})
+			msgs = append(msgs, agent.Message{Role: "user", Content: "Вводная отклонена проверкой: " + reason.Error() +
+				". Перепиши её: один абзац, не больше двух коротких предложений, без слов оценки («соответствует», «идеально») и уверенности («точно», «наверняка»), назови лучший отель из результата."})
+			if reply, err := e.Chat.Chat(ctx, msgs, toolDefs); err == nil && len(reply.ToolCalls) == 0 {
+				final = reply.Content
+			} else if err != nil {
+				final = ""
+			}
+		}
+	}
 	return true, r.finish(final, emit)
 }
 

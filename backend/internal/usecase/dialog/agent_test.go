@@ -77,7 +77,7 @@ func TestAgentTextCheck(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r, _ := llmRig(t, same, call("parse_baseline", `{"text":"тихий номер"}`), call("search", `{}`), say(c.text))
+			r, _ := llmRig(t, same, call("parse_baseline", `{"text":"тихий номер"}`), call("search", `{}`), say(c.text), say(c.text))
 			ev := turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
 			msg, _ := find[MessageEvent](ev, EventMessage)
 			reason, rejected := rejection(r)
@@ -216,7 +216,7 @@ func TestAgentSearchRemoveThenAdd(t *testing.T) {
 
 // Ответ кнопкой применяет код; модель только пересказывает выдачу, а поиск выполняется в любом случае.
 func TestAgentChoiceTurn(t *testing.T) {
-	r, c := llmRig(t, seaOrBeach, call("parse_baseline", `{"text":"у моря"}`), call("ask_clarification", `{"phrase":"у моря"}`), say("Нашла варианты."))
+	r, c := llmRig(t, seaOrBeach, call("parse_baseline", `{"text":"у моря"}`), call("ask_clarification", `{"phrase":"у моря"}`), say("Нашла Hotel Arts."))
 	turn(t, r, Request{SessionID: "s", Message: "у моря"})
 	before := c.calls
 	ev := turn(t, r, Request{SessionID: "s", Choice: "sea_view"})
@@ -231,7 +231,7 @@ func TestAgentChoiceTurn(t *testing.T) {
 
 // Гость просил «похожий»: после similar модель не может подменить ответ обычным поиском.
 func TestAgentSearchAfterSimilarRejected(t *testing.T) {
-	r, _ := llmRig(t, same, say("Нашла."), call("similar", `{"ordinal":1}`), call("search", `{}`), say("Готово."))
+	r, _ := llmRig(t, same, say("Нашла Hotel Arts."), call("similar", `{"ordinal":1}`), call("search", `{}`), say("Готово."))
 	turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
 	ev := turn(t, r, Request{SessionID: "s", Message: "покажи похожий на первый"})
 	res, ok := find[ResultsEvent](ev, EventResults)
@@ -242,11 +242,33 @@ func TestAgentSearchAfterSimilarRejected(t *testing.T) {
 
 // Модель вызывает similar, хотя гость «похожих» не просил, — отказ, ответ даёт обычный поиск.
 func TestAgentSimilarWithoutRequestRejected(t *testing.T) {
-	r, _ := llmRig(t, same, say("Нашла."), call("similar", `{"current":true}`), say("Готово."))
+	r, _ := llmRig(t, same, say("Нашла Hotel Arts."), call("similar", `{"current":true}`), say("Готово."))
 	turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
 	ev := turn(t, r, Request{SessionID: "s", Message: "важно тихо ночью"})
 	res, ok := find[ResultsEvent](ev, EventResults)
 	if !ok || res.Kind != "search" {
 		t.Fatalf("ждали обычную выдачу: %+v", res)
+	}
+}
+
+// Отклонённую вводную модель переписывает один раз; исправленная проходит, вторая неудача — шаблонная вводная.
+func TestAgentRewritesRejectedIntroOnce(t *testing.T) {
+	r, c := llmRig(t, same, call("parse_baseline", `{"text":"тихий номер"}`), call("search", `{}`),
+		say("Hotel Arts соответствует требованиям."), say("Нашла Hotel Arts."))
+	ev := turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
+	msg, _ := find[MessageEvent](ev, EventMessage)
+	if msg.Source != "llm" || !strings.HasPrefix(msg.Text, "Нашла Hotel Arts.\n") || c.calls != 4 {
+		t.Fatalf("после переписывания вводная идёт гостю: %+v, вызовов %d", msg, c.calls)
+	}
+	retried := slices.ContainsFunc(*r.trace, func(s agent.TraceStep) bool { return s.Tool == "retry_text" })
+	if !retried {
+		t.Error("просьба переписать не записана в журнал")
+	}
+
+	r, c = llmRig(t, same, call("search", `{}`), say("Hotel Arts соответствует."), say("Hotel Arts точно подойдёт."))
+	ev = turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
+	msg, _ = find[MessageEvent](ev, EventMessage)
+	if msg.Source != "template" || c.calls != 3 {
+		t.Errorf("вторая неудача: шаблон, а не третья попытка: %+v, вызовов %d", msg, c.calls)
 	}
 }

@@ -2,61 +2,61 @@
   "hotel": "clarify-beach",
   "model": "gpt-4o-mini",
   "replies": {
-    "0dd233903229f06870622496a9a3073dd01df1dd6589b5ed63e78e80f4fc6e92": {
+    "122cc4c04903389b9da14b62b496271226451b0fce9d607066ee5971e96ce290": {
       "tool_calls": [
         {
-          "id": "call_DGIrIxhgLRcPhMb23olN4KjL",
-          "name": "search",
-          "arguments": "{\"wishes\":[{\"key\":\"pets_allowed\",\"importance\":\"prefer\"}],\"remove\":[\"pets_allowed\"]}"
-        }
-      ]
-    },
-    "302206333abd2c91cd142ac4a9fdbc457eb399259f99521bcaf35b3c0ed8946b": {
-      "content": "Я нашел несколько отелей, которые могут вас заинтересовать. Варианты включают Hotel Suites Avenue за 78 € за ночь, который гарантирует тишину ночью, но до пляжа придется идти 44 минуты. Также есть Hotel Hesperia Metropol за 122 € за ночь с гарантией тишины ночью, но до пляжа 18 минут. Еще один вариант — SB Icaria Barcelona за 164 € за ночь, который также гарантирует тишину ночью, но до пляжа всего 7 минут."
-    },
-    "54fd61c7699a5c71b01c9bd4c959c2336d2ade1bfdc1bea0c9b9db325b045fbb": {
-      "content": "Понято, что вам важно, чтобы в отеле можно было остановиться с собакой. Рекомендую обратить внимание на отель Club 29."
-    },
-    "6a6d0ad614e5ff6bd4af02385dbc723c53ca8c66699b3d93f81c65c19432887f": {
-      "tool_calls": [
-        {
-          "id": "call_P10ZxzzHnaa6ETQn5905dEC0",
+          "id": "call_qDgtDYW2HwEzb6w6oBZZhvil",
           "name": "ask_clarification",
           "arguments": "{\"phrase\":\"чтобы можно было с собакой\"}"
         }
       ]
     },
-    "709cf94124b94705d872b3cffc21fa6b7c0923ec60cfd146a9bc154040144faf": {
+    "1949062fc78ff4becd71b2a6bfb0558b015d2e2dd2f45d0e152153352f83dd09": {
       "tool_calls": [
         {
-          "id": "call_r4TYF6JnIXjC9g6LFkEu4X1F",
+          "id": "call_FFlRAB4Nn0uMuHMTM8WoayMG",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\":\"у моря\"}"
+        }
+      ]
+    },
+    "6b122ba328f27afa6ad9e9525d8e37a3a204bdd59202852d2b6d17b821d3bcad": {
+      "tool_calls": [
+        {
+          "id": "call_MSrN6x1KcRD2TTwCmbALcu8Y",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"pets_allowed\",\"importance\":\"prefer\"}]}"
+        }
+      ]
+    },
+    "74b6457b580d47ec90c90ed27fa436eb98fe3fa7bfd119d49389e6daac4d8d90": {
+      "content": "Понято, что вам важно, чтобы в отеле можно было остановиться с собакой. Один из лучших вариантов — Hotel Attica 21, стоимостью 164 € за ночь. Уточним информацию о возможности размещения с питомцем."
+    },
+    "7aceb7790ccf258959b31117ece251479d180602b4997538f5a2c4d55a736eb9": {
+      "content": "Я нашёл несколько отелей, которые соответствуют вашим пожеланиям. Лучший вариант — SB Icaria Barcelona, где гарантирована тишина ночью и до пляжа всего 7 минут пешком."
+    },
+    "afcdf1efb67a3d0ca677454cf7adaa240972e996b46578ed95364b34ae10d9c1": {
+      "tool_calls": [
+        {
+          "id": "call_zhhmoYSp1u3nkvc1tj5r4Ld2",
           "name": "parse_baseline",
           "arguments": "{\"text\":\"чтобы можно было с собакой\"}"
         }
       ]
     },
-    "8eb277a407e5202b6c7bee67645cad8547b05d237f57e7de6fc9a2d64bec3fbc": {
+    "e4df62c5fc601a11259b7503e2f58f6fc8dce402fa7969ec281a767338f06b18": {
       "tool_calls": [
         {
-          "id": "call_34KMqKn3XY9JeiSIGzWWoplR",
+          "id": "call_4FSmGbH0Z2uXZT6ktqdmTPNb",
           "name": "search",
           "arguments": "{}"
-        }
-      ]
-    },
-    "b6a2c7df3bfa3d7d1e1b817058633aca8cbb9422ecbffbe61ddec8d2cc493b5a": {
-      "tool_calls": [
-        {
-          "id": "call_sN3odB4VG9Ddz6fbzaZ68qWQ",
-          "name": "ask_clarification",
-          "arguments": "{\"phrase\":\"у моря\"}"
         }
       ]
     },
     "e5b6a02dcff2d7914b5c1a408f7c903500bc7854de0a3ba3836579eba9436ba5": {
       "tool_calls": [
         {
-          "id": "call_Ng0ad5BQffVmfvFtR0inlC2c",
+          "id": "call_0olPWlbOcuH5RSwhQGwvz5yI",
           "name": "parse_baseline",
           "arguments": "{\"text\":\"Хочу тихий отель у моря, до 200 евро за ночь\"}"
         }

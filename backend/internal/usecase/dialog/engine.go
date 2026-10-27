@@ -424,20 +424,15 @@ func (r *run) finish(candidate string, emit func(Event)) error {
 	case r.sim != nil:
 		emit(Event{EventResults, ResultsEvent{Kind: "similar", Query: domain.Query{Wishes: r.st.Wishes, Filters: r.st.Filters},
 			Similar: &SimilarView{Base: r.sim.base, Hotels: r.sim.list}}})
-		lead, rest := r.e.similarParts(r.sim.base, r.sim.list, r.notes, unmet)
-		shown := []string{r.sim.base.Name}
-		for _, s := range r.sim.list {
-			shown = append(shown, s.Name)
-		}
-		text, src := r.e.finalText(r.ctx, r.tr, candidate, lead, rest, r.req.Message+" "+strings.Join(r.notes, " "), shown, nil)
+		in := r.introInputs(unmet)
+		text, src := r.e.finalText(r.ctx, r.tr, candidate, in.lead, in.rest, in.extra, in.shown, in.guaranteed)
 		msg(text, src)
 	case r.srch != nil:
 		o := r.srch
 		emit(Event{EventResults, ResultsEvent{Kind: "search", Query: o.res.Query, Hotels: o.res.Hotels, Explanations: o.exps, Groups: o.res.Groups,
 			Considered: o.res.Considered, Dropped: o.res.Dropped}})
-		lead, rest := r.e.resultsParts(o.res, o.exps, r.notes, unmet)
-		shown, guaranteed := shownAndGuaranteed(r.e.textHotels(o.res))
-		text, src := r.e.finalText(r.ctx, r.tr, candidate, lead, rest, r.req.Message+" "+strings.Join(r.notes, " "), shown, guaranteed)
+		in := r.introInputs(unmet)
+		text, src := r.e.finalText(r.ctx, r.tr, candidate, in.lead, in.rest, in.extra, in.shown, in.guaranteed)
 		msg(text, src)
 	case r.simRef != nil:
 		msg("Не поняла, на какой отель опереться. Назовите отель из выдачи по номеру или названию.", "template")
@@ -445,6 +440,42 @@ func (r *run) finish(candidate string, emit func(Event)) error {
 		msg(emptyMessage(r.removed, unmet), "template")
 	}
 	return done()
+}
+
+// introData — части ответа и данные для проверки вводной модели.
+type introData struct {
+	lead, rest, extra string
+	shown, guaranteed []string
+}
+
+// introInputs собирает части ответа по текущему итогу поиска («похожие» или обычная выдача).
+func (r *run) introInputs(unmet []string) introData {
+	in := introData{extra: r.req.Message + " " + strings.Join(r.notes, " ")}
+	switch {
+	case r.sim != nil:
+		in.lead, in.rest = r.e.similarParts(r.sim.base, r.sim.list, r.notes, unmet)
+		in.shown = []string{r.sim.base.Name}
+		for _, s := range r.sim.list {
+			in.shown = append(in.shown, s.Name)
+		}
+	case r.srch != nil:
+		in.lead, in.rest = r.e.resultsParts(r.srch.res, r.srch.exps, r.notes, unmet)
+		in.shown, in.guaranteed = shownAndGuaranteed(r.e.textHotels(r.srch.res))
+	}
+	return in
+}
+
+// checkIntro проверяет вводную модели до отправки (для одной просьбы переписать); nil — вводная годится.
+func (r *run) checkIntro(candidate string) error {
+	if r.sim == nil && r.srch == nil {
+		return nil
+	}
+	in := r.introInputs(dedupeUnmet(r.unmet))
+	_, all, err := r.e.hotelNames(r.ctx)
+	if err != nil {
+		return nil
+	}
+	return VerifyIntro(candidate, in.lead+in.rest+" "+in.extra, in.shown, all, in.guaranteed)
 }
 
 // Turn обрабатывает сообщение гостя. С Chat выбор шагов делает модель; при её недоступности или промахе кеша
