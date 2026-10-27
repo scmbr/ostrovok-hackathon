@@ -13,6 +13,7 @@ export interface FactLike {
   stale?: boolean
   weak_disagreement?: boolean
   conflict?: string
+  trust_note?: string
   evidence: Evidence[]
 }
 
@@ -26,7 +27,8 @@ export function EvidenceList({ evidence, field, charKey }: { evidence: Evidence[
             {e.contribution >= 0 ? '+' : ''}
             {e.contribution.toFixed(2)}
           </b>{' '}
-          {sourceLabel(e.source)} ({authorLabel(e.author_type)}) утверждает «{mainValue(e.claimed, field, charKey)}», надёжность {pct(e.reliability)}, {formatDate(e.observed_at)}
+          {sourceLabel(e.source)} ({authorLabel(e.author_type)}
+          {e.author_trust !== undefined && e.author_type !== 'tool' ? `, репутация ${e.author_trust.toFixed(2)}` : ''}) утверждает «{mainValue(e.claimed, field, charKey)}», надёжность {pct(e.reliability)}, {formatDate(e.observed_at)}
         </li>
       ))}
     </ul>
@@ -53,6 +55,7 @@ export function FactCard({ fact, valueField, charKey, extra }: { fact: FactLike;
         {fact.valid_until && <> · актуально до {formatDate(fact.valid_until)}</>}
       </div>
       {fact.conflict && <p className="mt-1 text-xs text-rose-800">{fact.conflict}</p>}
+      {fact.trust_note && <p className="mt-1 text-xs text-amber-800">{fact.trust_note}</p>}
       <EvidenceList evidence={fact.evidence} field={valueField} charKey={charKey} />
     </div>
   )
