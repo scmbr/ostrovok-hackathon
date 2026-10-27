@@ -2,82 +2,63 @@
   "hotel": "clarify-beach",
   "model": "gpt-4o-mini",
   "replies": {
-    "25564ce4c171ce4ba7a861c8523eb759c0c756e559ad79e27e59804212375e1a": {
+    "0dd233903229f06870622496a9a3073dd01df1dd6589b5ed63e78e80f4fc6e92": {
       "tool_calls": [
         {
-          "id": "call_n86tzM9qCql9f6CtGrupXqy7",
-          "name": "ask_clarification",
-          "arguments": "{\"phrase\": \"чтобы можно было с собакой\"}"
-        },
-        {
-          "id": "call_acLhw4QdbBt3KWg82yktEGL5",
-          "name": "ask_clarification",
-          "arguments": "{\"phrase\": \"тишина ночью\"}"
+          "id": "call_DGIrIxhgLRcPhMb23olN4KjL",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"pets_allowed\",\"importance\":\"prefer\"}],\"remove\":[\"pets_allowed\"]}"
         }
       ]
     },
-    "43558692566f205bcfc5cc92280796a9e3c6f500888b7656d597e810e7de7ba8": {
-      "content": "Я понял, что вам важно, чтобы в отеле можно было остановиться с собакой, а также желательно, чтобы была тишина ночью. \n\nВот три лучших варианта, которые могут вам подойти:\n\n1. **Club 29** — Standard, 99 € за ночь. Здесь гарантирована тишина ночью, и можно остановиться с питомцем. Однако до пляжа придется идти 38 минут.\n   \n2. **Hotel Santa Marta** — Vista mar, 107 € за ночь. Также гарантирована тишина ночью, и разрешено проживание с питомцем. Пешком до пляжа — 14 минут. Есть альтернатива в этой же категории за 82 € за ночь.\n\n3. **Gothic Cathedral Apartments** — Standard, 187 € за ночь. Тишина ночью также гарантирована, но информация о возможности проживания с питомцем под вопросом. Пешком до пляжа — 19 минут.\n\nЕсли у вас есть дополнительные пожелания или вопросы, дайте знать!"
+    "302206333abd2c91cd142ac4a9fdbc457eb399259f99521bcaf35b3c0ed8946b": {
+      "content": "Я нашел несколько отелей, которые могут вас заинтересовать. Варианты включают Hotel Suites Avenue за 78 € за ночь, который гарантирует тишину ночью, но до пляжа придется идти 44 минуты. Также есть Hotel Hesperia Metropol за 122 € за ночь с гарантией тишины ночью, но до пляжа 18 минут. Еще один вариант — SB Icaria Barcelona за 164 € за ночь, который также гарантирует тишину ночью, но до пляжа всего 7 минут."
     },
-    "698fd030b001027248771503a84aa337a3288f60091a6886b3f5bdc99960009d": {
-      "content": "Я нашел несколько отелей, которые могут вам подойти, учитывая ваши пожелания о тишине ночью и пешей доступности до пляжа.\n\n1. **Hotel Suites Avenue** — Family, 78 € за ночь. Этот отель гарантирует тишину ночью, но до пляжа придется идти 44 минуты.\n   \n2. **Hotel Hesperia Metropol** — Suite, 122 € за ночь. Здесь также обеспечена тишина ночью, но до пляжа 18 минут пешком.\n\n3. **SB Icaria Barcelona** — Superior, 164 € за ночь. Тишина ночью гарантирована, но до пляжа всего 7 минут пешком.\n\nЕсли вас интересуют другие варианты или уточнения, дайте знать!"
+    "54fd61c7699a5c71b01c9bd4c959c2336d2ade1bfdc1bea0c9b9db325b045fbb": {
+      "content": "Понято, что вам важно, чтобы в отеле можно было остановиться с собакой. Рекомендую обратить внимание на отель Club 29."
     },
-    "7fde338946d8ba3f6b0e59851a613dac6cc7b63d3304af9d832b930dc0d88f3a": {
+    "6a6d0ad614e5ff6bd4af02385dbc723c53ca8c66699b3d93f81c65c19432887f": {
       "tool_calls": [
         {
-          "id": "call_9TxoMGQgcqrjXvQpfbLZ5ZDA",
+          "id": "call_P10ZxzzHnaa6ETQn5905dEC0",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\":\"чтобы можно было с собакой\"}"
+        }
+      ]
+    },
+    "709cf94124b94705d872b3cffc21fa6b7c0923ec60cfd146a9bc154040144faf": {
+      "tool_calls": [
+        {
+          "id": "call_r4TYF6JnIXjC9g6LFkEu4X1F",
           "name": "parse_baseline",
-          "arguments": "{\"text\":\"тишина ночью\"}"
+          "arguments": "{\"text\":\"чтобы можно было с собакой\"}"
         }
       ]
     },
-    "85772c412aac219b44844088c772cd109f268cab0affdcec7a9b89cfee804a5c": {
+    "8eb277a407e5202b6c7bee67645cad8547b05d237f57e7de6fc9a2d64bec3fbc": {
       "tool_calls": [
         {
-          "id": "call_Zk59nbiSjForyZkbeaaoQMCQ",
+          "id": "call_34KMqKn3XY9JeiSIGzWWoplR",
           "name": "search",
           "arguments": "{}"
         }
       ]
     },
-    "a728892f18e1a5536924a399c4427f5e1d90f8346f82f31c4fd128e323149579": {
+    "b6a2c7df3bfa3d7d1e1b817058633aca8cbb9422ecbffbe61ddec8d2cc493b5a": {
       "tool_calls": [
         {
-          "id": "call_bK9dYa7dVxtKPF1chJ1MvSgt",
-          "name": "log_unmet_wish",
-          "arguments": "{\"text\": \"тишина ночью\", \"normalized\": \"тишина ночью\", \"proposal\": {\"key\": \"noise_night\", \"title\": \"тишина ночью\", \"how\": \"желательно\"}}"
-        },
-        {
-          "id": "call_OEz5gB4opmqOlhANzieCwnFn",
-          "name": "search",
-          "arguments": "{\"wishes\": [{\"key\": \"pets_allowed\", \"importance\": \"prefer\", \"value\": null}, {\"key\": \"noise_night\", \"importance\": \"prefer\", \"value\": \"quiet\"}], \"remove\": []}"
-        }
-      ]
-    },
-    "c6816b88ba8fdfac4161718e43c97739fe7e9280872d04d36daa69ef088ed5af": {
-      "tool_calls": [
-        {
-          "id": "call_yjclJugEitV83DbofpiCsQqu",
-          "name": "parse_baseline",
-          "arguments": "{\"text\":\"Хочу тихий отель у моря, до 200 евро за ночь\"}"
-        }
-      ]
-    },
-    "ddfbf887b8535420b85d7c0e48e716e7988e36856e645424481d9fe1fb716839": {
-      "tool_calls": [
-        {
-          "id": "call_OOkWHfQCcOTeMaAK6P9rdCnk",
+          "id": "call_sN3odB4VG9Ddz6fbzaZ68qWQ",
           "name": "ask_clarification",
           "arguments": "{\"phrase\":\"у моря\"}"
         }
       ]
     },
-    "e4c6b4fbc64e42b747254838336622db166c4ca8ff578567ef164785acb517da": {
+    "e5b6a02dcff2d7914b5c1a408f7c903500bc7854de0a3ba3836579eba9436ba5": {
       "tool_calls": [
         {
-          "id": "call_aIhll1twcbFFNKbGgheFGlf2",
+          "id": "call_Ng0ad5BQffVmfvFtR0inlC2c",
           "name": "parse_baseline",
-          "arguments": "{\"text\":\"и чтобы можно было с собакой\"}"
+          "arguments": "{\"text\":\"Хочу тихий отель у моря, до 200 евро за ночь\"}"
         }
       ]
     }

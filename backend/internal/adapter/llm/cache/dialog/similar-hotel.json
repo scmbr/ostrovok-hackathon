@@ -2,41 +2,41 @@
   "hotel": "similar-hotel",
   "model": "gpt-4o-mini",
   "replies": {
-    "6c8984810b7bc3a7ede305331610d22179d72af1fff1f4133f0abbded189bc32": {
+    "405d2ecc5ffbd2994c9b2c8a54d695c886d7030b924779e54ff5249a5fdc0abd": {
       "tool_calls": [
         {
-          "id": "call_ppFYrtYYf2vjza5im16LtPlD",
-          "name": "parse_baseline",
-          "arguments": "{\"text\": \"Хочу вид на море с 4 этажа и чтобы обязательно было тихо ночью\"}"
-        },
-        {
-          "id": "call_z0iEQsRAMfwJ3RMeK6hpxqJq",
-          "name": "list_characteristics",
-          "arguments": "{}"
+          "id": "call_irA8VquFLwX4bTNj07rVEySm",
+          "name": "similar",
+          "arguments": "{\"ordinal\":2}"
         }
       ]
     },
-    "8557f8bb82ef4535a5469fa57c4504ad007547701ea57d7ef844502f735d8cd9": {
-      "content": "Я понял, что вам важен вид на море с 4 этажа и тишина ночью. Вот три лучших варианта отелей:\n\n1. **Vincci Marítimo** (Superior, 61 € за ночь) — у этого отеля есть шанс 79% на вид на море, и он гарантирует тишину ночью с уверенностью 87%. Также есть возможность забронировать номер на 9 этаже, что увеличивает шансы на море.\n\n2. **Hotel Suites Avenue** (Family, 78 € за ночь) — хотя у этого отеля нет вида на море, он гарантирует тишину ночью с уверенностью 97%. Есть также альтернатива по более низкой цене — Standard за 52 €.\n\n3. **Hotel Royal** (Standard, 243 € за ночь) — также не имеет вида на море, но гарантирует тишину ночью с уверенностью 97%.\n\nЕсли у вас есть дополнительные пожелания или вопросы, дайте знать!"
+    "452239f9ea7f1ee967fe227003881f77c229e7ca68fd057c39c4862e9790c121": {
+      "content": "Я понял ваши пожелания о море и тишине ночью. Рекомендую отель Vincci Marítimo, который предлагает хороший шанс на вид на море и гарантирует тишину ночью."
     },
-    "8bda86bae72948a4b385cdf2f02e8f8f5b66d85a04b133ac050137b36e108595": {
-      "content": "Я нашел несколько отелей, похожих на Hotel Suites Avenue, но без вида на море. Вот три лучших варианта:\n\n1. **Hotel Sir Victor** — отличается затемняющими шторами, что обеспечивает комфортный сон даже ночью.\n2. **The Wittmore** — рядом находится ночная аптека, а до пляжа можно дойти пешком.\n3. **Hotel Royal** — здесь разрешено проживание с питомцами, также в шаговой доступности пляж.\n\nЕсли вам нужно больше информации о каком-либо из этих отелей, дайте знать!"
-    },
-    "d20f75acda61e0c577d977b25d6994835db159d91f7eebf36e0a34753b7a3efb": {
+    "a278378801aad88d1ef5a4e5895b2d32d3f8fa5c53a389aa7f11df07194e4a6d": {
       "tool_calls": [
         {
-          "id": "call_8CnIyfNP1p9qIYW1kd3OF6H8",
+          "id": "call_5kSv3k5xBy3lh0ceiASfw4f2",
           "name": "search",
           "arguments": "{\"wishes\":[{\"key\":\"sea_view\",\"importance\":\"prefer\"},{\"key\":\"noise_night\",\"value\":\"quiet\",\"importance\":\"must\"}]}"
         }
       ]
     },
-    "f6d95adf2df5b0af7090e725dec59d2272c0315c3bdec3a7867d5b2e0a3176f8": {
+    "d461ebac975c10cc0b815f418e42cf7955c3f51e156537fb9fb15dc10822a9a3": {
+      "content": "Я нашел несколько отелей, похожих на Hotel Suites Avenue, но без вида на море. Рекомендую обратить внимание на Hotel Sir Victor, который отличается затемняющими шторами и тем, что рядом открыто ночью."
+    },
+    "df81960c84c4d643b5a3dfc0507d89fa67452219764875817e46c7cc949a3fa9": {
       "tool_calls": [
         {
-          "id": "call_b7kJgOdCIXQurV5gflp2bkph",
-          "name": "similar",
-          "arguments": "{\"ordinal\":2}"
+          "id": "call_awtop9ZCclog1Czcp5HeLLPD",
+          "name": "parse_baseline",
+          "arguments": "{\"text\": \"Хочу вид на море с 4 этажа и чтобы обязательно было тихо ночью\"}"
+        },
+        {
+          "id": "call_l7yRDCxSQosoTJdlAglAQODP",
+          "name": "list_characteristics",
+          "arguments": "{}"
         }
       ]
     }
