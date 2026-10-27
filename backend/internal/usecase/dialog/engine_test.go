@@ -376,6 +376,9 @@ func TestVerifyIntroCertaintyWords(t *testing.T) {
 	if err := VerifyIntro(text, source, shown, all, []string{"Hotel Arts"}); err != nil {
 		t.Errorf("гарантия в шаблоне есть, слово допустимо: %v", err)
 	}
+	if err := VerifyIntro("Hotel Arts полностью соответствует требованиям.", source, shown, all, []string{"Hotel Arts"}); err == nil {
+		t.Error("«соответствует требованиям» не допускается даже при гарантии")
+	}
 	for _, bad := range []string{"Hotel Arts — тишина там гарантирована.", "Hotel Arts точно подойдёт.", "Hotel Arts наверняка тихий."} {
 		if err := VerifyIntro(bad, source, shown, all, []string{"Hotel Omm"}); err == nil {
 			t.Errorf("%q: гарантии по отелю нет, слово уверенности должно отклоняться", bad)
@@ -383,5 +386,15 @@ func TestVerifyIntroCertaintyWords(t *testing.T) {
 	}
 	if err := VerifyIntro("Hotel Arts подойдёт: до пляжа 7 минут.", source, shown, all, nil); err == nil {
 		t.Error("число 7 не из данных")
+	}
+}
+
+func TestDedupeUnmet(t *testing.T) {
+	got := dedupeUnmet([]string{"балкон с джакузи и морской воздух", "балкон с джакузи", "морской воздух"})
+	if len(got) != 2 || got[0] != "балкон с джакузи" || got[1] != "морской воздух" {
+		t.Errorf("составное покрыто частями: %v", got)
+	}
+	if got := dedupeUnmet([]string{"балкон с джакузи и морской воздух", "балкон"}); len(got) != 2 {
+		t.Errorf("часть не покрывает составное: %v", got)
 	}
 }

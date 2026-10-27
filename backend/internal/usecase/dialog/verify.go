@@ -78,8 +78,12 @@ func VerifyRephrase(text, source string, shown, all []string) error {
 }
 
 // Слова уверенности: вводная модели не вправе обещать то, чего нет в шаблоне по отелю (основы слов).
-var certaintyStems = []string{"гарант", "обеспеч", "точно", "наверн", "безусл", "несомн", "определен", "однозначн",
-	"стопроцент", "абсолютн", "полност", "стопудов", "разумеет"}
+var certaintyStems = []string{"гарант", "обеспеч"}
+
+// Слова, которыми вводная не вправе оценивать отель ни при какой гарантии: «соответствует требованиям» говорит больше,
+// чем строки статусов (отель с несовпавшим пожеланием тоже может быть тихим).
+var neverStems = []string{"точно", "наверн", "безусл", "несомн", "определен", "однозначн", "стопроцент", "абсолютн",
+	"полност", "соответств", "идеальн", "безупречн", "отличн", "превосходн"}
 
 const (
 	maxIntroRunes     = 400
@@ -104,6 +108,13 @@ func VerifyIntro(text, source string, shown, all, guaranteed []string) error {
 	}
 	if err := VerifyRephrase(text, source, shown, all); err != nil {
 		return err
+	}
+	for _, w := range domain.PhraseWords(text) {
+		for _, stem := range neverStems {
+			if strings.HasPrefix(w, stem) {
+				return fmt.Errorf("слово оценки «%s»: вводная не оценивает отели, это делают строки статусов", w)
+			}
+		}
 	}
 	norm := normText(text)
 	isGuar := map[string]bool{}

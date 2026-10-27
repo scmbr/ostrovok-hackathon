@@ -347,10 +347,43 @@ func (r *run) runSimilar(ref domain.SimilarRef) error {
 	return nil
 }
 
+// dedupeUnmet убирает составное непонятое, если его слова целиком покрыты более короткими записями («балкон с
+// джакузи и морской воздух» при отдельных «балкон с джакузи» и «морской воздух»): модель делит точнее разбора.
+func dedupeUnmet(phrases []string) []string {
+	sets := make([]map[string]bool, len(phrases))
+	for i, p := range phrases {
+		sets[i] = map[string]bool{}
+		for _, w := range strings.Fields(domain.NormalizeUnmet(p)) {
+			sets[i][w] = true
+		}
+	}
+	var out []string
+	for i, p := range phrases {
+		covered := map[string]bool{}
+		for j := range phrases {
+			if j != i && len(sets[j]) < len(sets[i]) {
+				for w := range sets[j] {
+					covered[w] = true
+				}
+			}
+		}
+		all := len(sets[i]) > 0 && len(covered) > 0
+		for w := range sets[i] {
+			if !covered[w] {
+				all = false
+			}
+		}
+		if !all {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // flushUnmet записывает очередь непонятого в unmet_wishes.
 func (r *run) flushUnmet() []string {
 	var logged []string
-	for _, ph := range r.unmet {
+	for _, ph := range dedupeUnmet(r.unmet) {
 		if r.e.Unmet == nil {
 			break
 		}
