@@ -214,6 +214,15 @@ func valueSpace(c domain.Characteristic, q Question) (values []string, field str
 //     вопрос возвращается отельеру в open с уточнением «как на самом деле?».
 func confirmParsed(c domain.Characteristic, q Question, val map[string]any) Parsed {
 	yes, no := yesNo(q.AnswerText)
+	// Подтверждение без расчётного значения (гость бронирует с пожеланием: «можете гарантировать?»): ответ да / нет
+	// и есть значение bool.
+	if len(val) == 0 && c.ValueType == domain.ValueBool && !forCategory(c, q) && (yes || no) {
+		v := "false"
+		if yes {
+			v = "true"
+		}
+		return Parsed{Found: true, Claimed: claim(c, q, v, nil), Note: "ответ отельера на вопрос без расчёта", Mode: agent.ModePlanner}
+	}
 	if yes {
 		claimed := map[string]any{}
 		for k, v := range val {

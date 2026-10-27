@@ -49,6 +49,8 @@ type State struct {
 	// Settled — желания, важность которых уже решена вопросом или допущением: не переспрашиваем.
 	Settled []string `json:"settled,omitempty"`
 	Pending *Pending `json:"pending,omitempty"`
+	// Shortlist — отели, которые гость отложил для сравнения (POST /api/sessions/{id}/shortlist/{hotel_id}).
+	Shortlist []int64 `json:"shortlist,omitempty"`
 }
 
 func (s *State) wish(key string) (domain.Desire, bool) {
@@ -90,7 +92,7 @@ func (s *State) withFloor(reg domain.Registry, d domain.Desire) domain.Desire {
 // Неоднозначные фразы сюда не входят — их решает уточнение.
 func (s *State) Merge(reg domain.Registry, p domain.ParseResult) {
 	if p.Reset {
-		*s = State{Current: s.Current, Last: s.Last, Asked: s.Asked}
+		*s = State{Current: s.Current, Last: s.Last, Asked: s.Asked, Shortlist: s.Shortlist}
 	}
 	for _, key := range p.Remove {
 		s.Wishes = slices.DeleteFunc(s.Wishes, func(w domain.Desire) bool { return w.Key == key })

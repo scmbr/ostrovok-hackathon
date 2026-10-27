@@ -1,5 +1,10 @@
 package domain
 
+import (
+	"fmt"
+	"math"
+)
+
 // Контракт ожиданий: список важного для этого гостя по выбранному варианту номера, с честной степенью уверенности
 // по каждому пункту. Строится кодом из оценок поиска (WishEval). Описание — docs/compare.md.
 
@@ -105,4 +110,23 @@ func contractLine(c Characteristic, e WishEval, withWish bool) ContractLine {
 	}
 	l.CanAsk = l.Kind == ContractUncertain || l.Kind == ContractUnknown
 	return l
+}
+
+// SideRU — сторона света, в которую смотрит фасад, по азимуту внешней нормали.
+func SideRU(az float64) string {
+	sides := []string{"северная", "северо-восточная", "восточная", "юго-восточная", "южная", "юго-западная", "западная", "северо-западная"}
+	i := int(math.Mod(math.Round(math.Mod(az, 360)/45), 8))
+	if i < 0 {
+		i += 8
+	}
+	return sides[i]
+}
+
+// WishText — пожелание к брони словами: «восточная сторона, этаж 4+».
+func WishText(w VariantWish) string {
+	side := SideRU(w.AzimuthDeg)
+	if w.MinFloor > 0 {
+		return fmt.Sprintf("%s сторона, этаж %d+", side, w.MinFloor)
+	}
+	return side + " сторона"
 }

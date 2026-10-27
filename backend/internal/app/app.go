@@ -13,6 +13,8 @@ import (
 
 	apphttp "github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/http"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/repository/postgres"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/booking"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/dialog"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/rooms"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/search"
 )
@@ -63,10 +65,13 @@ func Run() error {
 		return fmt.Errorf("агент диалога: %w", err)
 	}
 	log.Println("диалог: " + mode)
+	guest := &booking.Service{Registry: reg, Search: searchSvc, Sessions: postgres.NewDialogStore(pool, dialog.SessionTTL), Hotelier: cabinet,
+		Demand: searchStore, Bookings: postgres.NewBookingStore(pool), Trace: postgres.NewAgentStore(pool, reg.Rules()), RegionID: region.ID}
+	chat.Compare = guest
 	srv := &http.Server{
 		Addr: ":" + cfg.Port,
 		Handler: apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules()),
-			roomSvc, cabinet, apphttp.WithSearch(searchSvc), apphttp.WithChat(chat)),
+			roomSvc, cabinet, apphttp.WithSearch(searchSvc), apphttp.WithChat(chat), apphttp.WithGuestFlow(guest)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

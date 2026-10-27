@@ -27,6 +27,7 @@ type Option func(*routerDeps)
 type routerDeps struct {
 	search SearchService
 	chat   ChatService
+	guest  GuestFlow
 }
 
 // WithSearch подключает поиск.

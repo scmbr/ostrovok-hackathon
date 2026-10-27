@@ -171,6 +171,8 @@ func emitChat(sse *sseWriter, reg domain.Registry, e dialog.Event) {
 	switch d := e.Data.(type) {
 	case dialog.ResultsEvent:
 		sse.send(e.Type, newChatResultsDTO(reg, d))
+	case dialog.CompareEvent:
+		sse.send(e.Type, newCompareDTO(reg, d.Compared))
 	case dialog.MessageEvent:
 		sse.send(e.Type, messageDTO{Text: d.Text, Source: d.Source})
 	case dialog.DoneEvent:

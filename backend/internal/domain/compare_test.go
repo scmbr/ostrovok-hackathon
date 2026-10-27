@@ -150,3 +150,31 @@ func TestContractLines(t *testing.T) {
 		}
 	}
 }
+
+func TestParseCompareCommand(t *testing.T) {
+	cases := []struct {
+		in        string
+		ok        bool
+		shortlist bool
+		refs      []SimilarRef
+	}{
+		{"сравни первый и третий", true, false, []SimilarRef{{Ordinal: 1}, {Ordinal: 3}}},
+		{"Сравни 2 и 3, пожалуйста", true, false, []SimilarRef{{Ordinal: 2}, {Ordinal: 3}}},
+		{"сравни Hotel Arts и Hotel Omm", true, false, []SimilarRef{{Name: "hotel arts"}, {Name: "hotel omm"}}},
+		{"сравни шортлист", true, true, nil},
+		{"сравните отель Arts с отелем Omm", true, false, []SimilarRef{{Name: "arts"}, {Name: "omm"}}},
+		{"хочу тихий отель", false, false, nil},
+	}
+	for _, c := range cases {
+		cmd, ok := ParseCompareCommand(c.in)
+		if ok != c.ok || cmd.Shortlist != c.shortlist || len(cmd.Refs) != len(c.refs) {
+			t.Errorf("%q: %+v ok=%v", c.in, cmd, ok)
+			continue
+		}
+		for i := range c.refs {
+			if cmd.Refs[i] != c.refs[i] {
+				t.Errorf("%q: ссылка %d = %+v, ждали %+v", c.in, i, cmd.Refs[i], c.refs[i])
+			}
+		}
+	}
+}
