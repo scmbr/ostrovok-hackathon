@@ -58,6 +58,7 @@ const collectUsage = `использование: collect <команда> [-reg
   rooms        рассчитать значения характеристик в категориях номеров из фактов фасадов и размещения (после mock-rooms; -hotel ID — один отель)
   search-demo  топ-5 по пяти запросам проверки поиска с вариантом номера и объяснением (спрос не пишется; после rooms; -hotel ID — как поиск «вид на море» оценивает один отель)
   dialog [-session ID] [-record ИМЯ] [-cache] [-rules] "фраза" "@кнопка" ...  диалог с агентом по ходам: события step, clarification, results, message, done (-record сохраняет ответы живой модели в cache/dialog)
+  metrics [-labels каталог] [-write файл]  метрики качества на разметке data/labels и сиде: точность, калибровка, покрытие, вопросы отельерам, согласие BCN и OSM (только чтение БД; -write обновляет блок в docs/metrics.md)
   select-demo  отметить демо-подмножество отелей (флаг hotels.demo)
   stats        показать сводку по собранным данным`
 
@@ -80,6 +81,9 @@ func RunCollect(args []string) error {
 	}
 	if cmd == "hotelier-reset" {
 		return runHotelierReset(args[1:], reg)
+	}
+	if cmd == "metrics" {
+		return runMetrics(args[1:], reg)
 	}
 	if cmd == "reputation-recompute" {
 		return runReputationRecompute(args[1:], reg)
@@ -283,7 +287,7 @@ var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
 	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
 	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "hotelier-round": true, "hotelier-reset": true, "reputation-recompute": true, "hotelier-preview": true, "mock-stays": true, "guest-surveys": true, "guest-signals": true, "recompute-tasks": true, "mock-cards": true, "mock-rooms": true, "mock-hotelier": true, "rooms": true, "search-demo": true, "dialog": true,
-	"select-demo": true, "stats": true,
+	"select-demo": true, "stats": true, "metrics": true,
 }
 
 // roomsCommands — команды по категориям номеров: работают по отелям (-hotel), но не расчётные инструменты реестра.
