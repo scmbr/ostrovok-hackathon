@@ -13,8 +13,10 @@ import (
 
 	apphttp "github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/http"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/repository/postgres"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/admin"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/booking"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/dialog"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/explain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/rooms"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/search"
 )
@@ -72,10 +74,12 @@ func Run() error {
 	guest := &booking.Service{Registry: reg, Search: searchSvc, Sessions: postgres.NewDialogStore(pool, dialog.SessionTTL), Hotelier: cabinet,
 		Demand: searchStore, Bookings: postgres.NewBookingStore(pool), Trace: postgres.NewAgentStore(pool, reg.Rules()), RegionID: region.ID}
 	chat.Compare = guest
+	explainSvc := &explain.Service{Registry: reg, Store: postgres.NewExplainStore(pool)}
+	adminSvc := &admin.Service{Registry: reg, Store: postgres.NewAdminStore(pool), Explain: explainSvc}
 	srv := &http.Server{
 		Addr: ":" + cfg.Port,
 		Handler: apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules()),
-			roomSvc, cabinet, apphttp.WithSearch(searchSvc), apphttp.WithChat(chat), apphttp.WithGuestFlow(guest), apphttp.WithDialogExamples(examples), apphttp.WithLLMMode(llmMode(cfg), cfg.LLMModel)),
+			roomSvc, cabinet, apphttp.WithSearch(searchSvc), apphttp.WithChat(chat), apphttp.WithGuestFlow(guest), apphttp.WithDialogExamples(examples), apphttp.WithLLMMode(llmMode(cfg), cfg.LLMModel), apphttp.WithAdmin(adminSvc, explainSvc)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

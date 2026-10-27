@@ -26,6 +26,8 @@ type SearchService interface {
 type Option func(*routerDeps)
 
 type routerDeps struct {
+	admin    AdminSource
+	explain  ExplainSource
 	search   SearchService
 	chat     ChatService
 	guest    GuestFlow

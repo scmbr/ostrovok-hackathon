@@ -57,6 +57,14 @@ func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms Room
 		mux.Handle("POST /api/bookings", handleBook(deps.guest))
 		mux.Handle("GET /api/bookings/{id}", handleGetBooking(deps.guest))
 	}
+	if deps.admin != nil {
+		mux.Handle("GET /api/admin/runs", handleAdminRuns(deps.admin))
+		mux.Handle("GET /api/admin/runs/{session}", handleAdminRun(deps.admin))
+		mux.Handle("GET /api/admin/conflicts", handleAdminConflicts(deps.admin))
+	}
+	if deps.explain != nil {
+		mux.Handle("GET /api/admin/hotels/{id}/facts", handleAdminHotelFacts(deps.explain))
+	}
 	if cabinet != nil {
 		mux.Handle("GET /api/hotelier/hotels", handleHotelierHotels(cabinet))
 		mux.Handle("GET /api/hotelier/{hotel_id}/inbox", handleHotelierInbox(cabinet))
