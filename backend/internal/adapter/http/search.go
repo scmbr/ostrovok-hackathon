@@ -26,6 +26,7 @@ type Option func(*routerDeps)
 
 type routerDeps struct {
 	search SearchService
+	chat   ChatService
 }
 
 // WithSearch подключает поиск.
@@ -123,6 +124,21 @@ type searchResponse struct {
 	Considered int              `json:"considered"`
 	Dropped    int              `json:"dropped"`
 	Hotels     []searchHotelDTO `json:"hotels"`
+	// GroupsLead — строка над блоками, если «всё сразу» нет или мало; пусто, если блоков компромиссов нет.
+	GroupsLead string `json:"groups_lead,omitempty"`
+	// Groups — та же выдача по группам: full («всё сразу»), блоки compromise («всё, кроме X»), ranked (блоков нет).
+	// Плоский hotels сохранён для совместимости.
+	Groups []groupDTO `json:"groups"`
+}
+
+// groupDTO — группа выдачи с объяснениями, собранными кодом.
+type groupDTO struct {
+	Kind         string           `json:"kind"`
+	Title        string           `json:"title,omitempty"`
+	FailedKey    string           `json:"failed_key,omitempty"`
+	MustViolated bool             `json:"must_violated,omitempty"`
+	Hotels       []searchHotelDTO `json:"hotels"`
+	Explanations []explanationDTO `json:"explanations"`
 }
 
 func titleOf(reg domain.Registry, key string) string {
@@ -167,19 +183,36 @@ func nonNil(s []string) []string {
 	return s
 }
 
+func newSearchHotelDTO(reg domain.Registry, h domain.HotelResult) searchHotelDTO {
+	d := searchHotelDTO{HotelID: h.HotelID, Name: h.Name, District: h.District, Card: newCardDTO(h.Card), Score: round2(h.Best.Score),
+		Violations: nonNil(h.Best.Violations), Best: newVariantDTO(reg, h.Best), OtherConflicts: []variantConflictDTO{}}
+	for _, c := range h.OtherConflicts {
+		d.OtherConflicts = append(d.OtherConflicts, variantConflictDTO{Category: c.Category, Key: c.Key, Description: c.Description})
+	}
+	if h.Alt != nil {
+		alt := newVariantDTO(reg, *h.Alt)
+		d.Alternative = &alt
+	}
+	return d
+}
+
 func newSearchResponse(reg domain.Registry, r search.Result) searchResponse {
-	out := searchResponse{Query: r.Query, Considered: r.Considered, Dropped: r.Dropped, Hotels: []searchHotelDTO{}}
+	out := searchResponse{Query: r.Query, Considered: r.Considered, Dropped: r.Dropped, Hotels: []searchHotelDTO{}, Groups: []groupDTO{},
+		GroupsLead: domain.GroupLead(reg, r.Query.Wishes, r.Groups)}
 	for _, h := range r.Hotels {
-		d := searchHotelDTO{HotelID: h.HotelID, Name: h.Name, District: h.District, Card: newCardDTO(h.Card), Score: round2(h.Best.Score),
-			Violations: nonNil(h.Best.Violations), Best: newVariantDTO(reg, h.Best), OtherConflicts: []variantConflictDTO{}}
-		for _, c := range h.OtherConflicts {
-			d.OtherConflicts = append(d.OtherConflicts, variantConflictDTO{Category: c.Category, Key: c.Key, Description: c.Description})
+		out.Hotels = append(out.Hotels, newSearchHotelDTO(reg, h))
+	}
+	rank := 0
+	for _, g := range r.Groups {
+		gd := groupDTO{Kind: string(g.Kind), Title: domain.GroupTitle(reg, g), FailedKey: g.FailedKey, MustViolated: g.MustViolated,
+			Hotels: []searchHotelDTO{}, Explanations: []explanationDTO{}}
+		for _, h := range g.Hotels {
+			rank++
+			x := domain.ExplainHotel(reg, rank, h)
+			gd.Hotels = append(gd.Hotels, newSearchHotelDTO(reg, h))
+			gd.Explanations = append(gd.Explanations, explanationDTO{HotelID: x.HotelID, Headline: x.Headline, Lines: nonNil(x.Lines), Notes: nonNil(x.Notes)})
 		}
-		if h.Alt != nil {
-			alt := newVariantDTO(reg, *h.Alt)
-			d.Alternative = &alt
-		}
-		out.Hotels = append(out.Hotels, d)
+		out.Groups = append(out.Groups, gd)
 	}
 	return out
 }
@@ -353,17 +386,21 @@ func handleSimilar(svc SearchService, reg domain.Registry) http.HandlerFunc {
 			Similar []similarHotelDTO `json:"similar"`
 		}{HotelID: id, Similar: []similarHotelDTO{}}
 		for _, s := range sims {
-			d := similarHotelDTO{ID: s.ID, Name: s.Name, District: s.District, Card: newCardDTO(s.Card), Distance: round2(s.Distance),
-				Differences: []differenceDTO{}}
-			for _, dim := range s.Dims {
-				if dim.Distance == 0 || len(d.Differences) == maxDifferences {
-					continue
-				}
-				d.Differences = append(d.Differences, differenceDTO{Key: dim.Key, Title: titleOf(reg, dim.Key), Distance: round2(dim.Distance),
-					Weight: dim.Weight, Unknown: dim.Unknown})
-			}
-			out.Similar = append(out.Similar, d)
+			out.Similar = append(out.Similar, newSimilarDTO(reg, s))
 		}
 		writeJSON(w, http.StatusOK, out)
 	}
+}
+
+func newSimilarDTO(reg domain.Registry, s search.SimilarHotel) similarHotelDTO {
+	d := similarHotelDTO{ID: s.ID, Name: s.Name, District: s.District, Card: newCardDTO(s.Card), Distance: round2(s.Distance),
+		Differences: []differenceDTO{}}
+	for _, dim := range s.Dims {
+		if dim.Distance == 0 || len(d.Differences) == maxDifferences {
+			continue
+		}
+		d.Differences = append(d.Differences, differenceDTO{Key: dim.Key, Title: titleOf(reg, dim.Key), Distance: round2(dim.Distance),
+			Weight: dim.Weight, Unknown: dim.Unknown})
+	}
+	return d
 }

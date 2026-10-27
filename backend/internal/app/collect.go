@@ -56,6 +56,7 @@ const collectUsage = `использование: collect <команда> [-reg
   recompute-tasks  выполнить задачи пересчёта: инструмент по отелю, итог (подтвердил расчёт или изменил) в agent_trace
   rooms        рассчитать значения характеристик в категориях номеров из фактов фасадов и размещения (после mock-rooms; -hotel ID — один отель)
   search-demo  топ-5 по пяти запросам проверки поиска с вариантом номера и объяснением (спрос не пишется; после rooms; -hotel ID — как поиск «вид на море» оценивает один отель)
+  dialog [-session ID] [-record ИМЯ] [-cache] [-rules] "фраза" "@кнопка" ...  диалог с агентом по ходам: события step, clarification, results, message, done (-record сохраняет ответы живой модели в cache/dialog)
   select-demo  отметить демо-подмножество отелей (флаг hotels.demo)
   stats        показать сводку по собранным данным`
 
@@ -87,6 +88,9 @@ func RunCollect(args []string) error {
 	}
 	if cmd == "agent" {
 		return runAgent(args[1:], reg)
+	}
+	if cmd == "dialog" {
+		return runDialog(args[1:], reg)
 	}
 	if cmd == "add-characteristic" {
 		return runAddCharacteristic(args[1:], reg)
@@ -274,7 +278,7 @@ const defaultRegion = "barcelona"
 var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
 	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
-	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "hotelier-round": true, "hotelier-reset": true, "hotelier-preview": true, "mock-stays": true, "guest-surveys": true, "guest-signals": true, "recompute-tasks": true, "mock-cards": true, "mock-rooms": true, "mock-hotelier": true, "rooms": true, "search-demo": true,
+	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "hotelier-round": true, "hotelier-reset": true, "hotelier-preview": true, "mock-stays": true, "guest-surveys": true, "guest-signals": true, "recompute-tasks": true, "mock-cards": true, "mock-rooms": true, "mock-hotelier": true, "rooms": true, "search-demo": true, "dialog": true,
 	"select-demo": true, "stats": true,
 }
 

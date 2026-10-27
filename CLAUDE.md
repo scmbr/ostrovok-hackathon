@@ -77,7 +77,9 @@ Frontend — Feature-Sliced Design:
 - Агент-сборщик по отелю: `go run ./cmd/collect agent -hotel 161` (ключ задан — LLM с записью в кеш; нет ключа или `-cache` — из кеша; `-planner` — без LLM); проверка ключа: `go run ./cmd/collect llm-check`; журнал — `GET /api/hotels/{id}/trace`
 - Гости «Гуру»: `go run ./cmd/collect mock-stays` (имитированные гости и брони, пересоздаёт гостей), `guest-surveys` (анкеты, репутация гостей), `guest-signals` (3 надёжных гостя против расчёта → факт stale, задача), `recompute-tasks` (пересчёт по задачам); описание — `docs/guests.md`; ответ персоны на открытые вопросы без записи — `hotelier-preview`
 - Категории номеров: `go run ./cmd/collect mock-rooms [-hotel ID]` (мок категорий и размещения демо-отелей, «Sea View»), затем `go run ./cmd/collect rooms [-hotel ID]` (значения характеристик в категориях); описание — `docs/rooms.md`, API — `GET /api/hotels/{id}/rooms`
+- Диалог с агентом по ходам: `go run ./cmd/collect dialog [-record имя | -cache | -rules] "фраза" "@id_кнопки"` (ключ в `.env` — живая модель с записью в кеш; нет ключа или `-cache` — из кеша, на промахе правила); API — `POST /api/chat` (SSE); описание — `docs/dialog.md`
 - Сервер: `cd backend && go run ./cmd/server`
 - Фронтенд: `cd frontend && npm run dev`
 - Тесты: `cd backend && go test ./...`
 - Полный запуск (из корня): `docker compose up --build`
+- Постоянный стенд на данных жюри (БД из демо-сида) для разработки интерфейса: `docker compose -p demo -f docker-compose.yml -f docker-compose.demo.yml up --build -d` — приложение на `localhost:8081`, БД на `localhost:5433`. Рабочая БД на 5432 — только для `collect`; интерфейс разрабатываем на `demo`, а не на ней (в ней нет ответов отельеров и части данных сида)

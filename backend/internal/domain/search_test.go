@@ -317,3 +317,27 @@ func TestQueryWeights(t *testing.T) {
 		t.Errorf("%v", w)
 	}
 }
+
+// Уверенность bool-факта — вероятность его значения: «да» с c = 0,5 даёт оценку 0,5, а не 0,75.
+func TestEvalHotelWishDiscreteScoreIsProbability(t *testing.T) {
+	pets := Characteristic{Key: "pets_allowed", Title: "Питомцы", Level: LevelHotel, ValueType: ValueBool, ValueField: "available"}
+	yes := func(conf float64) *Fact { return &Fact{Value: map[string]any{"available": true}, Confidence: conf} }
+	cases := []struct {
+		want  bool
+		conf  float64
+		score float64
+	}{{true, 0.5, 0.5}, {true, 0.9, 0.9}, {false, 0.9, 0.1}, {false, 0.5, 0.5}}
+	for _, tc := range cases {
+		e := EvalHotelWish(pets, Desire{Key: "pets_allowed", Value: tc.want, Importance: Prefer}, yes(tc.conf))
+		if math.Abs(e.Score-tc.score) > 1e-9 {
+			t.Errorf("хочу %v, факт «да» c=%v: оценка %v, ждали %v", tc.want, tc.conf, e.Score, tc.score)
+		}
+	}
+	// enum: остаток 1−c делится на k−1 значений, берутся подходящие («тихо или лучше» из трёх ступеней).
+	noise := Characteristic{Key: "x", Level: LevelHotel, ValueType: ValueEnum, ValueField: "value", Ordered: true,
+		Values: []string{"quiet", "moderate", "loud"}}
+	e := EvalHotelWish(noise, Desire{Key: "x", Op: OpLe, Value: "quiet", Importance: Prefer}, &Fact{Value: map[string]any{"value": "loud"}, Confidence: 0.6})
+	if math.Abs(e.Score-0.2) > 1e-9 { // подходит одно значение из двух остальных: 0,4/2
+		t.Errorf("enum: оценка %v, ждали 0,2", e.Score)
+	}
+}

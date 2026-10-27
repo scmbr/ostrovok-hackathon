@@ -39,6 +39,19 @@ type file struct {
 	Origin           string         `yaml:"origin,omitempty"`
 	OriginText       string         `yaml:"origin_text,omitempty"`
 	AddedAt          string         `yaml:"added_at,omitempty"`
+
+	Synonyms          []string               `yaml:"synonyms,omitempty"`
+	ValueSynonyms     map[string][]string    `yaml:"value_synonyms,omitempty"`
+	AmbiguousSynonyms []fileAmbiguousSynonym `yaml:"ambiguous_synonyms,omitempty"`
+	DefaultNumber     float64                `yaml:"default_number,omitempty"`
+}
+
+// fileAmbiguousSynonym — фраза с несколькими трактовками (domain.AmbiguousSynonym).
+type fileAmbiguousSynonym struct {
+	Phrase  string `yaml:"phrase"`
+	Label   string `yaml:"label"`
+	Value   any    `yaml:"value,omitempty"`
+	Default bool   `yaml:"default,omitempty"`
 }
 
 // fileCategory — правило переноса характеристики на категорию номеров (domain.CategoryRule).
@@ -84,6 +97,10 @@ func Parse(data []byte) (domain.Characteristic, error) {
 		FavorableValues: f.FavorableValues, SignificantDiff: f.SignificantDiff, ConflictSteps: f.ConflictSteps,
 		ConflictTheta: f.ConflictTheta, ConflictEntities: f.ConflictEntities,
 		AskHotelier: f.AskHotelier, AskGuest: f.AskGuest, Origin: f.Origin, OriginText: f.OriginText, AddedAt: f.AddedAt,
+		Synonyms: f.Synonyms, ValueSynonyms: f.ValueSynonyms, DefaultNumber: f.DefaultNumber,
+	}
+	for _, a := range f.AmbiguousSynonyms {
+		c.AmbiguousSynonyms = append(c.AmbiguousSynonyms, domain.AmbiguousSynonym{Phrase: a.Phrase, Label: a.Label, Value: a.Value, Default: a.Default})
 	}
 	if k := f.Category; k != nil {
 		c.Category = &domain.CategoryRule{
@@ -181,6 +198,10 @@ func Marshal(c domain.Characteristic) ([]byte, error) {
 		FavorableValues: c.FavorableValues, SignificantDiff: c.SignificantDiff, ConflictSteps: c.ConflictSteps,
 		ConflictTheta: c.ConflictTheta, ConflictEntities: c.ConflictEntities,
 		AskHotelier: c.AskHotelier, AskGuest: c.AskGuest, Origin: c.Origin, OriginText: c.OriginText, AddedAt: c.AddedAt,
+		Synonyms: c.Synonyms, ValueSynonyms: c.ValueSynonyms, DefaultNumber: c.DefaultNumber,
+	}
+	for _, a := range c.AmbiguousSynonyms {
+		f.AmbiguousSynonyms = append(f.AmbiguousSynonyms, fileAmbiguousSynonym{Phrase: a.Phrase, Label: a.Label, Value: a.Value, Default: a.Default})
 	}
 	if k := c.Category; k != nil {
 		f.Category = &fileCategory{

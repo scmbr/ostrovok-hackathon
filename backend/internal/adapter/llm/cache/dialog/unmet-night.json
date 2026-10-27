@@ -1,0 +1,129 @@
+{
+  "hotel": "unmet-night",
+  "model": "gpt-4o-mini",
+  "replies": {
+    "001e76d8bd8700e27d315af1dca5ed370a5be34cf4706022bd0c8685c1a219fc": {
+      "content": "Я нашел несколько отелей, которые могут вас заинтересовать, учитывая ваши пожелания. Однако ни один из них не соответствует всем критериям одновременно. \n\nОтель **Vincci Marítimo** предлагает пешую доступность до метро и гарантированную тишину ночью, но не имеет ночной аптеки рядом. Также есть отель **Hotel Santa Marta**, который находится в 3 минутах пешком от метро и также гарантирует тишину ночью, но у него нет ночной аптеки поблизости."
+    },
+    "1754e8d173433a216162a7a2e63ecd0b9163a6abc0e6406ff4861b44ca67cf91": {
+      "content": "Я понял ваши пожелания. Рекомендую Hotel Suites Avenue, который находится рядом с ночной аптекой и в 3 минутах пешком от метро."
+    },
+    "30459aca2eb0445aeff700949889ec40bfa9ab02ecabfbc5815f9f7df974a050": {
+      "tool_calls": [
+        {
+          "id": "call_9pgHub8Q3eYQN0Rs6nmf17h7",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\":\"важно тихо ночью\"}"
+        }
+      ]
+    },
+    "32a262abce79041b109dd93d53c7bb8260f9d70a69a908e36ebf0f52a26e703a": {
+      "tool_calls": [
+        {
+          "id": "call_PQT1GfnRENDuUrPtYRJL8EuF",
+          "name": "parse_baseline",
+          "arguments": "{\"text\":\"важно тихо ночью\"}"
+        }
+      ]
+    },
+    "33d6f4589f456c80bef5daf540677d7e416f0cd648c1377e2920a1ab9081d731": {
+      "tool_calls": [
+        {
+          "id": "call_Pd3Rn8qbK8oKkS9IyNKL1Bo0",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"noise_night\",\"op\":\"eq\",\"value\":\"quiet\",\"importance\":\"prefer\"}]}"
+        }
+      ]
+    },
+    "41d05950620163e0e19bf333248c404c87137d7ca778bde0174b6a2af78274dd": {
+      "tool_calls": [
+        {
+          "id": "call_xhS6Qz6f77t5tYEx93YzsM47",
+          "name": "search",
+          "arguments": "{}"
+        }
+      ]
+    },
+    "48d2e24ed39144f49449b66660bece2f9da0ea656f16b6d9eddf32aee939e97e": {
+      "tool_calls": [
+        {
+          "id": "call_kYMbeFEp6KL7frQCN4e0ShBV",
+          "name": "log_unmet_wish",
+          "arguments": "{\"text\": \"балкон с джакузи\", \"normalized\": \"балкон с джакузи\", \"proposal\": {\"key\": \"jacuzzi_balcony\", \"title\": \"балкон с джакузи\", \"how\": \"предложить отели с балконами и джакузи\"}}"
+        },
+        {
+          "id": "call_Y6fFFshUcrqDbRcI7mamz4bs",
+          "name": "log_unmet_wish",
+          "arguments": "{\"text\": \"морской воздух\", \"normalized\": \"морской воздух\", \"proposal\": {\"key\": \"sea_air\", \"title\": \"морской воздух\", \"how\": \"предложить отели с морским воздухом\"}}"
+        },
+        {
+          "id": "call_EVLDthQva9nCAzHly1bDNqJB",
+          "name": "search",
+          "arguments": "{\"wishes\": [{\"key\": \"night_pharmacy\", \"importance\": \"prefer\"}, {\"key\": \"walk_to_metro\", \"value\": 5, \"importance\": \"prefer\"}]}"
+        }
+      ]
+    },
+    "5dadc485f85433cea067efcef69d9dfcaffabb8101440678c933de495a2b9d49": {
+      "tool_calls": [
+        {
+          "id": "call_FW1jCXLI0FnNG1Hy3s1mExNa",
+          "name": "parse_baseline",
+          "arguments": "{\"text\":\"лучше у моря\"}"
+        }
+      ]
+    },
+    "8175772485b69f5c1ec59a3591ee3b146d36fffd461e40bb1d5b5fa5ac3e2f70": {
+      "content": "Понято, что вам важно, чтобы в отеле было тихо ночью. Рекомендую Hotel Suites Avenue, который соответствует вашим требованиям."
+    },
+    "94c9c7b9a7724310721a00a1b3ebed59056216a8b24e2bed9c28e112e01835ec": {
+      "tool_calls": [
+        {
+          "id": "call_eOFDboVvXRzoUEo6MtWK5qsh",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\": \"у моря\"}"
+        },
+        {
+          "id": "call_lVbKlCP1iNWovtOdPkQpwTqk",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\": \"пляж рядом (до 10 минут)\"}"
+        }
+      ]
+    },
+    "a7de737e7f923eabd742204215a114df3c7ed249faf11ad6c29d7f941baa3ad6": {
+      "content": "Я нашел несколько отелей, которые могут вас заинтересовать, но ни один из них не соответствует всем вашим критериям. Лучший вариант — отель **Vincci Marítimo**, который предлагает пешую доступность до метро и гарантированную тишину ночью."
+    },
+    "ad3b78454cc3f6e3765bfdf413c18b4c4038e0bca70574fd66bc4990cbc7a9f3": {
+      "content": "Понято, что вам важно, чтобы в отеле было тихо ночью. Рекомендую Hotel Suites Avenue."
+    },
+    "cd5a84edac22580244fea4766cd820c9df4ef402cb115174b1808566c3f2688a": {
+      "tool_calls": [
+        {
+          "id": "call_FkphVZBIXAKjgpcdbplUGFZj",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\":\"важно тихо ночью\"}"
+        }
+      ]
+    },
+    "db0281ef21f6dd82c8f0a8b206b39b5b3db89c9dda1387803882d3ce60e6a744": {
+      "tool_calls": [
+        {
+          "id": "call_xKMbPZuDgeLIxfdLGuvz6q15",
+          "name": "parse_baseline",
+          "arguments": "{\"text\":\"Нужен балкон с джакузи и морской воздух, рядом ночная аптека, метро в 5 минутах\"}"
+        }
+      ]
+    },
+    "f127507d27dc0934afc3014eb1066c1b19d28de501d215477e86bab78a057e1d": {
+      "content": "Я понял ваши пожелания. К сожалению, я не могу предложить отели с балконом и джакузи, а также с морским воздухом, но нашел несколько вариантов, которые соответствуют другим критериям. Рекомендую обратить внимание на Hotel Suites Avenue."
+    },
+    "fc9b6eaa7afbae40af4d7161ea4c4d63294e8518710bbfa56d6956c337702599": {
+      "tool_calls": [
+        {
+          "id": "call_e2Df8BcQdDj3ZBrYwhlbxQvM",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\":\"лучше у моря\"}"
+        }
+      ]
+    }
+  }
+}

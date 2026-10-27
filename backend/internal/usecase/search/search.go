@@ -70,6 +70,8 @@ type Result struct {
 	Hotels []domain.HotelResult
 	// Considered — сколько отелей рассмотрено; Dropped — отброшено фильтрами карточки (звёзды, цена).
 	Considered, Dropped int
+	// Groups — выдача по группам: «всё сразу» и блоки компромиссов (domain.BuildGroups). Плоский Hotels сохранён.
+	Groups []domain.Group
 }
 
 // Search возвращает отели с лучшим вариантом номера, упорядоченные по оценке; отели с нарушенными must — в конце.
@@ -115,10 +117,11 @@ func (s *Service) Search(ctx context.Context, q domain.Query) (Result, error) {
 	}
 	out.Dropped = out.Considered - len(out.Hotels)
 	domain.RankHotels(out.Hotels)
+	out.Groups = domain.BuildGroups(out.Hotels, q.Limit)
 	if len(out.Hotels) > q.Limit {
 		out.Hotels = out.Hotels[:q.Limit]
 	}
-	if s.Demand != nil && len(q.Wishes) > 0 {
+	if s.Demand != nil && len(q.Wishes) > 0 && !q.NoDemand {
 		keys := make([]string, len(q.Wishes))
 		for i, w := range q.Wishes {
 			keys[i] = w.Key
@@ -265,7 +268,7 @@ func sources(evs []rooms.EvidenceView) []domain.EvidenceSource {
 	out := make([]domain.EvidenceSource, len(evs))
 	for i, e := range evs {
 		out[i] = domain.EvidenceSource{ID: e.ID, Source: e.Source, AuthorType: e.AuthorType, AuthorID: e.AuthorID,
-			Reliability: e.Reliability, Contribution: e.Contribution, ObservedAt: e.ObservedAt, Claimed: e.Claimed}
+			AuthorTrust: e.AuthorTrust, Reliability: e.Reliability, Contribution: e.Contribution, ObservedAt: e.ObservedAt, Claimed: e.Claimed}
 	}
 	return out
 }
@@ -275,6 +278,11 @@ type HotelCard struct {
 	Candidate
 	Facts []FactView
 	Rooms *rooms.HotelRooms // nil — у отеля нет категорий
+}
+
+// Hotels — отели, в которых можно искать (для разбора ссылок «похожий на …» и проверки названий в тексте).
+func (s *Service) Hotels(ctx context.Context) ([]Candidate, error) {
+	return s.Store.Candidates(ctx, s.RegionID)
 }
 
 // Hotel собирает карточку отеля.

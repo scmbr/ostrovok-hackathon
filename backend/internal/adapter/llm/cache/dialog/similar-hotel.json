@@ -1,0 +1,44 @@
+{
+  "hotel": "similar-hotel",
+  "model": "gpt-4o-mini",
+  "replies": {
+    "405d2ecc5ffbd2994c9b2c8a54d695c886d7030b924779e54ff5249a5fdc0abd": {
+      "tool_calls": [
+        {
+          "id": "call_3ydblHhSvbsaMcXnz7tJjI8e",
+          "name": "similar",
+          "arguments": "{\"ordinal\":2}"
+        }
+      ]
+    },
+    "a278378801aad88d1ef5a4e5895b2d32d3f8fa5c53a389aa7f11df07194e4a6d": {
+      "tool_calls": [
+        {
+          "id": "call_JRUvn7R4GcgmwiDStRIohrmR",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"sea_view\",\"importance\":\"prefer\"},{\"key\":\"noise_night\",\"value\":\"quiet\",\"importance\":\"must\"}]}"
+        }
+      ]
+    },
+    "a6732c5e3412ed60c985f90f866c73e27bd85eddcb14722b9670767d9d996c27": {
+      "content": "Я понял ваши пожелания о наличии вида на море с 4 этажа и тишине ночью. Лучший вариант для вас — отель Vincci Marítimo."
+    },
+    "d461ebac975c10cc0b815f418e42cf7955c3f51e156537fb9fb15dc10822a9a3": {
+      "content": "Я нашёл несколько отелей, похожих на Hotel Suites Avenue, но без вида на море. Рекомендую обратить внимание на Hotel Sir Victor, который отличается затемняющими шторами и тем, что рядом открыто ночью."
+    },
+    "df81960c84c4d643b5a3dfc0507d89fa67452219764875817e46c7cc949a3fa9": {
+      "tool_calls": [
+        {
+          "id": "call_wsrkk7J9arx6FStQJ6x3OeK6",
+          "name": "parse_baseline",
+          "arguments": "{\"text\": \"Хочу вид на море с 4 этажа и чтобы обязательно было тихо ночью\"}"
+        },
+        {
+          "id": "call_8af9mYgDeMZTkP5fbs9UY28n",
+          "name": "list_characteristics",
+          "arguments": "{}"
+        }
+      ]
+    }
+  }
+}

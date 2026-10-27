@@ -14,3 +14,6 @@ strategies:
     independence_group: osm_walk_graph
 ask_hotelier: Сколько минут пешком до ближайшей станции метро?
 ask_guest: Сколько минут вы шли от отеля до метро?
+default_number: 10
+synonyms:
+  - метро

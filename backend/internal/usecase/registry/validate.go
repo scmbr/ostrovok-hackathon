@@ -31,6 +31,7 @@ func Validate(reg domain.Registry, tools []compute.Spec) error {
 		}
 	}
 	errs = append(errs, checkSharedParams(reg, tools)...)
+	errs = append(errs, checkAmbiguous(reg)...)
 	return errors.Join(errs...)
 }
 
@@ -71,8 +72,84 @@ func validateOne(c domain.Characteristic, tools []compute.Spec) []string {
 	out = append(out, validateOrigin(c)...)
 	out = append(out, validateValues(c)...)
 	out = append(out, validateCategory(c)...)
+	out = append(out, validateSynonyms(c)...)
 	out = append(out, validateStrategies(c, tools)...)
 	return out
+}
+
+// validateSynonyms проверяет фразы для разбора запроса гостя: значения из шкалы, фразы не пусты.
+func validateSynonyms(c domain.Characteristic) []string {
+	var out []string
+	empty := func(where string, ss []string) {
+		for _, s := range ss {
+			if len(domain.PhraseWords(s)) == 0 {
+				out = append(out, fmt.Sprintf("%s: пустая фраза %q", where, s))
+			}
+		}
+	}
+	empty("synonyms", c.Synonyms)
+	allowed := slices.Clone(c.Values)
+	if c.ValueType == domain.ValueBool {
+		allowed = []string{"true", "false"}
+	}
+	if c.Category != nil {
+		allowed = append(allowed, c.Category.Values...)
+	}
+	for _, v := range sortedKeys(c.ValueSynonyms) {
+		if !slices.Contains(allowed, v) {
+			out = append(out, fmt.Sprintf("value_synonyms: значения %q нет в шкале %v", v, allowed))
+		}
+		empty("value_synonyms."+v, c.ValueSynonyms[v])
+	}
+	for _, a := range c.AmbiguousSynonyms {
+		if len(domain.PhraseWords(a.Phrase)) == 0 {
+			out = append(out, fmt.Sprintf("ambiguous_synonyms: пустая фраза %q", a.Phrase))
+		}
+		if strings.TrimSpace(a.Label) == "" {
+			out = append(out, fmt.Sprintf("ambiguous_synonyms %q: нужен label (как трактовка называется в вопросе гостю)", a.Phrase))
+		}
+	}
+	if c.DefaultNumber != 0 && c.ValueType != domain.ValueNumber {
+		out = append(out, "default_number задаётся только у number")
+	}
+	if c.ValueType == domain.ValueNumber && len(c.Synonyms) > 0 && c.DefaultNumber <= 0 {
+		out = append(out, "у number с synonyms нужен default_number: порог, если гость не назвал число")
+	}
+	if c.DefaultNumber < 0 {
+		out = append(out, "default_number не может быть отрицательным")
+	}
+	return out
+}
+
+// checkAmbiguous: неоднозначная фраза должна быть у двух и более характеристик, трактовка по умолчанию — ровно одна.
+func checkAmbiguous(reg domain.Registry) []error {
+	type use struct {
+		key string
+		def bool
+	}
+	byPhrase := map[string][]use{}
+	for _, c := range reg.All() {
+		for _, a := range c.AmbiguousSynonyms {
+			p := strings.Join(domain.PhraseWords(a.Phrase), " ")
+			byPhrase[p] = append(byPhrase[p], use{c.Key, a.Default})
+		}
+	}
+	var errs []error
+	for _, p := range sortedKeys(byPhrase) {
+		us := byPhrase[p]
+		defaults := 0
+		for _, u := range us {
+			if u.def {
+				defaults++
+			}
+		}
+		if len(us) < 2 {
+			errs = append(errs, fmt.Errorf("%s: неоднозначная фраза %q есть только у одной характеристики", us[0].key, p))
+		} else if defaults != 1 {
+			errs = append(errs, fmt.Errorf("неоднозначная фраза %q: трактовок по умолчанию %d, нужна одна", p, defaults))
+		}
+	}
+	return errs
 }
 
 func validateOrigin(c domain.Characteristic) []string {

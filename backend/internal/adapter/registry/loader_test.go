@@ -174,3 +174,33 @@ func TestCategoryRoundTrip(t *testing.T) {
 		t.Errorf("category после Marshal/Parse: %+v, было %+v", back.Category, c.Category)
 	}
 }
+
+func TestSynonymsRoundTrip(t *testing.T) {
+	reg, err := Load(embedded.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, c := range reg.All() {
+		data, err := Marshal(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		back, err := Parse(data)
+		if err != nil {
+			t.Fatalf("%s: %v", c.Key, err)
+		}
+		if !reflect.DeepEqual(back.Synonyms, c.Synonyms) || !reflect.DeepEqual(back.ValueSynonyms, c.ValueSynonyms) ||
+			!reflect.DeepEqual(back.AmbiguousSynonyms, c.AmbiguousSynonyms) || back.DefaultNumber != c.DefaultNumber {
+			t.Errorf("%s: фразы разбора не сохранились после Marshal/Parse", c.Key)
+		}
+		seen += len(c.Synonyms) + len(c.AmbiguousSynonyms) + len(c.ValueSynonyms)
+	}
+	if seen == 0 {
+		t.Fatal("в реестре нет фраз для разбора запроса")
+	}
+	beach, _ := reg.Get("walk_to_beach")
+	if beach.DefaultNumber != 10 || len(beach.AmbiguousSynonyms) == 0 || !beach.AmbiguousSynonyms[0].Default {
+		t.Errorf("walk_to_beach: %+v", beach.AmbiguousSynonyms)
+	}
+}

@@ -88,6 +88,8 @@ type Query struct {
 	// SessionID — сессия поиска: спрос по ключу желания растёт один раз за сессию.
 	SessionID string `json:"session_id,omitempty"`
 	Limit     int    `json:"limit,omitempty"`
+	// NoDemand — пробный поиск (например, при выборе уточнения): спрос не пишется. Из JSON поле не читается.
+	NoDemand bool `json:"-"`
 }
 
 // CategoryLevel сообщает, читается ли желание по категориям номеров (характеристика фасада с блоком category).
@@ -240,10 +242,12 @@ const (
 
 // EvidenceSource — свидетельство, из которого сложен факт, для объяснения «откуда известно».
 type EvidenceSource struct {
-	ID           int64
-	Source       string
-	AuthorType   string
-	AuthorID     string
+	ID         int64
+	Source     string
+	AuthorType string
+	AuthorID   string
+	// AuthorTrust — репутация автора; ниже LowTrust объяснение помечает «со слов отеля».
+	AuthorTrust  float64
 	Reliability  float64
 	Contribution float64
 	ObservedAt   time.Time
@@ -375,10 +379,37 @@ func EvalHotelWish(c Characteristic, w Desire, f *Fact) WishEval {
 	}
 	e.PBase = e.P
 	e.Score = WishScore(e.P, f.Confidence)
+	if c.ValueType == ValueBool || c.ValueType == ValueEnum {
+		e.Score = discreteScore(c, w, raw, sat, f.Confidence)
+	}
 	if e.Status == StatusUncertain && e.Caveat == "" {
 		e.Caveat = doubtCaveat(f)
 	}
 	return e
+}
+
+// discreteScore — оценка желания по факту bool или enum. Уверенность такого факта уже вероятность его значения,
+// поэтому оценка — вероятность того, что настоящее значение подходит: c, если значение факта подходит; иначе
+// остаток 1 − c делится поровну между остальными значениями шкалы (у bool оно одно), и берутся подходящие.
+// Формула c·p + (1 − c)·0,5 здесь завышала: «да» с c = 0,5 давало 0,75 вместо 0,5.
+func discreteScore(c Characteristic, w Desire, raw any, sat bool, conf float64) float64 {
+	conf = math.Min(math.Max(conf, 0), 1)
+	if sat {
+		return conf
+	}
+	k := 2
+	suitable := 1
+	if c.ValueType == ValueEnum && len(c.Values) > 1 {
+		k = len(c.Values)
+		suitable = 0
+		got, _ := raw.(string)
+		for _, v := range c.Values {
+			if v != got && enumSatisfies(c, w, v) {
+				suitable++
+			}
+		}
+	}
+	return math.Min(1, float64(suitable)*(1-conf)/float64(k-1))
 }
 
 func doubtCaveat(f *Fact) string {
