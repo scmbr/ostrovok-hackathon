@@ -18,6 +18,7 @@ type fakeCabinet struct {
 	answered string
 	err      error
 	addr     hotelier.FactAddress
+	meta     hotelier.AnswerMeta
 }
 
 func (f *fakeCabinet) Inbox(_ context.Context, id int64) (hotelier.Inbox, error) {
@@ -33,8 +34,11 @@ func (f *fakeCabinet) Inbox(_ context.Context, id int64) (hotelier.Inbox, error)
 	}, nil
 }
 
-func (f *fakeCabinet) AnswerQuestion(_ context.Context, id int64, text string) (*hotelier.Outcome, error) {
+func (f *fakeCabinet) AnswerQuestion(_ context.Context, id int64, text string, meta ...hotelier.AnswerMeta) (*hotelier.Outcome, error) {
 	f.answered = text
+	if len(meta) > 0 {
+		f.meta = meta[0]
+	}
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -222,5 +226,16 @@ func TestHotelierHotelsAndDemand(t *testing.T) {
 	}
 	if rec := do(h, "GET", "/api/hotelier/5/demand", ""); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"question_id":7`) {
 		t.Errorf("спрос: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestHotelierAnswerPassesComment(t *testing.T) {
+	svc := &fakeCabinet{}
+	h := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, svc)
+	if rec := do(h, "POST", "/api/hotelier/questions/7/answer", `{"answer":"no","comment":"леса до марта"}`); rec.Code != 200 {
+		t.Fatalf("статус %d: %s", rec.Code, rec.Body)
+	}
+	if svc.answered != "нет" || svc.meta.Button != "no" || svc.meta.Comment != "леса до марта" {
+		t.Errorf("передано: %q %+v", svc.answered, svc.meta)
 	}
 }

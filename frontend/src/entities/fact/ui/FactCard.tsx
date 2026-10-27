@@ -30,6 +30,7 @@ export function EvidenceList({ evidence, field, charKey }: { evidence: Evidence[
           {sourceLabel(e.source)} ({authorLabel(e.author_type)}
           {e.author_trust !== undefined && e.author_type !== 'tool' ? `, репутация ${e.author_trust.toFixed(2)}` : ''}) утверждает «{mainValue(e.claimed, field, charKey)}», база надёжности {pct(e.reliability)}, {formatDate(e.observed_at)}
           {zeroWeightNote(e) && <span className="ml-1 text-amber-800">— {zeroWeightNote(e)}</span>}
+          {e.comment && <span className="ml-1 italic text-slate-800">— со слов отеля: «{e.comment}»</span>}
         </li>
       ))}
     </ul>

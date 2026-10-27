@@ -131,6 +131,16 @@ type WishRequest struct {
 	CreatedAt  time.Time
 }
 
+// AnswerMeta — то, что приходит вместе с ответом из кабинета, но разбору не подлежит: кнопка (yes / no) и необязательный
+// комментарий отельера. Сохраняется в evidence.details (button, comment) и показывается рядом со свидетельством.
+type AnswerMeta struct {
+	Button  string
+	Comment string
+}
+
+// MaxCommentRunes — длина комментария отельера.
+const MaxCommentRunes = 500
+
 // EvidenceSnap — свидетельство в составе факта: кто, что утверждает и сколько весит.
 type EvidenceSnap struct {
 	ID           int64
@@ -141,6 +151,8 @@ type EvidenceSnap struct {
 	Reliability  float64
 	Contribution float64
 	ObservedAt   time.Time
+	// Comment — пояснение автора к ответу (evidence.details.comment).
+	Comment string
 }
 
 // FactSnap — срез факта в момент времени: значение, уверенность, конфликт и свидетельства.

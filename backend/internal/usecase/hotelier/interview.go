@@ -369,7 +369,7 @@ func (i *Interviewer) simulate(ctx context.Context, s *session, h Hotel, q Quest
 	}
 	i.trace(ctx, s, h, agent.ModePlanner, "персона "+h.Persona+" ответила на "+q.Key, "persona_answer",
 		map[string]any{"characteristic": q.Key, "entity": q.Label}, map[string]any{"answer": text})
-	return i.processAnswer(ctx, s, h, q, text)
+	return i.processAnswer(ctx, s, h, q, text, AnswerMeta{})
 }
 
 // Preview — что ответила бы персона отеля на открытый вопрос и как этот ответ разобран. В БД ничего не пишется:
@@ -437,20 +437,24 @@ func unfavorable(c domain.Characteristic, q Question, val map[string]any) bool {
 }
 
 // Answer обрабатывает ответ отельера из кабинета на отправленный вопрос.
-func (i *Interviewer) Answer(ctx context.Context, q Question, text string) (*Outcome, error) {
+func (i *Interviewer) Answer(ctx context.Context, q Question, text string, meta ...AnswerMeta) (*Outcome, error) {
+	var m AnswerMeta
+	if len(meta) > 0 {
+		m = meta[0]
+	}
 	h, err := i.Store.Hotel(ctx, q.HotelID)
 	if err != nil {
 		return nil, err
 	}
 	s := &session{id: fmt.Sprintf("hotelier-%d-%d", q.HotelID, i.now().UnixNano())}
-	return i.processAnswer(ctx, s, h, q, text)
+	return i.processAnswer(ctx, s, h, q, text, m)
 }
 
 // processAnswer разбирает ответ, пишет свидетельство отельера (если значение найдено) и обновляет вопрос.
 //   - значение найдено: свидетельство отельера (заменяет его прежнее по сущности и характеристике), статус answered;
 //   - ответ на подтверждение не задал значения: вопрос возвращается в open с уточнением «как на самом деле?»;
 //   - свободный ответ неясен: needs_clarification, значение не выдумывается.
-func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q Question, text string) (*Outcome, error) {
+func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q Question, text string, meta AnswerMeta) (*Outcome, error) {
 	c, ok := i.Registry.Get(q.Key)
 	if !ok {
 		return nil, fmt.Errorf("нет характеристики %q", q.Key)
@@ -480,7 +484,7 @@ func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q 
 			EntityType: entityType, EntityID: entityID, Key: c.Key, Claimed: parsed.Claimed,
 			Source: domain.SourceHotelier, Method: HotelierMethod, AuthorType: domain.AuthorHotelier, AuthorID: strconv.FormatInt(h.ID, 10),
 			Reliability: domain.HotelierBaseReliability, ObservedAt: now, ValidUntil: &until,
-			Details: map[string]any{"question_id": q.ID, "answer_text": text, "format": q.Format},
+			Details: answerDetails(q, text, meta),
 		}
 		before, err := i.Store.FactAt(ctx, entityType, entityID, c.Key)
 		if err != nil {
@@ -527,6 +531,19 @@ func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q 
 	i.trace(ctx, s, h, parsed.Mode, fmt.Sprintf("ответ по %s разобран: %s", q.Key, status), "parse_answer",
 		map[string]any{"characteristic": q.Key, "entity": q.Label, "answer": text}, parsedJSON)
 	return &Outcome{Question: q, Parsed: parsed, Status: status, Trust: trustUpdate, Change: change}, nil
+}
+
+// answerDetails — evidence.details свидетельства из ответа: вопрос, текст ответа (слово-кнопка или текст), формат и,
+// если есть, кнопка и комментарий. Комментарий не разбирается и на значение не влияет.
+func answerDetails(q Question, text string, meta AnswerMeta) map[string]any {
+	d := map[string]any{"question_id": q.ID, "answer_text": text, "format": q.Format}
+	if meta.Button != "" {
+		d["button"] = meta.Button
+	}
+	if meta.Comment != "" {
+		d["comment"] = meta.Comment
+	}
+	return d
 }
 
 // HotelierMethod — метод свидетельства отельера, полученного из ответа на вопрос.

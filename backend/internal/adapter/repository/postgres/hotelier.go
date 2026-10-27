@@ -248,7 +248,7 @@ ORDER BY f.id DESC LIMIT 1`, entityType, entityID, key, domain.FactActive, domai
 	}
 	for _, e := range views {
 		snap.Evidence = append(snap.Evidence, hotelier.EvidenceSnap{ID: e.ID, Source: e.Source, AuthorType: e.AuthorType, AuthorTrust: e.AuthorTrust,
-			Claimed: e.Claimed, Reliability: e.Reliability, Contribution: e.Contribution, ObservedAt: e.ObservedAt})
+			Claimed: e.Claimed, Reliability: e.Reliability, Contribution: e.Contribution, ObservedAt: e.ObservedAt, Comment: e.Comment})
 	}
 	return snap, nil
 }

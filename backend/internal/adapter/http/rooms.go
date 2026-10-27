@@ -106,6 +106,8 @@ type evidenceDTO struct {
 	ObservedAt   time.Time      `json:"observed_at"`
 	// AuthorTrust — репутация автора-человека (author_trust); у инструментов 0.
 	AuthorTrust float64 `json:"author_trust,omitempty"`
+	// Comment — пояснение отельера к ответу («со слов отеля»); на значение не влияет.
+	Comment string `json:"comment,omitempty"`
 }
 
 // trustNote — пометка о доверии к утверждению отельера в составе свидетельств (domain.TrustNote).
@@ -119,7 +121,7 @@ func trustNote(ev []rooms.EvidenceView) string {
 
 func newEvidenceDTO(e rooms.EvidenceView) evidenceDTO {
 	d := evidenceDTO{ID: e.ID, Source: e.Source, AuthorType: e.AuthorType, Claimed: e.Claimed, Reliability: round2(e.Reliability),
-		Contribution: round2(e.Contribution), ObservedAt: e.ObservedAt}
+		Contribution: round2(e.Contribution), ObservedAt: e.ObservedAt, Comment: e.Comment}
 	if e.AuthorType != domain.AuthorTool {
 		d.AuthorTrust = round2(e.AuthorTrust)
 	}

@@ -16,7 +16,7 @@ import (
 // HotelierService — порт кабинета отельера (usecase/hotelier.Interviewer).
 type HotelierService interface {
 	Inbox(ctx context.Context, hotelID int64) (hotelier.Inbox, error)
-	AnswerQuestion(ctx context.Context, questionID int64, text string) (*hotelier.Outcome, error)
+	AnswerQuestion(ctx context.Context, questionID int64, text string, meta ...hotelier.AnswerMeta) (*hotelier.Outcome, error)
 	PreviewQuestion(ctx context.Context, questionID int64) (*hotelier.Preview, error)
 	Hotels(ctx context.Context) ([]hotelier.HotelSummary, error)
 	MissedDemand(ctx context.Context, hotelID int64) ([]hotelier.MissedDemand, error)
@@ -111,6 +111,8 @@ type answerRequest struct {
 	Text string `json:"text"`
 	// Answer — короткий ответ yes / no вместо текста.
 	Answer string `json:"answer"`
+	// Comment — необязательное пояснение к кнопке: не разбирается, сохраняется рядом со свидетельством.
+	Comment string `json:"comment"`
 }
 
 type outcomeDTO struct {
@@ -146,6 +148,7 @@ func handleHotelierAnswer(svc HotelierService, reg domain.Registry) http.Handler
 			return
 		}
 		text := req.Text
+		meta := hotelier.AnswerMeta{Button: req.Answer, Comment: req.Comment}
 		switch req.Answer {
 		case "":
 		case "yes":
@@ -156,7 +159,7 @@ func handleHotelierAnswer(svc HotelierService, reg domain.Registry) http.Handler
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "answer: yes или no"})
 			return
 		}
-		out, err := svc.AnswerQuestion(r.Context(), id, text)
+		out, err := svc.AnswerQuestion(r.Context(), id, text, meta)
 		if err != nil {
 			hotelierError(w, "ответ", err)
 			return

@@ -47,6 +47,7 @@ function PreviewBox({ preview, onSend, busy }: { preview: PersonaPreview; onSend
 
 export function QuestionCard({ q, hasPersona, hideReason, onAnswered }: Props) {
   const [text, setText] = useState('')
+  const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<PersonaPreview | null>(null)
@@ -92,11 +93,20 @@ export function QuestionCard({ q, hasPersona, hideReason, onAnswered }: Props) {
 
       <div className="mt-3 space-y-2">
         {q.format === 'confirm' && (
+          <input
+            value={comment}
+            maxLength={500}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Пояснение к «да» / «нет» (необязательно): оно сохранится рядом с ответом и не влияет на значение"
+            className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+          />
+        )}
+        {q.format === 'confirm' && (
           <div className="flex flex-wrap gap-2">
-            <Button small variant="primary" disabled={busy} onClick={() => send({ answer: 'yes' })}>
+            <Button small variant="primary" disabled={busy} onClick={() => send({ answer: 'yes', comment: comment.trim() || undefined })}>
               Да
             </Button>
-            <Button small disabled={busy} onClick={() => send({ answer: 'no' })}>
+            <Button small disabled={busy} onClick={() => send({ answer: 'no', comment: comment.trim() || undefined })}>
               Нет
             </Button>
             <Button small variant="ghost" disabled={busy} onClick={() => send({ text: 'уточнить' })}>

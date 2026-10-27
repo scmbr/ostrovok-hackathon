@@ -73,6 +73,7 @@ export function FactChangeView({ change, trust }: { change: FactChange; trust?: 
               {e.author_type !== 'tool' ? `, репутация ${e.author_trust.toFixed(2)}` : ''}) утверждает «
               {mainValue(e.claimed, change.value_field, change.key)}», база надёжности {pct(e.reliability)}
               {zeroWeightNote(e) && <span className="ml-1 text-amber-800">— {zeroWeightNote(e)}</span>}
+              {e.comment && <span className="ml-1 italic text-slate-800">— со слов отеля: «{e.comment}»</span>}
             </li>
           ))}
         </ul>

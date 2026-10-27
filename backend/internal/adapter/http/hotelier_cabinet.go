@@ -27,6 +27,7 @@ type evidenceSnapDTO struct {
 	Reliability  float64        `json:"reliability"`
 	Contribution float64        `json:"contribution"`
 	ObservedAt   time.Time      `json:"observed_at"`
+	Comment      string         `json:"comment,omitempty"`
 }
 
 type snapDTO struct {
@@ -64,7 +65,7 @@ func newSnapDTO(s hotelier.FactSnap) snapDTO {
 		WeakDisagreement: s.WeakDisagreement, Stale: s.Stale, Evidence: []evidenceSnapDTO{}}
 	for _, e := range s.Evidence {
 		d.Evidence = append(d.Evidence, evidenceSnapDTO{ID: e.ID, Source: e.Source, AuthorType: e.AuthorType, AuthorTrust: round2(e.AuthorTrust),
-			Claimed: e.Claimed, Reliability: round2(e.Reliability), Contribution: round2(e.Contribution), ObservedAt: e.ObservedAt})
+			Claimed: e.Claimed, Reliability: round2(e.Reliability), Contribution: round2(e.Contribution), ObservedAt: e.ObservedAt, Comment: e.Comment})
 	}
 	return d
 }

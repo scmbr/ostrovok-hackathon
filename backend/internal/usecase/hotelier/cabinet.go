@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/agent"
@@ -179,7 +180,15 @@ func (i *Interviewer) Inbox(ctx context.Context, hotelID int64) (Inbox, error) {
 }
 
 // AnswerQuestion принимает ответ отельера из кабинета: текст или «да» / «нет».
-func (i *Interviewer) AnswerQuestion(ctx context.Context, questionID int64, text string) (*Outcome, error) {
+func (i *Interviewer) AnswerQuestion(ctx context.Context, questionID int64, text string, meta ...AnswerMeta) (*Outcome, error) {
+	var m AnswerMeta
+	if len(meta) > 0 {
+		m = meta[0]
+	}
+	m.Comment = strings.TrimSpace(m.Comment)
+	if utf8.RuneCountInString(m.Comment) > MaxCommentRunes {
+		return nil, fmt.Errorf("%w: комментарий длиннее %d символов", ErrInvalid, MaxCommentRunes)
+	}
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return nil, fmt.Errorf("%w: пустой ответ", ErrInvalid)
@@ -191,7 +200,7 @@ func (i *Interviewer) AnswerQuestion(ctx context.Context, questionID int64, text
 	if q.Status != StatusOpen && q.Status != StatusNeedsClarification {
 		return nil, fmt.Errorf("%w (статус %s)", ErrState, q.Status)
 	}
-	return i.Answer(ctx, q, text)
+	return i.Answer(ctx, q, text, m)
 }
 
 // ErrNoPersona — у отеля нет имитированной персоны: ответ ждёт живого отельера.

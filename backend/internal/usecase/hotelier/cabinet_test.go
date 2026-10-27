@@ -3,6 +3,7 @@ package hotelier
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -186,5 +187,35 @@ func TestAnswerExplainsClosedConflictByLostWeight(t *testing.T) {
 	open := &Change{Before: FactSnap{Conflict: "спор"}, After: FactSnap{Conflict: "спор"}}
 	if err := iv.closedResolution(context.Background(), open, trust); err != nil || open.Resolution != nil {
 		t.Errorf("открытый конфликт: %+v %v", open.Resolution, err)
+	}
+}
+
+// Комментарий к кнопке не разбирается: значение даёт кнопка, комментарий и кнопка лежат в details свидетельства.
+func TestAnswerCommentIsStoredNotParsed(t *testing.T) {
+	st := baseStore()
+	iv := newInterviewer(t, st, nil)
+	if _, err := iv.Round(context.Background(), 5, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	var open Question
+	for _, q := range st.qs {
+		if q.Status == StatusOpen && q.Key == "pets_allowed" {
+			open = q
+		}
+	}
+	_, err := iv.AnswerQuestion(context.Background(), open.ID, "нет", AnswerMeta{Button: "no", Comment: "  перед фасадом леса до марта  "})
+	if err != nil || len(st.evidence) != 1 {
+		t.Fatalf("ответ: %v, свидетельств %d", err, len(st.evidence))
+	}
+	d := st.evidence[0].Details
+	if d["comment"] != "перед фасадом леса до марта" || d["button"] != "no" || d["answer_text"] != "нет" {
+		t.Errorf("details: %v", d)
+	}
+	if st.evidence[0].Claimed["available"] != false {
+		t.Errorf("значение даёт кнопка: %v", st.evidence[0].Claimed)
+	}
+	long := strings.Repeat("я", MaxCommentRunes+1)
+	if _, err := iv.AnswerQuestion(context.Background(), open.ID, "нет", AnswerMeta{Comment: long}); !errors.Is(err, ErrInvalid) {
+		t.Errorf("длинный комментарий: %v", err)
 	}
 }

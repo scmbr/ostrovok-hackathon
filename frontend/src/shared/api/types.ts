@@ -197,6 +197,8 @@ export interface Evidence {
   observed_at: string
   // Репутация автора-человека; у расчёта нет.
   author_trust?: number
+  // Пояснение отельера к ответу («со слов отеля»); на значение не влияет.
+  comment?: string
 }
 
 export interface Fact {
@@ -478,6 +480,7 @@ export interface EvidenceSnap {
   reliability: number
   contribution: number
   observed_at: string
+  comment?: string
 }
 
 export interface FactSnap {
