@@ -389,23 +389,26 @@ func (r *run) finish(candidate string, emit func(Event)) error {
 	case r.sim != nil:
 		emit(Event{EventResults, ResultsEvent{Kind: "similar", Query: domain.Query{Wishes: r.st.Wishes, Filters: r.st.Filters},
 			Similar: &SimilarView{Base: r.sim.base, Hotels: r.sim.list}}})
-		template := r.e.similarText(r.sim.base, r.sim.list, r.notes, unmet)
+		lead, rest := r.e.similarParts(r.sim.base, r.sim.list, r.notes, unmet)
 		shown := []string{r.sim.base.Name}
 		for _, s := range r.sim.list {
 			shown = append(shown, s.Name)
 		}
-		text, src := r.e.finalText(r.ctx, r.tr, candidate, template, r.req.Message+" "+strings.Join(r.notes, " "), shown)
+		text, src := r.e.finalText(r.ctx, r.tr, candidate, lead, rest, r.req.Message+" "+strings.Join(r.notes, " "), shown, nil)
 		msg(text, src)
 	case r.srch != nil:
 		o := r.srch
 		emit(Event{EventResults, ResultsEvent{Kind: "search", Query: o.res.Query, Hotels: o.res.Hotels, Explanations: o.exps,
 			Considered: o.res.Considered, Dropped: o.res.Dropped}})
-		template := r.e.resultsText(o.res, o.exps, r.notes, unmet)
-		var shown []string
-		for _, h := range o.res.Hotels {
+		lead, rest := r.e.resultsParts(o.res, o.exps, r.notes, unmet)
+		var shown, guaranteed []string
+		for i, h := range o.res.Hotels {
 			shown = append(shown, h.Name)
+			if i < len(o.exps) && strings.Contains(o.exps[i].Text(), guaranteeMark) {
+				guaranteed = append(guaranteed, h.Name)
+			}
 		}
-		text, src := r.e.finalText(r.ctx, r.tr, candidate, template, r.req.Message+" "+strings.Join(r.notes, " "), shown)
+		text, src := r.e.finalText(r.ctx, r.tr, candidate, lead, rest, r.req.Message+" "+strings.Join(r.notes, " "), shown, guaranteed)
 		msg(text, src)
 	case r.simRef != nil:
 		msg("Не поняла, на какой отель опереться. Назовите отель из выдачи по номеру или названию.", "template")
@@ -484,9 +487,14 @@ func wishKeys(ws []domain.Desire) []string {
 	return keys
 }
 
-// finalText отдаёт пересказ модели (candidate), если он прошёл проверку чисел и названий; иначе шаблон,
-// а причина отказа пишется в журнал.
-func (e *Engine) finalText(ctx context.Context, tr *tracer, candidate, template, extraSource string, shown []string) (string, string) {
+// guaranteeMark — как шаблон объяснения называет гарантию в категории; только при ней вводная может говорить о гарантии.
+const guaranteeMark = "гарантировано"
+
+// finalText собирает ответ: вводная (lead) и всё остальное (rest: допущения, непонятое, отели со статусами,
+// значениями, оговорками и источниками) строятся кодом. Модель может заменить только вводную (candidate), и то после
+// проверки (VerifyIntro); при отказе остаётся шаблонная вводная, а причина пишется в журнал.
+func (e *Engine) finalText(ctx context.Context, tr *tracer, candidate, lead, rest, extraSource string, shown, guaranteed []string) (string, string) {
+	template := lead + rest
 	if strings.TrimSpace(candidate) == "" {
 		return template, "template"
 	}
@@ -494,13 +502,13 @@ func (e *Engine) finalText(ctx context.Context, tr *tracer, candidate, template,
 	if err != nil {
 		return template, "template"
 	}
-	if err := VerifyRephrase(candidate, template+" "+extraSource, shown, all); err != nil {
-		tr.step("текст модели отклонён проверкой — отдаю шаблон", "verify_text",
+	if err := VerifyIntro(candidate, template+" "+extraSource, shown, all, guaranteed); err != nil {
+		tr.step("вводная модели отклонена проверкой — отдаю шаблонную", "verify_text",
 			map[string]any{"text": candidate}, map[string]any{"reason": err.Error()})
 		return template, "template"
 	}
-	tr.step("пересказ модели прошёл проверку чисел и названий", "verify_text", nil, map[string]any{"ok": true})
-	return candidate, "llm"
+	tr.step("вводная модели прошла проверку", "verify_text", nil, map[string]any{"ok": true})
+	return strings.TrimSpace(candidate) + rest, "llm"
 }
 
 func emptyMessage(removed, unmet []string) string {
@@ -545,9 +553,16 @@ func (e *Engine) understood(q domain.Query) string {
 	return strings.Join(parts, "; ")
 }
 
+// resultsText — шаблон ответа целиком (для модели в результате инструмента).
 func (e *Engine) resultsText(res search.Result, exps []domain.HotelExplanation, notes, unmet []string) string {
+	lead, rest := e.resultsParts(res, exps, notes, unmet)
+	return lead + rest
+}
+
+// resultsParts делит ответ на вводную («Ищу: …», её может заменить модель) и остальное (строит только код).
+func (e *Engine) resultsParts(res search.Result, exps []domain.HotelExplanation, notes, unmet []string) (lead, rest string) {
+	lead = "Ищу: " + e.understood(res.Query) + "."
 	var b strings.Builder
-	b.WriteString("Ищу: " + e.understood(res.Query) + ".")
 	for _, n := range notes {
 		if n != "" {
 			b.WriteString("\n" + n)
@@ -558,7 +573,7 @@ func (e *Engine) resultsText(res search.Result, exps []domain.HotelExplanation, 
 	}
 	if len(exps) == 0 {
 		b.WriteString("\nПодходящих отелей не нашлось: попробуйте смягчить условия.")
-		return b.String()
+		return lead, b.String()
 	}
 	b.WriteString("\nЛучшие варианты:")
 	for i, x := range exps {
@@ -567,7 +582,7 @@ func (e *Engine) resultsText(res search.Result, exps []domain.HotelExplanation, 
 		}
 		b.WriteString("\n" + x.Text())
 	}
-	return b.String()
+	return lead, b.String()
 }
 
 // resolveSimilar находит отель, на который сослался гость: номер в выдаче, «этот» или название.
@@ -617,9 +632,15 @@ func resolveSimilar(ref domain.SimilarRef, st State, cands []search.Candidate) (
 	return Shown{}, false
 }
 
+// similarText — шаблон ответа «похожие» целиком.
 func (e *Engine) similarText(base Shown, list []search.SimilarHotel, notes, unmet []string) string {
+	lead, rest := e.similarParts(base, list, notes, unmet)
+	return lead + rest
+}
+
+func (e *Engine) similarParts(base Shown, list []search.SimilarHotel, notes, unmet []string) (lead, rest string) {
+	lead = fmt.Sprintf("Похожие на %s — по профилю собранных характеристик, без учёта звёзд и цены:", base.Name)
 	var b strings.Builder
-	fmt.Fprintf(&b, "Похожие на %s — по профилю собранных характеристик, без учёта звёзд и цены:", base.Name)
 	for _, n := range notes {
 		if n != "" {
 			b.WriteString("\n" + n)
@@ -640,7 +661,7 @@ func (e *Engine) similarText(base Shown, list []search.SimilarHotel, notes, unme
 	if len(unmet) > 0 {
 		fmt.Fprintf(&b, "\nПока не умею учитывать: %s — записала в журнал пожеланий.", quoted(unmet))
 	}
-	return b.String()
+	return lead, b.String()
 }
 
 // mainDifferences — названия двух характеристик с наибольшим различием (числа не показываем: это не факты).

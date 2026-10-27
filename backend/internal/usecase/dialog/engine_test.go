@@ -366,3 +366,22 @@ func TestMergeResetAndFilters(t *testing.T) {
 		t.Errorf("«заново» сбрасывает запрос: %+v", st)
 	}
 }
+
+// Слова уверенности допустимы, только если для упомянутого отеля в шаблоне есть гарантия.
+func TestVerifyIntroCertaintyWords(t *testing.T) {
+	source := "Hotel Arts — Стандарт, 100 € за ночь. Тишина: совпало, в категории гарантировано."
+	shown := []string{"Hotel Arts", "Hotel Omm"}
+	all := append([]string{"Casa Fuster"}, shown...)
+	text := "Hotel Arts — тишина там гарантирована."
+	if err := VerifyIntro(text, source, shown, all, []string{"Hotel Arts"}); err != nil {
+		t.Errorf("гарантия в шаблоне есть, слово допустимо: %v", err)
+	}
+	for _, bad := range []string{"Hotel Arts — тишина там гарантирована.", "Hotel Arts точно подойдёт.", "Hotel Arts наверняка тихий."} {
+		if err := VerifyIntro(bad, source, shown, all, []string{"Hotel Omm"}); err == nil {
+			t.Errorf("%q: гарантии по отелю нет, слово уверенности должно отклоняться", bad)
+		}
+	}
+	if err := VerifyIntro("Hotel Arts подойдёт: до пляжа 7 минут.", source, shown, all, nil); err == nil {
+		t.Error("число 7 не из данных")
+	}
+}

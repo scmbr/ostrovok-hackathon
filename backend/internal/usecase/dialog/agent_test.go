@@ -71,6 +71,9 @@ func TestAgentTextCheck(t *testing.T) {
 		{"текст мимо выдачи", "К сожалению, я не нашла подходящих отелей.", true, "ни одного отеля"},
 		{"чужой отель из базы", "Hotel Arts рядом с Hotel Catedral.", true, "hotel catedral"},
 		{"допустимый", "Нашла Hotel Arts, Hotel Omm и Casa Fuster.", false, ""},
+		{"список в вводной", "Вот варианты:\n1. Hotel Arts", true, "абзацем"},
+		{"слишком много предложений", "Hotel Arts хорош. Hotel Omm тоже. Casa Fuster тихий.", true, "предложений"},
+		{"слово уверенности без гарантии", "Hotel Arts — тишина там обеспечена.", true, "обеспеч"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -84,8 +87,12 @@ func TestAgentTextCheck(t *testing.T) {
 			if c.reject && msg.Source != "template" {
 				t.Errorf("при отклонении ответ — шаблон: %+v", msg)
 			}
-			if !c.reject && (msg.Source != "llm" || msg.Text != c.text) {
-				t.Errorf("проверенный пересказ идёт гостю: %+v", msg)
+			if !c.reject && (msg.Source != "llm" || !strings.HasPrefix(msg.Text, c.text+"\n")) {
+				t.Errorf("проверенная вводная идёт гостю: %+v", msg)
+			}
+			// Строки по отелям — всегда из шаблона, чем бы ни была вводная.
+			if !strings.Contains(msg.Text, "Лучшие варианты:\n1. Hotel Arts — Стандарт, 100 € за ночь") {
+				t.Errorf("в ответе нет шаблонных строк по отелям: %s", msg.Text)
 			}
 		})
 	}

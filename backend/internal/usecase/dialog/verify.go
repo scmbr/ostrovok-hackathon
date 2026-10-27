@@ -77,6 +77,58 @@ func VerifyRephrase(text, source string, shown, all []string) error {
 	return nil
 }
 
+// Слова уверенности: вводная модели не вправе обещать то, чего нет в шаблоне по отелю (основы слов).
+var certaintyStems = []string{"гарант", "обеспеч", "точно", "наверн", "безусл", "несомн", "определен", "однозначн",
+	"стопроцент", "абсолютн", "полност", "стопудов", "разумеет"}
+
+const (
+	maxIntroRunes     = 400
+	maxIntroSentences = 2
+)
+
+var sentenceEndRe = regexp.MustCompile(`[.!?…]+(\s|$)`)
+
+// VerifyIntro проверяет вводную модели к ответу: пересказ данных (VerifyRephrase: числа, названия, упоминание отеля
+// выдачи) плюс форма и тон — 1–2 предложения без списков и разметки и без слов уверенности («гарантирован»,
+// «обеспечен», «точно»…), если для упомянутых отелей в шаблоне нет гарантии. guaranteed — отели, у которых шаблон
+// говорит «гарантировано».
+func VerifyIntro(text, source string, shown, all, guaranteed []string) error {
+	text = strings.TrimSpace(text)
+	switch {
+	case strings.ContainsAny(text, "\n*#|•"):
+		return errors.New("вводная должна быть одним абзацем без списков и разметки")
+	case len([]rune(text)) > maxIntroRunes:
+		return fmt.Errorf("вводная длиннее %d символов", maxIntroRunes)
+	case len(sentenceEndRe.FindAllString(text, -1)) > maxIntroSentences:
+		return fmt.Errorf("в вводной больше %d предложений", maxIntroSentences)
+	}
+	if err := VerifyRephrase(text, source, shown, all); err != nil {
+		return err
+	}
+	norm := normText(text)
+	isGuar := map[string]bool{}
+	for _, n := range normalizedNames(guaranteed) {
+		isGuar[n] = true
+	}
+	allGuaranteed := true
+	for _, n := range normalizedNames(shown) {
+		if strings.Contains(norm, n) && !isGuar[n] {
+			allGuaranteed = false
+		}
+	}
+	if allGuaranteed {
+		return nil
+	}
+	for _, w := range domain.PhraseWords(text) {
+		for _, stem := range certaintyStems {
+			if strings.HasPrefix(w, stem) {
+				return fmt.Errorf("слово уверенности «%s», а в данных по отелю гарантии нет", w)
+			}
+		}
+	}
+	return nil
+}
+
 func mentionsAny(text string, names []string) bool {
 	for _, n := range names {
 		if strings.Contains(text, n) {
