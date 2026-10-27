@@ -65,6 +65,15 @@ func ExplainWish(c Characteristic, e WishEval) string {
 // LowTrustNote — пометка к утверждению отельера, чья репутация ниже 0,5.
 const LowTrustNote = "со слов отеля; часть прошлых утверждений расчёт не подтвердил"
 
+// TrustNote — пометка о доверии к факту: «со слов отеля…», если среди источников есть отельер с репутацией ниже
+// нейтральной. Одна реализация для выдачи (ExplainHotel) и карточки отеля.
+func TrustNote(src []EvidenceSource) string {
+	if lowTrustHotelier(src) {
+		return LowTrustNote
+	}
+	return ""
+}
+
 // lowTrustHotelier — среди источников есть отельер с репутацией ниже нейтральной.
 func lowTrustHotelier(src []EvidenceSource) bool {
 	for _, s := range src {

@@ -51,6 +51,8 @@ type Record struct {
 	Expectations   []domain.ContractLine
 	WishQuestionID int64
 	CreatedAt      time.Time
+	// HotelName и CategoryName заполняет хранилище при чтении брони.
+	HotelName, CategoryName string
 }
 
 // Store — хранилище броней.

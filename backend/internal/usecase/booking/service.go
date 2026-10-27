@@ -526,6 +526,8 @@ func wishSuffix(b Booked) string {
 type BookingView struct {
 	Record     Record
 	WishStatus string
+	// PriceEUR — цена категории за ночь; мок (domain.CategoryPriceEUR по мок-карточке отеля). 0 — отель не найден.
+	PriceEUR int
 }
 
 // Booking читает бронь; статус пожелания берётся из текущего ответа отеля.
@@ -535,6 +537,13 @@ func (s *Service) Booking(ctx context.Context, id int64) (BookingView, error) {
 		return BookingView{}, err
 	}
 	v := BookingView{Record: r}
+	if hs, err := s.Search.Hotels(ctx); err == nil {
+		for _, h := range hs {
+			if h.ID == r.HotelID {
+				v.PriceEUR = domain.CategoryPriceEUR(h.Card, r.CategoryName)
+			}
+		}
+	}
 	if r.Wish == nil {
 		return v, nil
 	}

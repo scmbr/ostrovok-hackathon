@@ -39,6 +39,8 @@ type EvidenceView struct {
 	Reliability  float64
 	Contribution float64
 	ObservedAt   time.Time
+	// Comment — пояснение автора к ответу (evidence.details.comment); у расчёта пусто.
+	Comment string
 }
 
 // CategoryFact — итоговый факт категории номеров (движок правды) со свидетельствами и открытым конфликтом.

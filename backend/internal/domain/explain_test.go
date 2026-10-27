@@ -53,3 +53,19 @@ func TestExplainWishLowTrustNote(t *testing.T) {
 		}
 	}
 }
+
+func TestTrustNoteOnlyForLowTrustHotelier(t *testing.T) {
+	low := []EvidenceSource{{AuthorType: AuthorTool, AuthorTrust: 0}, {AuthorType: AuthorHotelier, AuthorTrust: 0.33}}
+	if TrustNote(low) != LowTrustNote {
+		t.Error("отельер с репутацией 0,33 должен давать пометку")
+	}
+	for _, src := range [][]EvidenceSource{
+		{{AuthorType: AuthorHotelier, AuthorTrust: 0.5}},
+		{{AuthorType: AuthorGuest, AuthorTrust: 0.2}},
+		nil,
+	} {
+		if n := TrustNote(src); n != "" {
+			t.Errorf("пометка %q без повода: %+v", n, src)
+		}
+	}
+}

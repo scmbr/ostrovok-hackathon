@@ -58,9 +58,13 @@ func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms Room
 		mux.Handle("GET /api/bookings/{id}", handleGetBooking(deps.guest))
 	}
 	if cabinet != nil {
+		mux.Handle("GET /api/hotelier/hotels", handleHotelierHotels(cabinet))
 		mux.Handle("GET /api/hotelier/{hotel_id}/inbox", handleHotelierInbox(cabinet))
-		mux.Handle("POST /api/hotelier/questions/{id}/answer", handleHotelierAnswer(cabinet))
-		mux.Handle("POST /api/hotelier/facts/{id}/{action}", handleHotelierFact(cabinet))
+		mux.Handle("GET /api/hotelier/{hotel_id}/demand", handleHotelierDemand(cabinet))
+		mux.Handle("POST /api/hotelier/hotels/{hotel_id}/facts/{action}", handleHotelierFactAt(cabinet, reg))
+		mux.Handle("POST /api/hotelier/questions/{id}/answer", handleHotelierAnswer(cabinet, reg))
+		mux.Handle("POST /api/hotelier/questions/{id}/persona-preview", handleHotelierPreview(cabinet))
+		mux.Handle("POST /api/hotelier/facts/{id}/{action}", handleHotelierFact(cabinet, reg))
 	}
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})

@@ -171,3 +171,49 @@ func TestSaveHotelEvidenceCallsHook(t *testing.T) {
 		t.Error("ошибка реакции должна вернуться вызывающему")
 	}
 }
+
+// Конфликт закрылся из-за упавшего доверия к автору: причина (weight_dropped) пишется в conflicts.resolution.
+func TestSaveEvidenceRecordsConflictResolution(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	if err := Migrate(ctx, pool); err != nil { // нужна колонка resolution_kind (0022)
+		t.Fatal(err)
+	}
+	cleanTestRows(t, pool)
+	hotelier := domain.Author{Type: domain.AuthorHotelier, ID: "9000000001"}
+	clean := func() {
+		cleanTestRows(t, pool)
+		_, _ = pool.Exec(ctx, `DELETE FROM author_trust WHERE author_type = $1 AND author_id = $2`, hotelier.Type, hotelier.ID)
+	}
+	clean()
+	t.Cleanup(clean)
+	rules := map[string]domain.TruthParams{testKey: {Kind: domain.TruthEnum, ValueField: "v", ConflictMinSide: 1}}
+	w := evidenceWriter{pool: pool, rules: rules}
+	tool := []domain.Author{domain.ToolAuthor("test_tool@1")}
+
+	claim := toolEvidence("b", 0.8)
+	claim.Source, claim.Method, claim.AuthorType, claim.AuthorID = domain.SourceHotelier, "hotelier_answer@1", hotelier.Type, hotelier.ID
+	if err := w.SaveHotelEvidence(ctx, testHotelID, testKey, tool, []domain.Evidence{toolEvidence("a", 0.85), claim}); err != nil {
+		t.Fatal(err)
+	}
+	if n := countRows(t, pool, `SELECT count(*) FROM conflicts WHERE characteristic_key = $1 AND status = 'open'`, testKey); n != 1 {
+		t.Fatalf("открытых конфликтов %d, ожидался 1", n)
+	}
+	// Доверие к отельеру упало: надёжность его слова 0,8·0,6 = 0,48 не выше 0,5, вес нулевой.
+	if _, err := pool.Exec(ctx, `INSERT INTO author_trust (author_type, author_id, agree, total, trust) VALUES ($1, $2, 0, 8, 0.1)`, hotelier.Type, hotelier.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.SaveHotelEvidence(ctx, testHotelID, testKey, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if n := countRows(t, pool, `SELECT count(*) FROM conflicts WHERE characteristic_key = $1 AND status = 'open'`, testKey); n != 0 {
+		t.Fatalf("конфликт должен закрыться, открытых %d", n)
+	}
+	var kind, text string
+	if err := pool.QueryRow(ctx, `SELECT resolution_kind, resolution FROM conflicts WHERE characteristic_key = $1 AND status = 'superseded' AND resolution_kind IS NOT NULL`, testKey).Scan(&kind, &text); err != nil {
+		t.Fatalf("причина закрытия не записана: %v", err)
+	}
+	if kind != domain.ResolutionWeightDropped || text == "" {
+		t.Errorf("причина: %q %q", kind, text)
+	}
+}

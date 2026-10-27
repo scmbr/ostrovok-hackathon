@@ -37,3 +37,11 @@ export const summaryLabel = (key?: string) => (key && chars[key]?.summary) || 'Ñ
 
 export const contractLabel = (kind: string) => (labels.contract as Record<string, string>)[kind] ?? unknownValue('contract', kind)
 export const bookingWishLabel = (status: string) => (labels.booking_wish as Record<string, string>)[status] ?? unknownValue('booking_wish', status)
+
+const group = (name: string, key: string): string => ((labels as unknown as Record<string, Record<string, string>>)[name] ?? {})[key] ?? key
+
+export const personaLabel = (p: string) => group('persona', p)
+export const reasonKindLabel = (k: string) => group('reason_kind', k)
+export const questionStatusLabel = (s: string) => group('question_status', s)
+export const parsedByLabel = (m: string) => group('parsed_by', m)
+export const conflictChangeLabel = (c: string) => group('conflict_change', c)

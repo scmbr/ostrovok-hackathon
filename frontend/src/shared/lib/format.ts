@@ -33,3 +33,13 @@ export function mainValue(v: Record<string, unknown>, field?: string, key?: stri
   if (!f) return Object.values(v).some((x) => typeof x !== 'object') ? valueLabel(key, undefined) : summaryLabel(key)
   return valueLabel(key, v[f])
 }
+
+// Свидетельство человека с нулевым вкладом: после поправок (репутация, асимметрия, свежесть) его надёжность не выше 50 %
+// и информации не несёт, чаще всего из-за упавшего доверия. reliability в ответе API — база, а не итог поправок.
+// Показываем причину, а не просто упавшую уверенность факта.
+export function zeroWeightNote(e: { author_type: string; contribution: number; reliability: number; author_trust?: number }): string | null {
+  if (e.author_type === 'tool' || e.contribution !== 0) return null
+  const who = e.author_type === 'hotelier' ? 'утверждениям отеля в его пользу' : 'этому автору'
+  const trust = e.author_trust !== undefined ? ` (репутация ${e.author_trust.toFixed(2)})` : ''
+  return `вес ≈ 0: мало доверия к ${who}${trust}`
+}

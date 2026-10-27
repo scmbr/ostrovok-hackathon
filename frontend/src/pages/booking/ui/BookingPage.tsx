@@ -57,6 +57,12 @@ export function BookingPage() {
       <Card>
         <p className="text-lg font-semibold">{hotel?.name ?? booking.hotel_name ?? `Отель ${booking.hotel_id}`}</p>
         <p className="text-sm text-slate-600">{category ?? `категория ${booking.category_id}`}</p>
+        {booking.price_eur ? (
+          <p className="mt-1 text-sm">
+            {booking.price_eur} € за ночь
+            {booking.price_mock && <span className="ml-1 text-xs text-slate-500">(цена из мок-карточки)</span>}
+          </p>
+        ) : null}
         <p className="mt-1 text-xs text-slate-500">Оплаты в прототипе нет: создана заявка.</p>
         {booking.wish && (
           <div className="mt-3 rounded-md bg-slate-50 p-3 text-sm">

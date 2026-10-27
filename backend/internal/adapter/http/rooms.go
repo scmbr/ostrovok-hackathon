@@ -92,6 +92,7 @@ type categoryFactDTO struct {
 	Stale            bool           `json:"stale,omitempty"`
 	WeakDisagreement bool           `json:"weak_disagreement,omitempty"`
 	Conflict         *string        `json:"conflict,omitempty"`
+	TrustNote        string         `json:"trust_note,omitempty"`
 	Evidence         []evidenceDTO  `json:"evidence"`
 }
 
@@ -103,6 +104,28 @@ type evidenceDTO struct {
 	Reliability  float64        `json:"reliability"`
 	Contribution float64        `json:"contribution"`
 	ObservedAt   time.Time      `json:"observed_at"`
+	// AuthorTrust — репутация автора-человека (author_trust); у инструментов 0.
+	AuthorTrust float64 `json:"author_trust,omitempty"`
+	// Comment — пояснение отельера к ответу («со слов отеля»); на значение не влияет.
+	Comment string `json:"comment,omitempty"`
+}
+
+// trustNote — пометка о доверии к утверждению отельера в составе свидетельств (domain.TrustNote).
+func trustNote(ev []rooms.EvidenceView) string {
+	src := make([]domain.EvidenceSource, 0, len(ev))
+	for _, e := range ev {
+		src = append(src, domain.EvidenceSource{AuthorType: e.AuthorType, AuthorTrust: e.AuthorTrust})
+	}
+	return domain.TrustNote(src)
+}
+
+func newEvidenceDTO(e rooms.EvidenceView) evidenceDTO {
+	d := evidenceDTO{ID: e.ID, Source: e.Source, AuthorType: e.AuthorType, Claimed: e.Claimed, Reliability: round2(e.Reliability),
+		Contribution: round2(e.Contribution), ObservedAt: e.ObservedAt, Comment: e.Comment}
+	if e.AuthorType != domain.AuthorTool {
+		d.AuthorTrust = round2(e.AuthorTrust)
+	}
+	return d
 }
 
 func newRoomsDTO(h rooms.HotelRooms) roomsDTO {
@@ -143,9 +166,9 @@ func newRoomsDTO(h rooms.HotelRooms) roomsDTO {
 					fd.Conflict = &f.Fact.Conflict.Description
 				}
 				for _, e := range f.Evidence {
-					fd.Evidence = append(fd.Evidence, evidenceDTO{ID: e.ID, Source: e.Source, AuthorType: e.AuthorType,
-						Claimed: e.Claimed, Reliability: round2(e.Reliability), Contribution: round2(e.Contribution), ObservedAt: e.ObservedAt})
+					fd.Evidence = append(fd.Evidence, newEvidenceDTO(e))
 				}
+				fd.TrustNote = trustNote(f.Evidence)
 				cd.Fact = fd
 			}
 			d.Characteristics = append(d.Characteristics, cd)

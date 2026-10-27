@@ -195,6 +195,10 @@ export interface Evidence {
   reliability: number
   contribution: number
   observed_at: string
+  // Репутация автора-человека; у расчёта нет.
+  author_trust?: number
+  // Пояснение отельера к ответу («со слов отеля»); на значение не влияет.
+  comment?: string
 }
 
 export interface Fact {
@@ -202,6 +206,7 @@ export interface Fact {
   key: string
   title: string
   entity_type: string
+  entity_id: string
   value: Record<string, unknown>
   confidence: number
   source: string
@@ -211,6 +216,8 @@ export interface Fact {
   stale?: boolean
   weak_disagreement?: boolean
   conflict?: string
+  // «Со слов отеля; часть прошлых утверждений расчёт не подтвердил» — тот же текст, что в выдаче (domain.TrustNote).
+  trust_note?: string
   evidence: Evidence[]
 }
 
@@ -246,6 +253,7 @@ export interface CategoryFact {
   stale?: boolean
   weak_disagreement?: boolean
   conflict?: string
+  trust_note?: string
   evidence: Evidence[]
 }
 
@@ -293,7 +301,10 @@ export interface Characteristic {
   level: string
   value_type: string
   value_field: string
+  values?: string[]
   favorable_values?: string[]
+  // Для характеристик, добавленных текстом.
+  origin?: string
 }
 
 // Шортлист, сравнение, контракт, бронь.
@@ -415,6 +426,142 @@ export interface Booking {
   category_id: number
   category?: string
   price_eur?: number
+  // Цена из мок-карточки отеля.
+  price_mock?: boolean
   wish?: PlacedWish
   contract: ContractLine[]
+}
+
+// Кабинет отельера.
+
+export type ReasonKind = 'no_data' | 'low_confidence' | 'conflict' | 'guests'
+export type QuestionFormat = 'confirm' | 'open'
+
+export interface InboxQuestion {
+  id: number
+  characteristic: string
+  title: string
+  format: QuestionFormat
+  entity_type?: string
+  entity_id?: string
+  question: string
+  reason: string
+  reason_kind: ReasonKind
+  value: number
+  score: { demand: number; demand_norm: number; uncertainty: number; impact: number; categories_changed: number; categories: number }
+  status: string
+  sent_at?: string
+}
+
+export interface WishRequest {
+  question_id: number
+  booking_id: number
+  category: string
+  wishes: Record<string, unknown>
+  created_at: string
+}
+
+export interface Inbox {
+  hotel_id: number
+  hotel: string
+  budget: { limit: number; window_days: number; sent: number }
+  questions: InboxQuestion[]
+  waiting: number
+  low_value: number
+  wish_requests: WishRequest[]
+}
+
+export interface EvidenceSnap {
+  id: number
+  source: string
+  author_type: string
+  author_trust: number
+  claimed: Record<string, unknown>
+  reliability: number
+  contribution: number
+  observed_at: string
+  comment?: string
+}
+
+export interface FactSnap {
+  found: boolean
+  value?: Record<string, unknown>
+  confidence: number
+  conflict?: string
+  weak_disagreement?: boolean
+  stale?: boolean
+  evidence: EvidenceSnap[]
+}
+
+export type ConflictChange = 'none' | 'opened' | 'closed' | 'remains'
+
+// Факт до и после ответа: после записи свидетельства и пересчёта репутации.
+export interface FactChange {
+  entity_type: string
+  entity_id: string
+  key: string
+  title: string
+  value_field: string
+  before: FactSnap
+  after: FactSnap
+  conflict_change: ConflictChange
+  // Почему закрылся конфликт: agreed — стороны сошлись, weight_dropped — вес утверждения отеля стал нулевым.
+  resolution?: { kind: 'agreed' | 'weight_dropped' | 'below_threshold' | 'evidence_removed'; text: string }
+}
+
+export interface TrustChange {
+  before: number
+  after: number
+  agree: number
+  total: number
+}
+
+export interface AnswerOutcome {
+  question_id: number
+  status: string
+  note?: string
+  parsed_by?: string
+  claimed?: Record<string, unknown>
+  follow_up?: string
+  trust?: TrustChange
+  change?: FactChange
+}
+
+export interface PersonaPreview {
+  question_id: number
+  persona: string
+  answer: string
+  simulated: boolean
+  found: boolean
+  claimed?: Record<string, unknown>
+  follow_up?: string
+  note?: string
+  parsed_by: string
+}
+
+export interface FactEditOutcome {
+  fact_id: number
+  characteristic: string
+  action: string
+  claimed?: Record<string, unknown>
+  evidence_written: boolean
+  recheck: boolean
+  note?: string
+  trust?: TrustChange
+  change?: FactChange
+}
+
+export interface HotelierHotel {
+  id: number
+  name: string
+  district: string
+  persona?: string
+}
+
+export interface MissedDemand {
+  key: string
+  title: string
+  demand: number
+  text: string
+  question_id?: number
 }
