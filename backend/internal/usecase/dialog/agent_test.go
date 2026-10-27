@@ -67,7 +67,8 @@ func TestAgentTextCheck(t *testing.T) {
 		reason     string
 	}{
 		{"выдуманное число", "Hotel Arts в 47 минутах от пляжа.", true, "47"},
-		{"отель не из выдачи", "Лучше всего Hotel Santa Marta.", true, "hotel santa marta"},
+		{"отель не из выдачи", "Hotel Arts хорош, но лучше Hotel Santa Marta.", true, "hotel santa marta"},
+		{"текст мимо выдачи", "К сожалению, я не нашла подходящих отелей.", true, "ни одного отеля"},
 		{"чужой отель из базы", "Hotel Arts рядом с Hotel Catedral.", true, "hotel catedral"},
 		{"допустимый", "Нашла Hotel Arts, Hotel Omm и Casa Fuster.", false, ""},
 	}
@@ -218,5 +219,16 @@ func TestAgentChoiceTurn(t *testing.T) {
 	res, ok := find[ResultsEvent](ev, EventResults)
 	if !ok || !slices.ContainsFunc(res.Query.Wishes, func(w domain.Desire) bool { return w.Key == "sea_view" }) {
 		t.Errorf("выбранная трактовка должна войти в запрос: %v", ev)
+	}
+}
+
+// Гость просил «похожий»: после similar модель не может подменить ответ обычным поиском.
+func TestAgentSearchAfterSimilarRejected(t *testing.T) {
+	r, _ := llmRig(t, same, say("Нашла."), call("similar", `{"ordinal":1}`), call("search", `{}`), say("Готово."))
+	turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
+	ev := turn(t, r, Request{SessionID: "s", Message: "покажи похожий на первый"})
+	res, ok := find[ResultsEvent](ev, EventResults)
+	if !ok || res.Kind != "similar" {
+		t.Fatalf("ответ должен остаться «похожими»: %+v", res)
 	}
 }

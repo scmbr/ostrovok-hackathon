@@ -339,8 +339,9 @@ func TestVerifyRephrase(t *testing.T) {
 		ok   bool
 	}{
 		{"Hotel Arts за 120 € и до пляжа 7 минут.", true},
-		{"До пляжа 7,0 минут", true},
-		{"До пляжа 6 минут", false},
+		{"Hotel Arts: до пляжа 7,0 минут", true},
+		{"Hotel Arts: до пляжа 6 минут", false},
+		{"К сожалению, я не нашла подходящих отелей.", false},
 		{"Hotel Arts, а ещё Casa Fuster", false},
 		{"Hotel Arts Plaza тоже хорош", false},
 		{"Hotel Arts — тихий вариант", true},

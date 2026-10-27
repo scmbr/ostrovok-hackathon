@@ -50,7 +50,7 @@ var toolDefs = []agent.ToolDef{
 func (r *run) userPrompt() string {
 	var b strings.Builder
 	if strings.TrimSpace(r.req.Message) == "" {
-		fmt.Fprintf(&b, "Гость ответил на уточнение кнопкой; система уже применила ответ (%s). Новых слов нет: вызови search и ответь.\n", r.applied)
+		fmt.Fprintf(&b, "Гость ответил на уточнение кнопкой; система уже применила ответ (%s). Новых слов нет: вызови search с пустыми аргументами {} и ответь по его explanation_template.\n", r.applied)
 	} else {
 		fmt.Fprintf(&b, "Сообщение гостя: «%s»\n", r.req.Message)
 	}
@@ -208,6 +208,16 @@ func marshal(v any) (string, error) {
 	return string(b), err
 }
 
+func (r *run) searchableKeys() []string {
+	var keys []string
+	for _, c := range r.e.Registry.All() {
+		if domain.Searchable(c) {
+			keys = append(keys, c.Key)
+		}
+	}
+	return keys
+}
+
 func (r *run) toolList() (string, error) {
 	type item struct {
 		Key         string   `json:"key"`
@@ -300,6 +310,9 @@ func (r *run) toolSearch(args string) (string, error) {
 	if !r.parsed {
 		r.parse(r.req.Message)
 	}
+	if r.sim != nil && r.simRef != nil {
+		return "", errors.New("гость просил похожие отели, и similar уже выполнен: ответь по его explanation_template, search не нужен")
+	}
 	// Сначала «убрать», потом «добавить»: желание, названное в обоих списках, остаётся.
 	for _, k := range a.Remove {
 		r.st.Merge(r.e.Registry, domain.ParseResult{Remove: []string{k}})
@@ -307,7 +320,7 @@ func (r *run) toolSearch(args string) (string, error) {
 	for _, d := range a.Wishes {
 		nd, _, err := domain.NormalizeWish(r.e.Registry, d)
 		if err != nil {
-			return "", fmt.Errorf("желание отклонено: %w", err)
+			return "", fmt.Errorf("желание отклонено: %w; допустимые ключи: %s", err, strings.Join(r.searchableKeys(), ", "))
 		}
 		r.st.Wishes = upsert(r.st.Wishes, r.st.withFloor(r.e.Registry, nd))
 	}

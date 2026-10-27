@@ -1,0 +1,84 @@
+{
+  "hotel": "clarify-beach",
+  "model": "gpt-4o-mini",
+  "replies": {
+    "07d6477a9d0a1c6792afdc78fa57467a4d90a83a4171400371c3de35ffb311b4": {
+      "content": "К сожалению, я не смог найти отели, соответствующие вашим пожеланиям, так как указанные характеристики отсутствуют в реестре. Если у вас есть другие предпочтения или вы хотите уточнить, что именно важно для вас в отеле, пожалуйста, дайте знать!"
+    },
+    "08e7276e8e2c77a99fb201fa959cb1a1a2e25b3a66f1ecb844644a9d533e0612": {
+      "tool_calls": [
+        {
+          "id": "call_MAJOl5h4VHnYPV5WWxV2MfeX",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\":\"чтобы можно было с собакой\"}"
+        }
+      ]
+    },
+    "15409377838198f1dadee4897a3066d4a6fd5002016d13d930713855f5d6a64d": {
+      "tool_calls": [
+        {
+          "id": "call_FIGrjZSOEw8PQEcXqL3tvSsx",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"quiet_night\",\"op\":\"eq\",\"value\":1,\"importance\":\"prefer\"},{\"key\":\"walking_distance_to_beach\",\"op\":\"eq\",\"value\":1,\"importance\":\"prefer\"}],\"price_max\":200}"
+        }
+      ]
+    },
+    "52f2515da264e6e85468b6cca56ebcf7afba528274e938c2666a81a5185d9d26": {
+      "tool_calls": [
+        {
+          "id": "call_1MFuKoZ1MxRhvlVKJ3DEhIKE",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"pets_allowed\",\"importance\":\"prefer\"}]}"
+        }
+      ]
+    },
+    "65e98104a35c2c0e2dfa76e67672686c0169063cb7cd03c914821a714a15b84b": {
+      "content": "Я понял, что вам важно, чтобы в отеле можно было остановиться с собакой. Также вы предпочитаете тишину ночью и возможность добраться до пляжа пешком. \n\nВот три лучших варианта:\n1. **Hotel Suites Avenue** — семейный отель, цена 78 € за ночь. Тишина ночью гарантирована, но до пляжа придется идти 44 минуты. Информация о возможности размещения с питомцем уточняется.\n2. **Hotel Sir Victor** — делюкс отель, цена 97 € за ночь. Также гарантирована тишина ночью, но до пляжа 46 минут. Возможность размещения с питомцем также уточняется.\n3. **SB Icaria Barcelona** — отель категории «супериор», цена 164 € за ночь. Тишина ночью гарантирована, до пляжа всего 7 минут, но информация о питомцах пока отсутствует.\n\nЕсли вас интересует что-то конкретное, дайте знать!"
+    },
+    "aa37544e236acfbd65f0229127718a5b1544586ac4b6a91b63910fa14680c31c": {
+      "tool_calls": [
+        {
+          "id": "call_IH4EwDWMW1DAeqOkHvjPbifr",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"walking_distance_to_beach\",\"op\":\"eq\",\"value\":1,\"importance\":\"prefer\"}],\"price_max\":200}"
+        }
+      ]
+    },
+    "af013328dfe6f5f866a90eb20d9429311ba293a663d4b4c0c008276b185937eb": {
+      "tool_calls": [
+        {
+          "id": "call_tcFnvrNxCU8QBKyjfqlV7VlH",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"beach\",\"op\":\"eq\",\"value\":1,\"importance\":\"prefer\"},{\"key\":\"quiet_night\",\"op\":\"eq\",\"value\":1,\"importance\":\"prefer\"},{\"key\":\"walking_distance_to_beach\",\"op\":\"eq\",\"value\":1,\"importance\":\"prefer\"}],\"price_max\":200}"
+        }
+      ]
+    },
+    "c3c4f0cc2804ef0185367048c157c3f0f1dfb99ea330c91bc701e4086ad5d96c": {
+      "tool_calls": [
+        {
+          "id": "call_dFGWetReOSUPMnIjIbwFq31O",
+          "name": "parse_baseline",
+          "arguments": "{\"text\":\"чтобы можно было с собакой\"}"
+        }
+      ]
+    },
+    "c6816b88ba8fdfac4161718e43c97739fe7e9280872d04d36daa69ef088ed5af": {
+      "tool_calls": [
+        {
+          "id": "call_yvo1u04dJ8YPALnfOQ7yUASw",
+          "name": "parse_baseline",
+          "arguments": "{\"text\":\"Хочу тихий отель у моря, до 200 евро за ночь\"}"
+        }
+      ]
+    },
+    "ddfbf887b8535420b85d7c0e48e716e7988e36856e645424481d9fe1fb716839": {
+      "tool_calls": [
+        {
+          "id": "call_uRxdkhEgnpIJgEbhltHkLC2E",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\":\"у моря\"}"
+        }
+      ]
+    }
+  }
+}

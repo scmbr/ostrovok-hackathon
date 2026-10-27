@@ -1,6 +1,7 @@
 package dialog
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -46,6 +47,11 @@ func VerifyRephrase(text, source string, shown, all []string) error {
 	if len(extra) > 0 {
 		return fmt.Errorf("числа, которых нет в данных: %s", strings.Join(extra, ", "))
 	}
+	// Текст про выдачу должен называть хотя бы один отель из неё: иначе модель могла написать «ничего не нашла»
+	// при непустой выдаче или уйти от темы.
+	if len(shown) > 0 && !mentionsAny(normText(text), normalizedNames(shown)) {
+		return errors.New("в тексте нет ни одного отеля из выдачи")
+	}
 	// Чужое название ищем в тексте, из которого вырезаны названия выдачи, содержащие его целиком: название одного
 	// отеля может входить в название другого («Hotel Arts» в выдаче не делает допустимым «Hotel Arts Plaza»).
 	full := normText(text)
@@ -69,6 +75,15 @@ func VerifyRephrase(text, source string, shown, all []string) error {
 		}
 	}
 	return nil
+}
+
+func mentionsAny(text string, names []string) bool {
+	for _, n := range names {
+		if strings.Contains(text, n) {
+			return true
+		}
+	}
+	return false
 }
 
 // normalizedNames — названия в виде для поиска по тексту, длинные первыми; слишком короткие пропускаются.
