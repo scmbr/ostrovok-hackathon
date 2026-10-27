@@ -111,7 +111,11 @@ func newRoomsDTO(h rooms.HotelRooms) roomsDTO {
 	for _, f := range h.Facades {
 		azimuth[f.ID] = f.AzimuthDeg
 		out.Facades = append(out.Facades, facadeDTO{ID: f.ID, AzimuthDeg: math.Round(f.AzimuthDeg), Side: sideRU(f.AzimuthDeg),
-			FacesStreet: f.FacesStreet, Courtyard: f.Courtyard})
+			FacesStreet: f.FacesStreet, Courtyard: f.Courtyard, Mid: [2]float64{f.Lat, f.Lon}, Values: []facadeValueDTO{}})
+		fd := &out.Facades[len(out.Facades)-1]
+		for _, v := range f.Facts {
+			fd.Values = append(fd.Values, facadeValueDTO{Key: v.Key, Value: v.Value, Confidence: round2(v.Confidence)})
+		}
 	}
 	for _, c := range h.Categories {
 		d := categoryDTO{ID: c.Category.ID, Name: c.Category.Name, RoomsCount: c.Category.Rooms,
