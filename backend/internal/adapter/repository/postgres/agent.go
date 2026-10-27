@@ -120,10 +120,15 @@ func (s *AgentStore) AppendTrace(ctx context.Context, t agent.TraceStep) error {
 	if t.Tool != "" {
 		tool = &t.Tool
 	}
+	// Записи диалога не привязаны к отелю: 0 нарушил бы внешний ключ, пишем NULL.
+	var hotelID *int64
+	if t.HotelID != 0 {
+		hotelID = &t.HotelID
+	}
 	_, err = s.pool.Exec(ctx, `
 INSERT INTO agent_trace (agent, session_id, hotel_id, mode, step, decision, tool, input, output)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		t.Agent, t.SessionID, t.HotelID, t.Mode, t.Step, t.Decision, tool, in, out)
+		t.Agent, t.SessionID, hotelID, t.Mode, t.Step, t.Decision, tool, in, out)
 	return err
 }
 
