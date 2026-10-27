@@ -317,3 +317,29 @@ func TestCategoryOrdinaryThetaForGuestsWithoutHotelier(t *testing.T) {
 		t.Error("три гостя против расчёта: ожидался конфликт")
 	}
 }
+
+// Калибровка базы гостя (0,6): надёжный гость (репутация 0,67) против расчёта 0,85 в категории. Один гость — только
+// weak_disagreement, двое — конфликт, трое — перевес на их стороне.
+func TestGuestBaseCalibrationOneTwoThree(t *testing.T) {
+	run := func(n int) Fact {
+		ev := []Evidence{catEv(1, ToolAuthor(RoomProjectionMethod), 0.85, "full")}
+		ctx := catCtx()
+		ctx.Trust = map[Author]float64{}
+		for i := 0; i < n; i++ {
+			a := Author{AuthorGuest, string(rune('a' + i))}
+			ctx.Trust[a] = 0.67
+			ev = append(ev, catEv(int64(2+i), a, GuestBaseReliability, "none"))
+		}
+		f, _ := AssembleFact(ev, ctx)
+		return f
+	}
+	if f := run(1); f.Conflict != nil || !f.WeakDisagreement || f.Value["view"] != "full" {
+		t.Errorf("один гость: ожидался weak_disagreement без конфликта: %+v", f)
+	}
+	if f := run(2); f.Conflict == nil {
+		t.Errorf("двое гостей: ожидался конфликт: %+v", f)
+	}
+	if f := run(3); f.Conflict == nil || f.Value["view"] != "none" {
+		t.Errorf("трое гостей: ожидался конфликт, значение none: %+v", f)
+	}
+}
