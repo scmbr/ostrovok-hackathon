@@ -98,6 +98,10 @@ type Store interface {
 	// SaveAnswerEvidence записывает свидетельство отельера; прежнее активное свидетельство того же автора
 	// по той же сущности и характеристике снимается (superseded), факт пересобирает движок правды.
 	SaveAnswerEvidence(ctx context.Context, ev domain.Evidence) error
+	// WriteAnswerEvidence снимает прежнее свидетельство того же автора и пишет новое, факты не собирает.
+	WriteAnswerEvidence(ctx context.Context, ev domain.Evidence) error
+	// RebuildAnswerScope собирает факты области свидетельства из активных свидетельств, ничего не записывая.
+	RebuildAnswerScope(ctx context.Context, ev domain.Evidence) error
 	// CategoryIssues — категории номеров отеля, у которых утверждение отеля спорит с расчётом (открытый конфликт).
 	CategoryIssues(ctx context.Context, hotelID int64) ([]CategoryIssue, error)
 	// Reopen возвращает вопрос в open с уточняющим вопросом: ответ не задал значения.
@@ -218,6 +222,9 @@ type IssuePlacement struct {
 // Reputation — пересчёт репутации автора (usecase/reputation.Service).
 type Reputation interface {
 	Update(ctx context.Context, a domain.Author) (reputation.Update, error)
+	// Recalculate пересчитывает репутацию без пересборки фактов, Refresh пересобирает факты автора.
+	Recalculate(ctx context.Context, a domain.Author) (reputation.Update, error)
+	Refresh(ctx context.Context, a domain.Author) error
 }
 
 // FactRef — факт с отелем, которому он принадлежит (отельер правит только факты своего отеля).

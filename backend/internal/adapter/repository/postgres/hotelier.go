@@ -309,23 +309,55 @@ WHERE id = $1 AND status IN ('pending', 'pending_low_value')`, id, note)
 // характеристике снимается (superseded): новое утверждение того же автора заменяет прежнее, а не добавляется рядом.
 // Факт собирает движок правды.
 func (s *HotelierStore) SaveAnswerEvidence(ctx context.Context, ev domain.Evidence) error {
-	// Область записи: категория номеров или отель вместе с фасадами (автор-отельер привязан к одному отелю).
-	var scope evidenceScope
-	if ev.EntityType == domain.EntityRoomCategory {
-		id, err := strconv.ParseInt(ev.EntityID, 10, 64)
-		if err != nil {
-			return err
-		}
-		scope = categoryScope(id)
-	} else {
-		id, err := strconv.ParseInt(ev.AuthorID, 10, 64)
-		if err != nil {
-			return err
-		}
-		scope = hotelScope(id)
+	scope, err := answerScope(ev)
+	if err != nil {
+		return err
 	}
 	return saveEvidence(ctx, s.pool, s.rules, scope, ev.Key,
 		[]domain.Author{{Type: ev.AuthorType, ID: ev.AuthorID}}, []domain.Evidence{ev})
+}
+
+// answerScope — область записи: категория номеров или отель вместе с фасадами (автор-отельер привязан к одному отелю).
+func answerScope(ev domain.Evidence) (evidenceScope, error) {
+	if ev.EntityType == domain.EntityRoomCategory {
+		id, err := strconv.ParseInt(ev.EntityID, 10, 64)
+		if err != nil {
+			return evidenceScope{}, err
+		}
+		return categoryScope(id), nil
+	}
+	id, err := strconv.ParseInt(ev.AuthorID, 10, 64)
+	if err != nil {
+		return evidenceScope{}, err
+	}
+	return hotelScope(id), nil
+}
+
+// WriteAnswerEvidence снимает прежнее свидетельство того же автора и пишет новое, факты не собирает: их соберёт
+// RebuildAnswerScope или пересборка по новой репутации, один раз.
+func (s *HotelierStore) WriteAnswerEvidence(ctx context.Context, ev domain.Evidence) error {
+	scope, err := answerScope(ev)
+	if err != nil {
+		return err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // после Commit откат безвреден
+	if err := writeEvidenceTx(ctx, tx, scope, ev.Key, []domain.Author{{Type: ev.AuthorType, ID: ev.AuthorID}}, []domain.Evidence{ev}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// RebuildAnswerScope собирает факты области свидетельства из активных свидетельств.
+func (s *HotelierStore) RebuildAnswerScope(ctx context.Context, ev domain.Evidence) error {
+	scope, err := answerScope(ev)
+	if err != nil {
+		return err
+	}
+	return saveEvidence(ctx, s.pool, s.rules, scope, ev.Key, nil, nil)
 }
 
 // Reopen возвращает вопрос в open с уточняющим текстом; предыдущий ответ остаётся в answer_text.

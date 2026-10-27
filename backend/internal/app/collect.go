@@ -42,6 +42,7 @@ const collectUsage = `использование: collect <команда> [-reg
   noise-night  рассчитать noise_night: карта BCN и оценка OSM, расхождения источников (после facades, noise, pois)
   agent -hotel ID  прогон агента-сборщика по отелю: что считать, когда спросить отельера; журнал в agent_trace (-planner без LLM, -cache из кеша, -no-record)
   hotelier-round [-hotel ID] [-answer=false]  раунд агента-интервьюера отельера по ценности и бюджету; персона отвечает, ответ разбирается (-no-llm, -cache, -no-record)
+  reputation-recompute          репутация всех отельеров заново по свидетельствам (проверка правила судьи)
   hotelier-preview [-hotel ID]  разбор ответа персоны на открытые вопросы без записи в БД (кнопка «ответить как персона»; ответы LLM — в кеш)
   hotelier-reset  снять вопросы, ответы отельеров и репутацию, пересобрать факты (как truth): вернуть отельеров к состоянию до интервью
   llm-check    проверить ключ LLM: один запрос с вызовом инструмента
@@ -79,6 +80,9 @@ func RunCollect(args []string) error {
 	}
 	if cmd == "hotelier-reset" {
 		return runHotelierReset(args[1:], reg)
+	}
+	if cmd == "reputation-recompute" {
+		return runReputationRecompute(args[1:], reg)
 	}
 	if cmd == "hotelier-preview" {
 		return runHotelierPreview(args[1:], reg)
@@ -278,7 +282,7 @@ const defaultRegion = "barcelona"
 var collectCommands = map[string]bool{
 	"tools": true, "osm": true, "catastro": true, "roads": true, "pois": true, "walk-data": true, "climate": true,
 	"night-services": true, "walk": true, "facades": true, "sea-view": true, "noise": true, "noise-night": true,
-	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "hotelier-round": true, "hotelier-reset": true, "hotelier-preview": true, "mock-stays": true, "guest-surveys": true, "guest-signals": true, "recompute-tasks": true, "mock-cards": true, "mock-rooms": true, "mock-hotelier": true, "rooms": true, "search-demo": true, "dialog": true,
+	"truth": true, "add-characteristic": true, "llm-check": true, "agent": true, "hotelier-round": true, "hotelier-reset": true, "reputation-recompute": true, "hotelier-preview": true, "mock-stays": true, "guest-surveys": true, "guest-signals": true, "recompute-tasks": true, "mock-cards": true, "mock-rooms": true, "mock-hotelier": true, "rooms": true, "search-demo": true, "dialog": true,
 	"select-demo": true, "stats": true,
 }
 

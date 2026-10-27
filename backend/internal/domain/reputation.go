@@ -1,28 +1,32 @@
 package domain
 
-// Репутация автора-человека: доля его утверждений, подтверждённых независимым надёжным свидетельством.
+import "fmt"
+
+// Репутация автора-человека: доля его утверждений, совпавших с фактом-судьёй, собранным без самого автора.
 // Описание и пример — docs/truth.md, раздел «Репутация».
 
-// MinIndependentReliability — наименьшая надёжность r независимого свидетельства (другого автора или источника),
-// с которым сравнивается утверждение автора. Слабое свидетельство (расчёт по OSM, категория с r = 0,6) судьёй не служит.
-// Сила расхождения не важна: любое несовпадение значения считается расхождением.
-const MinIndependentReliability = 0.8
+// Судья утверждения автора — факт, собранный из свидетельств без самого автора, с уверенностью не ниже ConfidentFact
+// (0,75, как «уверенный факт» у агента-сборщика). Слабый факт (расчёт по OSM, категория с r = 0,6, спор источников) судьёй
+// не служит. Сила расхождения не важна: любое несовпадение значения считается расхождением.
 
-// Verdict — итог сравнения одного утверждения автора с независимыми свидетельствами.
+// Verdict — итог сравнения одного утверждения автора с судьёй.
 type Verdict struct {
-	// Counted — утверждение сравнимо: значение bool / enum и есть независимое свидетельство с r ≥ порога.
+	// Counted — утверждение сравнимо: значение bool / enum и есть судья (факт без автора с уверенностью не ниже порога).
 	Counted bool
-	// Agree — значение совпало с сильнейшим независимым свидетельством.
+	// Agree — значение утверждения совпало со значением судьи.
 	Agree bool
-	// Against — значение, с которым сравнивали (пусто, если Counted = false).
+	// Against — значение судьи, с которым сравнивали (пусто, если Counted = false).
 	Against string
-	// ByReliability — надёжность этого свидетельства.
-	ByReliability float64
+	// ByConfidence — уверенность судьи.
+	ByConfidence float64
 }
 
-// JudgeClaim сравнивает утверждение claim с другими активными свидетельствами той же сущности и характеристики.
-// Независимы свидетельства другого автора (тип и идентификатор отличаются). Из них берётся сильнейшее с r ≥
-// MinIndependentReliability; числа и структуры не сравниваются («числа не голосуют»).
+// JudgeClaim сравнивает утверждение claim с фактом, собранным из свидетельств others — всех активных свидетельств той же
+// сущности и характеристики, кроме свидетельств этого автора, — той же функцией движка правды (AssembleFact), с
+// репутацией остальных авторов из c.Trust. Судья есть, если уверенность такого факта не ниже ConfidentFact.
+// Числа и структуры не сравниваются («числа не голосуют»). Своё же прежнее свидетельство судьёй не служит.
+//
+// Судья не зависит от репутации самого автора, поэтому репутацию можно считать до сборки факта с его свидетельством.
 func JudgeClaim(claim Evidence, others []Evidence, c TruthContext) Verdict {
 	p := c.params(claim.Key, claim.EntityType)
 	if p.Kind != TruthEnum {
@@ -32,24 +36,19 @@ func JudgeClaim(claim Evidence, others []Evidence, c TruthContext) Verdict {
 	if mine == "" {
 		return Verdict{}
 	}
-	var best *Evidence
-	for k := range others {
-		o := &others[k]
-		if o.AuthorType == claim.AuthorType && o.AuthorID == claim.AuthorID {
+	var rest []Evidence
+	for _, o := range others {
+		if (o.AuthorType == claim.AuthorType && o.AuthorID == claim.AuthorID) || claimedString(o, p) == "" {
 			continue
 		}
-		if o.Reliability < MinIndependentReliability || claimedString(*o, p) == "" {
-			continue
-		}
-		if best == nil || o.Reliability > best.Reliability {
-			best = o
-		}
+		rest = append(rest, o)
 	}
-	if best == nil {
+	f, ok := AssembleFact(rest, c)
+	if !ok || f.Confidence+1e-9 < ConfidentFact {
 		return Verdict{}
 	}
-	theirs := claimedString(*best, p)
-	return Verdict{Counted: true, Agree: theirs == mine, Against: theirs, ByReliability: best.Reliability}
+	theirs := fmt.Sprint(f.Value[p.ValueField])
+	return Verdict{Counted: true, Agree: theirs == mine, Against: theirs, ByConfidence: f.Confidence}
 }
 
 // TrustFromCounts — репутация (совпадения + 1) / (всего + 2); без сравнимых утверждений — DefaultTrust.

@@ -14,7 +14,10 @@ type fakeStore struct {
 	trust     float64
 	saved     []float64
 	refreshed int
+	trusts    map[domain.Author]float64
 }
+
+func (f *fakeStore) Trusts(context.Context) (map[domain.Author]float64, error) { return f.trusts, nil }
 
 func (f *fakeStore) AuthorClaims(context.Context, domain.Author) ([]Claim, error) {
 	return f.claims, nil
@@ -131,5 +134,43 @@ func TestUpdateGuest(t *testing.T) {
 		if u.Author.Type != domain.AuthorGuest || u.Author.ID != "9" {
 			t.Errorf("%s: автор %+v", c.name, u.Author)
 		}
+	}
+}
+
+// 156 после «нет»: судья — факт без автора (расчёт «видно» против трёх надёжных гостей «закрыто»), он говорит «none»,
+// и честное «нет» отельера засчитывается: репутация растёт. Раньше судьёй был только расчёт, и она падала.
+func TestRecalculateJudgeIsFactWithoutAuthor(t *testing.T) {
+	guest := func(id string) domain.Evidence {
+		return domain.Evidence{EntityType: domain.EntityRoomCategory, EntityID: "1", Key: domain.SeaViewKey, Claimed: map[string]any{"view": "none"},
+			AuthorType: domain.AuthorGuest, AuthorID: id, Reliability: 0.7}
+	}
+	c := claim("1", "none", "full", 0.85)
+	c.Others = append(c.Others, guest("1"), guest("2"), guest("3"))
+	st := &fakeStore{claims: []Claim{c}, trusts: map[domain.Author]float64{
+		{Type: domain.AuthorGuest, ID: "1"}: 2.0 / 3, {Type: domain.AuthorGuest, ID: "2"}: 2.0 / 3, {Type: domain.AuthorGuest, ID: "3"}: 2.0 / 3}}
+	u, err := (&Service{Registry: registry(t), Store: st}).Recalculate(context.Background(), domain.HotelierAuthor(5))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Agree != 1 || u.Total != 1 || math.Abs(u.After-2.0/3) > 1e-9 || !u.Changed() {
+		t.Errorf("%+v", u)
+	}
+	// Recalculate факты не пересобирает: пересборку делает вызывающий один раз после записи свидетельства.
+	if st.refreshed != 0 {
+		t.Errorf("пересборок %d", st.refreshed)
+	}
+}
+
+// Без свидетельств других авторов судьи нет: утверждение не считается, новичок остаётся новичком.
+func TestRecalculateWithoutOtherAuthorsHasNoJudge(t *testing.T) {
+	c := claim("1", "full", "none", 0.85)
+	c.Others = nil
+	st := &fakeStore{claims: []Claim{c}}
+	u, err := (&Service{Registry: registry(t), Store: st}).Recalculate(context.Background(), domain.HotelierAuthor(5))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Total != 0 || u.After != domain.DefaultTrust || len(st.saved) != 0 {
+		t.Errorf("%+v, записей %d", u, len(st.saved))
 	}
 }

@@ -12,7 +12,8 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 )
 
-// Claim — утверждение автора и свидетельства других авторов о той же сущности и характеристике.
+// Claim — утверждение автора и свидетельства других авторов о той же сущности и характеристике; из свидетельств других
+// авторов собирается факт-судья (domain.JudgeClaim).
 type Claim struct {
 	Evidence domain.Evidence
 	Others   []domain.Evidence
@@ -25,6 +26,8 @@ type Store interface {
 	// Trust — текущая репутация; found=false, если записи нет.
 	Trust(ctx context.Context, a domain.Author) (agree, total int, trust float64, found bool, err error)
 	SaveTrust(ctx context.Context, a domain.Author, agree, total int, trust float64) error
+	// Trusts — репутация всех авторов-людей (author_trust): входит в вес свидетельств судьи.
+	Trusts(ctx context.Context) (map[domain.Author]float64, error)
 	// RefreshFacts пересобирает факты, в которые входят свидетельства автора: его вес изменился.
 	RefreshFacts(ctx context.Context, a domain.Author) error
 }
@@ -89,10 +92,37 @@ type Update struct {
 	Judged        []Judged
 }
 
-// Update пересчитывает репутацию автора a по всем его активным свидетельствам, для которых есть независимое
-// свидетельство с r ≥ domain.MinIndependentReliability, и, если вес автора изменился, пересобирает его факты.
-// Название «Sea View» из мока учитывается как обычное утверждение отельера.
+// Update пересчитывает репутацию автора a (Recalculate) и, если она изменилась, пересобирает его факты (Refresh).
 func (s *Service) Update(ctx context.Context, a domain.Author) (Update, error) {
+	u, err := s.Recalculate(ctx, a)
+	if err != nil {
+		return u, err
+	}
+	if u.Changed() {
+		if err := s.Refresh(ctx, a); err != nil {
+			return u, err
+		}
+	}
+	return u, nil
+}
+
+// Refresh пересобирает факты, в которые входят свидетельства автора: его вес изменился.
+func (s *Service) Refresh(ctx context.Context, a domain.Author) error {
+	if err := s.Store.RefreshFacts(ctx, a); err != nil {
+		return fmt.Errorf("пересборка фактов: %w", err)
+	}
+	return nil
+}
+
+// Changed — репутация автора изменилась.
+func (u Update) Changed() bool { return math.Abs(u.After-u.Before) > 1e-9 }
+
+// Recalculate пересчитывает репутацию автора a заново по всем его активным свидетельствам, но факты не пересобирает.
+// Каждое утверждение сверяется с судьёй — фактом, собранным из всех активных свидетельств той же сущности и характеристики,
+// кроме свидетельств самого автора (domain.JudgeClaim): уверенность судьи не ниже domain.ConfidentFact. Судья не
+// зависит от репутации автора, поэтому репутацию можно посчитать сразу после записи свидетельства, до сборки факта.
+// Название «Sea View» из мока учитывается как обычное утверждение отельера.
+func (s *Service) Recalculate(ctx context.Context, a domain.Author) (Update, error) {
 	u := Update{Author: a}
 	_, _, before, found, err := s.Store.Trust(ctx, a)
 	if err != nil {
@@ -109,7 +139,11 @@ func (s *Service) Update(ctx context.Context, a domain.Author) (Update, error) {
 	if s.Now != nil {
 		now = s.Now()
 	}
-	tc := domain.TruthContext{Now: now, Rules: s.Registry.Rules()}
+	trusts, err := s.Store.Trusts(ctx)
+	if err != nil {
+		return u, fmt.Errorf("репутация авторов: %w", err)
+	}
+	tc := domain.TruthContext{Now: now, Rules: s.Registry.Rules(), Trust: trusts}
 	for _, cl := range claims {
 		v := domain.JudgeClaim(cl.Evidence, cl.Others, tc)
 		if !v.Counted {
@@ -128,11 +162,6 @@ func (s *Service) Update(ctx context.Context, a domain.Author) (Update, error) {
 	}
 	if err := s.Store.SaveTrust(ctx, a, u.Agree, u.Total, u.After); err != nil {
 		return u, fmt.Errorf("запись репутации: %w", err)
-	}
-	if math.Abs(u.After-u.Before) > 1e-9 {
-		if err := s.Store.RefreshFacts(ctx, a); err != nil {
-			return u, fmt.Errorf("пересборка фактов: %w", err)
-		}
 	}
 	return u, nil
 }

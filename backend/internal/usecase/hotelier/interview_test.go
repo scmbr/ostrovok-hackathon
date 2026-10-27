@@ -27,6 +27,7 @@ type fakeStore struct {
 	stale     []int64
 	// afterSnap — срез факта после записи свидетельства; wishRequests — брони с пожеланием.
 	afterSnap    *FactSnap
+	rebuilds     int
 	resolution   domain.ConflictResolution
 	wishRequests []WishRequest
 }
@@ -94,6 +95,14 @@ func (f *fakeStore) Close(_ context.Context, id int64, _ string) error {
 }
 func (f *fakeStore) SaveAnswerEvidence(_ context.Context, ev domain.Evidence) error {
 	f.evidence = append(f.evidence, ev)
+	return nil
+}
+func (f *fakeStore) WriteAnswerEvidence(_ context.Context, ev domain.Evidence) error {
+	f.evidence = append(f.evidence, ev)
+	return nil
+}
+func (f *fakeStore) RebuildAnswerScope(context.Context, domain.Evidence) error {
+	f.rebuilds++
 	return nil
 }
 func (f *fakeStore) AppendTrace(_ context.Context, s agent.TraceStep) error {

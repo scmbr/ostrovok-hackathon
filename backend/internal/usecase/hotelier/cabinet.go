@@ -263,6 +263,36 @@ func (i *Interviewer) closedResolution(ctx context.Context, c *Change, trust *re
 
 func ru2(x float64) string { return strings.Replace(fmt.Sprintf("%.2f", x), ".", ",", 1) }
 
+// saveWithReputation записывает свидетельство отельера, пересчитывает его репутацию и собирает факт один раз:
+// свидетельство пишется без сборки, репутация считается по судье без автора (не зависит от неё самой), затем факты
+// собираются с уже новой репутацией — либо все факты автора, если она изменилась, либо только факт этого свидетельства.
+// Без Reputation свидетельство пишется со сборкой факта и репутация не считается (nil).
+func (i *Interviewer) saveWithReputation(ctx context.Context, ev domain.Evidence) (*reputation.Update, error) {
+	if i.Reputation == nil {
+		if err := i.Store.SaveAnswerEvidence(ctx, ev); err != nil {
+			return nil, fmt.Errorf("свидетельство отельера: %w", err)
+		}
+		return nil, nil
+	}
+	if err := i.Store.WriteAnswerEvidence(ctx, ev); err != nil {
+		return nil, fmt.Errorf("свидетельство отельера: %w", err)
+	}
+	author := domain.Author{Type: ev.AuthorType, ID: ev.AuthorID}
+	up, err := i.Reputation.Recalculate(ctx, author)
+	if err != nil {
+		return nil, fmt.Errorf("репутация: %w", err)
+	}
+	if up.Changed() {
+		err = i.Reputation.Refresh(ctx, author)
+	} else {
+		err = i.Store.RebuildAnswerScope(ctx, ev)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("сборка факта: %w", err)
+	}
+	return &up, nil
+}
+
 // FactAddress — адрес факта, не зависящий от его id: сущность и характеристика.
 type FactAddress struct {
 	EntityType, EntityID, Key string
@@ -399,20 +429,17 @@ func (i *Interviewer) writeFactEvidence(ctx context.Context, ref FactRef, c doma
 	if err != nil {
 		return nil, fmt.Errorf("факт до записи: %w", err)
 	}
-	if err := i.Store.SaveAnswerEvidence(ctx, ev); err != nil {
-		return nil, fmt.Errorf("свидетельство отельера: %w", err)
+	up, err := i.saveWithReputation(ctx, ev)
+	if err != nil {
+		return nil, err
 	}
 	out := &FactOutcome{FactID: ref.Fact.ID, Key: c.Key, Action: action, Claimed: claimed, Evidence: true}
 	h, _ := i.Store.Hotel(ctx, ref.HotelID)
 	s := &session{id: fmt.Sprintf("hotelier-%d-%d", ref.HotelID, now.UnixNano())}
 	i.trace(ctx, s, h, agent.ModePlanner, fmt.Sprintf("отельер: %s значения %s", action, c.Key), "cabinet",
 		map[string]any{"fact_id": ref.Fact.ID, "entity": ref.Fact.EntityType + "/" + ref.Fact.EntityID}, map[string]any{"claimed": claimed})
-	if i.Reputation != nil {
-		up, err := i.Reputation.Update(ctx, domain.HotelierAuthor(ref.HotelID))
-		if err != nil {
-			return nil, fmt.Errorf("репутация: %w", err)
-		}
-		out.Trust = &up
+	if up != nil {
+		out.Trust = up
 		i.trace(ctx, s, h, agent.ModePlanner, fmt.Sprintf("репутация отельера: %.2f → %.2f (подтверждено %d из %d)", up.Before, up.After, up.Agree, up.Total),
 			"reputation", map[string]any{"author": up.Author.ID}, map[string]any{"before": up.Before, "after": up.After, "agree": up.Agree, "total": up.Total})
 	}
