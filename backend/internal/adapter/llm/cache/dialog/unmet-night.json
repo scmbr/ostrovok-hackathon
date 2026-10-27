@@ -1,0 +1,153 @@
+{
+  "hotel": "unmet-night",
+  "model": "gpt-4o-mini",
+  "replies": {
+    "18e97e2727319542a74b1cd85ea1a8795255d06a731ab35a5a05e872cf02a0e4": {
+      "tool_calls": [
+        {
+          "id": "call_c62VL4xtEfEmgpLX2RnbBWUj",
+          "name": "parse_baseline",
+          "arguments": "{\"text\":\"важно тихо ночью\"}"
+        }
+      ]
+    },
+    "1f355e72c2ea2727bc27b673c0600a21d494d9aa892d160580fd9360d2af2727": {
+      "tool_calls": [
+        {
+          "id": "call_XSibvEWk550dOKaoticke5kQ",
+          "name": "search",
+          "arguments": "{}"
+        }
+      ]
+    },
+    "259cc47891403947627f245a61193476e77c37eb1afd629a20361f344a33e1ae": {
+      "tool_calls": [
+        {
+          "id": "call_NOJ4W7vOBPyVzbL213WnuuBs",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"noise_night\",\"importance\":\"prefer\",\"value\":\"quiet\"}]}"
+        }
+      ]
+    },
+    "3b8cb88c11ab9facfec662d12acb5b56674455d0f1b370a338c79ce94e511087": {
+      "content": "Я нашел несколько отелей, которые могут соответствовать вашим пожеланиям: ночная аптека рядом, пешком до метро, тишина ночью и вид на море.\n\n1. **Vincci Marítimo** (Superior, 61 € за ночь) — находится в 4 минутах пешком от метро. Тишина ночью гарантирована, уверенность 87%. Однако, ночная аптека рядом не подтверждена, а вид на море возможен только на высоких этажах (9+).\n\n2. **Hotel Sir Victor** (Deluxe, 97 € за ночь) — всего в 2 минутах пешком от метро. Тишина ночью также гарантирована, уверенность 89%. Ночная аптека рядом подтверждена, но вид на море отсутствует.\n\n3. **Hotel Suites Avenue** (Family, 78 € за ночь) — в 3 минутах пешком от метро. Тишина ночью гарантирована с высокой уверенностью 97%. Ночная аптека рядом также подтверждена, но вид на море отсутствует.\n\nЕсли у вас есть дополнительные пожелания или вопросы, дайте знать!"
+    },
+    "456d443aafd39f1cece9bf3471948ce546267b88cb6f83dcb4c3b49bce76291f": {
+      "tool_calls": [
+        {
+          "id": "call_swYkQlKZ0Odfk1DlZEoSj5Jf",
+          "name": "log_unmet_wish",
+          "arguments": "{\"text\": \"пешком до метро (желательно)\", \"normalized\": \"пешком до метро\", \"proposal\": {\"key\": \"walk_to_metro\", \"title\": \"пешком до метро\", \"how\": \"желательно\"}}"
+        },
+        {
+          "id": "call_PF60MGqZXg0Yr8CuS7gRNFSt",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\": \"важно тихо ночью\"}"
+        }
+      ]
+    },
+    "6664be8dfd4b03fe4ab6db7c848ec38eab0ef5d3495ff0d30c782ff7b527b840": {
+      "tool_calls": [
+        {
+          "id": "call_XOxBmmQuGNtRMrL6ivllF7ZZ",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\":\"важно тихо ночью\"}"
+        }
+      ]
+    },
+    "7b958991a8b8fa2088f897825980b1cb019051f2432c9156bde21f9d1a2d9efe": {
+      "tool_calls": [
+        {
+          "id": "call_iXp0CZ6jVuZM0EkpoznQSEc4",
+          "name": "log_unmet_wish",
+          "arguments": "{\"text\": \"балкон с джакузи\", \"normalized\": \"балкон с джакузи\", \"proposal\": {\"key\": \"jacuzzi_balcony\", \"title\": \"Балкон с джакузи\", \"how\": \"Предложить отели с балконами и джакузи\"}}"
+        },
+        {
+          "id": "call_rxA4Ar79ilJllV6fapsUG3Lr",
+          "name": "log_unmet_wish",
+          "arguments": "{\"text\": \"морской воздух\", \"normalized\": \"морской воздух\"}"
+        },
+        {
+          "id": "call_iFwqVlI3F8WWv5iIGzZrAvQ0",
+          "name": "search",
+          "arguments": "{\"wishes\": [{\"key\": \"night_pharmacy\", \"importance\": \"prefer\"}, {\"key\": \"walk_to_metro\", \"value\": 5, \"importance\": \"prefer\"}]}"
+        }
+      ]
+    },
+    "9d1c8e6f700bd66b507b02038f5bd30d408013319e1bb6edda6fe10e0bd109e2": {
+      "tool_calls": [
+        {
+          "id": "call_dAbns6hjtFFnga3I6mS30Ukt",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\":\"лучше у моря\"}"
+        }
+      ]
+    },
+    "9d7b7cfb20b9b8ef0beb28c6a1b84dab0929c766afbcb0e112a2dd3679a0070e": {
+      "tool_calls": [
+        {
+          "id": "call_j7H0FYSF0Vwcxvsen5V3gM2O",
+          "name": "parse_baseline",
+          "arguments": "{\"text\":\"пешком до метро (желательно)\"}"
+        }
+      ]
+    },
+    "9e3757c88a27c304023ef885c16afceeb3ee2a8ccf647fb64697189dc3a6a680": {
+      "content": "Я понял, что вам нужен отель с балконом и джакузи, а также с морским воздухом. Также вы хотите, чтобы рядом была ночная аптека и метро в 5 минутах. К сожалению, я не нашел отелей, которые соответствуют всем вашим требованиям, но записал ваши пожелания о балконе с джакузи и морском воздухе.\n\nВот три отеля, которые могут вас заинтересовать:\n\n1. **Hotel Suites Avenue** — стандартный номер, 52 € за ночь. Ночная аптека рядом и пешком до метро 3 минуты.\n2. **Hotel Sir Victor** — стандартный номер, 67 € за ночь. Ночная аптека рядом и пешком до метро 2 минуты.\n3. **Hotel Inglés** — стандартный номер, 159 € за ночь. Ночная аптека рядом и пешком до метро 2 минуты.\n\nЕсли у вас есть дополнительные вопросы или пожелания, дайте знать!"
+    },
+    "b330476406c1c635b5de66c14342b1d82d1792a639415069bf7020eec8ea94cc": {
+      "tool_calls": [
+        {
+          "id": "call_JkqmdV6V68twL0FI34GsIqI3",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\": \"у моря\"}"
+        },
+        {
+          "id": "call_A1dBIHxu7Y2F4whCwlarG2h7",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\": \"пляж в паре минут\"}"
+        }
+      ]
+    },
+    "bddad308c15c60bf298d07197041075e864f6136aeef74ec16522db30ebc46fd": {
+      "tool_calls": [
+        {
+          "id": "call_eTPGzwTwYq2Q2MRs4G19WFTY",
+          "name": "parse_baseline",
+          "arguments": "{\"text\": \"Нужен балкон с джакузи и морской воздух, рядом ночная аптека, метро в 5 минутах\"}"
+        },
+        {
+          "id": "call_geBIpKbiHiXOLTrimPQWGpCk",
+          "name": "list_characteristics",
+          "arguments": "{}"
+        }
+      ]
+    },
+    "c29fe9f8e1ee948c56c7a55b722411f31cf2013cd482a379bca5ca1a6e9ad2ce": {
+      "content": "Я понял, что вам важно, чтобы в отеле было тихо ночью. Также у вас есть пожелание о наличии ночной аптеки рядом и пешей доступности до метро. \n\nВот три лучших варианта отелей, которые могут вам подойти:\n\n1. **Hotel Suites Avenue** — семейный отель, цена 78 € за ночь. Здесь гарантирована тишина ночью, а до метро можно дойти за 3 минуты. Ночная аптека также находится рядом.\n\n2. **Hotel Royal** — стандартный отель, цена 243 € за ночь. Тишина ночью гарантирована, до метро можно дойти за 2 минуты, и рядом есть ночная аптека.\n\n3. **Hotel Sir Victor** — стандартный отель, цена 67 € за ночь. Здесь также гарантирована тишина ночью, пешком до метро можно дойти за 2 минуты, и рядом есть ночная аптека.\n\nЕсли у вас есть дополнительные пожелания или вопросы, дайте знать!"
+    },
+    "d78514be34eed405f2897b32a8e1deb6c198f86972a35530555341e8269f2fc0": {
+      "tool_calls": [
+        {
+          "id": "call_IkD3AAjje8BafeUympV93bdw",
+          "name": "parse_baseline",
+          "arguments": "{\"text\":\"лучше у моря\"}"
+        }
+      ]
+    },
+    "e3432a1f08a70aa8593c3e913093dbbb3f12e4e31d42f507da480d4359dfc51c": {
+      "tool_calls": [
+        {
+          "id": "call_3HOvNGVZDR5rHiTScTxz6JRv",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\": \"важно тихо ночью\"}"
+        },
+        {
+          "id": "call_gELjt2JrUJoTOTo7Jj8mWJid",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\": \"пешком до метро (желательно)\"}"
+        }
+      ]
+    }
+  }
+}
