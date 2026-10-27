@@ -265,7 +265,7 @@ func sources(evs []rooms.EvidenceView) []domain.EvidenceSource {
 	out := make([]domain.EvidenceSource, len(evs))
 	for i, e := range evs {
 		out[i] = domain.EvidenceSource{ID: e.ID, Source: e.Source, AuthorType: e.AuthorType, AuthorID: e.AuthorID,
-			Reliability: e.Reliability, Contribution: e.Contribution, ObservedAt: e.ObservedAt, Claimed: e.Claimed}
+			AuthorTrust: e.AuthorTrust, Reliability: e.Reliability, Contribution: e.Contribution, ObservedAt: e.ObservedAt, Claimed: e.Claimed}
 	}
 	return out
 }

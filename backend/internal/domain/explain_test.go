@@ -37,3 +37,19 @@ func TestNormalizeUnmetIgnoresFormAndOrder(t *testing.T) {
 		t.Error("одни служебные слова — пустой ключ")
 	}
 }
+
+// Утверждение отельера с низкой репутацией помечается; нейтральная репутация и расчёт — нет.
+func TestExplainWishLowTrustNote(t *testing.T) {
+	pets := Characteristic{Key: "pets_allowed", Title: "Питомцы", ValueType: ValueBool}
+	mk := func(trust float64, author string) WishEval {
+		return WishEval{Status: StatusMatch, Confidence: 0.6, Sources: []EvidenceSource{{AuthorType: author, AuthorTrust: trust}}}
+	}
+	if got := ExplainWish(pets, mk(0.33, AuthorHotelier)); !strings.Contains(got, LowTrustNote) {
+		t.Errorf("trust 0,33: пометки нет: %s", got)
+	}
+	for _, e := range []WishEval{mk(0.5, AuthorHotelier), mk(0.8, AuthorHotelier), mk(0.33, AuthorGuest), mk(0, AuthorTool)} {
+		if got := ExplainWish(pets, e); strings.Contains(got, LowTrustNote) {
+			t.Errorf("пометка не нужна: %s", got)
+		}
+	}
+}

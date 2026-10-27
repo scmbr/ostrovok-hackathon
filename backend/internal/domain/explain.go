@@ -33,7 +33,8 @@ func ExplainWish(c Characteristic, e WishEval) string {
 		}
 	case StatusUncertain:
 		b.WriteString(": под вопросом")
-		if e.Caveat != "" {
+		// Оговорка «уверенность N %» повторяла бы то, что строка и так показывает ниже.
+		if e.Caveat != "" && !strings.HasPrefix(e.Caveat, "уверенность") {
 			b.WriteString(" — " + e.Caveat)
 		}
 	case StatusNear:
@@ -54,8 +55,24 @@ func ExplainWish(c Characteristic, e WishEval) string {
 		if src := evidenceSources(e.Sources); src != "" {
 			b.WriteString(", " + src)
 		}
+		if lowTrustHotelier(e.Sources) {
+			b.WriteString("; " + LowTrustNote)
+		}
 	}
 	return b.String()
+}
+
+// LowTrustNote — пометка к утверждению отельера, чья репутация ниже 0,5.
+const LowTrustNote = "со слов отеля; часть прошлых утверждений расчёт не подтвердил"
+
+// lowTrustHotelier — среди источников есть отельер с репутацией ниже нейтральной.
+func lowTrustHotelier(src []EvidenceSource) bool {
+	for _, s := range src {
+		if s.AuthorType == AuthorHotelier && s.AuthorTrust > 0 && s.AuthorTrust < DefaultTrust {
+			return true
+		}
+	}
+	return false
 }
 
 func displayValue(c Characteristic, e WishEval) string {

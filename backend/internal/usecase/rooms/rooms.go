@@ -25,10 +25,12 @@ type FacadeInfo struct {
 
 // EvidenceView — свидетельство, из которого сложен факт категории, с вкладом в итог.
 type EvidenceView struct {
-	ID           int64
-	Source       string
-	AuthorType   string
-	AuthorID     string
+	ID         int64
+	Source     string
+	AuthorType string
+	AuthorID   string
+	// AuthorTrust — репутация автора (author_trust); без записи — domain.DefaultTrust.
+	AuthorTrust  float64
 	Claimed      map[string]any
 	Reliability  float64
 	Contribution float64

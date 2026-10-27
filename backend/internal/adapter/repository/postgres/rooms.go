@@ -191,8 +191,10 @@ func (s *RoomStore) evidenceViews(ctx context.Context, ids []int64) ([]rooms.Evi
 // loadEvidenceViews читает свидетельства по id вместе с вкладом в факт.
 func loadEvidenceViews(ctx context.Context, pool *pgxpool.Pool, ids []int64) ([]rooms.EvidenceView, error) {
 	rows, err := pool.Query(ctx, `
-SELECT id, source, author_type, author_id, claimed_value, reliability, contribution, observed_at
-FROM evidence WHERE id = ANY($1) ORDER BY id`, ids)
+SELECT e.id, e.source, e.author_type, e.author_id, COALESCE(t.trust, $2), e.claimed_value, e.reliability, e.contribution, e.observed_at
+FROM evidence e
+LEFT JOIN author_trust t ON t.author_type = e.author_type AND t.author_id = e.author_id
+WHERE e.id = ANY($1) ORDER BY e.id`, ids, domain.DefaultTrust)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +203,7 @@ FROM evidence WHERE id = ANY($1) ORDER BY id`, ids)
 	for rows.Next() {
 		var e rooms.EvidenceView
 		var claimed []byte
-		if err := rows.Scan(&e.ID, &e.Source, &e.AuthorType, &e.AuthorID, &claimed, &e.Reliability, &e.Contribution, &e.ObservedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.Source, &e.AuthorType, &e.AuthorID, &e.AuthorTrust, &claimed, &e.Reliability, &e.Contribution, &e.ObservedAt); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(claimed, &e.Claimed); err != nil {
