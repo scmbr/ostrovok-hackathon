@@ -15,12 +15,14 @@ type exampleDTO struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Text  string `json:"text"`
+	// Next — следующие ходы диалога из фикстуры: фраза гостя или «@id» (кнопка уточнения).
+	Next []string `json:"next"`
 }
 
 func handleDialogExamples(ex []dialog.Example) http.HandlerFunc {
 	out := make([]exampleDTO, len(ex))
 	for i, e := range ex {
-		out[i] = exampleDTO{ID: e.ID, Title: e.Title, Text: e.Text}
+		out[i] = exampleDTO{ID: e.ID, Title: e.Title, Text: e.Text, Next: append([]string{}, e.Next...)}
 	}
 	return func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"examples": out})

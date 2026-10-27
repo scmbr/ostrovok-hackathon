@@ -1,0 +1,30 @@
+{
+  "bool": { "true": "да", "false": "нет" },
+  "characteristics": {
+    "noise_night": { "values": { "quiet": "тихо", "moderate": "умеренно", "loud": "шумно" } },
+    "night_services": { "values": { "none": "ничего не открыто", "basic": "базово", "rich": "много открыто" } },
+    "sea_view": { "values": { "full": "море видно", "none": "моря не видно" }, "unit": "с {n}-го этажа", "empty": "моря не видно" },
+    "walk_to_beach": { "unit": "{n} мин" },
+    "walk_to_metro": { "unit": "{n} мин" },
+    "climate_by_month": { "summary": "по месяцам, см. источники" },
+    "night_pharmacy": {},
+    "pets_allowed": {},
+    "blackout_curtains": {},
+    "wish_guarantee": {}
+  },
+  "contract": {
+    "guaranteed": "гарантировано",
+    "chance": "шанс",
+    "wish_pending": "пожелание: ждём отель",
+    "wish_confirmed": "пожелание: отель подтвердил",
+    "wish_refused": "пожелание: отель не гарантирует",
+    "uncertain": "под вопросом",
+    "unknown": "неизвестно",
+    "mismatch": "не совпадает"
+  },
+  "booking_wish": {
+    "waiting": "ждём ответа отеля",
+    "confirmed": "отель подтвердил",
+    "refused": "отель не гарантирует"
+  }
+}

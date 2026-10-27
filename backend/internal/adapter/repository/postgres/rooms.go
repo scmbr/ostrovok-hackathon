@@ -94,7 +94,8 @@ WHERE c.hotel_id = $1 ORDER BY p.id`, hotelID)
 
 // Facades читает фасады отеля.
 func (s *RoomStore) Facades(ctx context.Context, hotelID int64) ([]rooms.FacadeInfo, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, azimuth_deg, COALESCE(faces_street, false), COALESCE(courtyard, false)
+	rows, err := s.pool.Query(ctx, `SELECT id, azimuth_deg, COALESCE(faces_street, false), COALESCE(courtyard, false),
+       ST_Y(ST_LineInterpolatePoint(geom, 0.5)), ST_X(ST_LineInterpolatePoint(geom, 0.5))
 FROM facades WHERE hotel_id = $1 ORDER BY id`, hotelID)
 	if err != nil {
 		return nil, err
@@ -103,7 +104,7 @@ FROM facades WHERE hotel_id = $1 ORDER BY id`, hotelID)
 	var out []rooms.FacadeInfo
 	for rows.Next() {
 		var f rooms.FacadeInfo
-		if err := rows.Scan(&f.ID, &f.AzimuthDeg, &f.FacesStreet, &f.Courtyard); err != nil {
+		if err := rows.Scan(&f.ID, &f.AzimuthDeg, &f.FacesStreet, &f.Courtyard, &f.Lat, &f.Lon); err != nil {
 			return nil, err
 		}
 		out = append(out, f)

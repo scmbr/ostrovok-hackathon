@@ -31,6 +31,16 @@ type facadeDTO struct {
 	Side        string  `json:"side"` // сторона света словами
 	FacesStreet bool    `json:"faces_street"`
 	Courtyard   bool    `json:"courtyard"`
+	// Mid — середина фасада [lat, lon], от неё рисуется стрелка на карте.
+	Mid    [2]float64       `json:"mid"`
+	Values []facadeValueDTO `json:"values"`
+}
+
+// facadeValueDTO — итоговое значение характеристики на фасаде (поле значения — value_field реестра).
+type facadeValueDTO struct {
+	Key        string         `json:"key"`
+	Value      map[string]any `json:"value"`
+	Confidence float64        `json:"confidence"`
 }
 
 type categoryDTO struct {
@@ -101,7 +111,11 @@ func newRoomsDTO(h rooms.HotelRooms) roomsDTO {
 	for _, f := range h.Facades {
 		azimuth[f.ID] = f.AzimuthDeg
 		out.Facades = append(out.Facades, facadeDTO{ID: f.ID, AzimuthDeg: math.Round(f.AzimuthDeg), Side: sideRU(f.AzimuthDeg),
-			FacesStreet: f.FacesStreet, Courtyard: f.Courtyard})
+			FacesStreet: f.FacesStreet, Courtyard: f.Courtyard, Mid: [2]float64{f.Lat, f.Lon}, Values: []facadeValueDTO{}})
+		fd := &out.Facades[len(out.Facades)-1]
+		for _, v := range f.Facts {
+			fd.Values = append(fd.Values, facadeValueDTO{Key: v.Key, Value: v.Value, Confidence: round2(v.Confidence)})
+		}
 	}
 	for _, c := range h.Categories {
 		d := categoryDTO{ID: c.Category.ID, Name: c.Category.Name, RoomsCount: c.Category.Rooms,

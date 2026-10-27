@@ -112,4 +112,21 @@ func TestDialogExamplesRoute(t *testing.T) {
 	if rec.Code != http.StatusOK || json.Unmarshal(rec.Body.Bytes(), &body) != nil || len(body.Examples) != 3 || body.Examples[0].Text == "" {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
+	if len(body.Examples[0].Next) == 0 || body.Examples[0].Next[0] != "@walk_to_beach" {
+		t.Errorf("продолжение диалога из фикстуры: %v", body.Examples[0].Next)
+	}
+}
+
+func TestMetaRoute(t *testing.T) {
+	for _, c := range []struct{ mode, model, want string }{
+		{"", "", `{"llm_mode":"cache"}`},
+		{LLMModeCache, "gpt", `{"llm_mode":"cache"}`},
+		{LLMModeLive, "gpt", `{"llm_mode":"llm","llm_model":"gpt"}`},
+	} {
+		rec := httptest.NewRecorder()
+		newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, nil, WithLLMMode(c.mode, c.model)).ServeHTTP(rec, httptest.NewRequest("GET", "/api/meta", nil))
+		if got := strings.TrimSpace(rec.Body.String()); rec.Code != http.StatusOK || got != c.want {
+			t.Errorf("%q: %d %s, want %s", c.mode, rec.Code, got, c.want)
+		}
+	}
 }

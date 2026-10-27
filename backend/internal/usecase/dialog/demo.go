@@ -23,6 +23,8 @@ type Example struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Text  string `json:"text"`
+	// Next — продолжение диалога: реплики гостя по ходам, «@id» — ответ кнопкой на уточнение.
+	Next []string `json:"next,omitempty"`
 }
 
 // DemoDialogs возвращает демо-диалоги из встроенной фикстуры.
@@ -61,7 +63,7 @@ func Examples() ([]Example, error) {
 	}
 	out := make([]Example, len(ds))
 	for i, d := range ds {
-		out[i] = Example{ID: d.Name, Title: d.Title, Text: d.Turns[0]}
+		out[i] = Example{ID: d.Name, Title: d.Title, Text: d.Turns[0], Next: d.Turns[1:]}
 	}
 	return out, nil
 }

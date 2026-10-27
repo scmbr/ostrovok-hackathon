@@ -1,5 +1,1 @@
-import { SearchPage } from '../pages/search'
-
-export function App() {
-  return <SearchPage />
-}
+export { App } from './App'

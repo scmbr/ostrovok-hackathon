@@ -33,7 +33,8 @@ func TestSideRU(t *testing.T) {
 func TestRoomsEndpoint(t *testing.T) {
 	h := rooms.HotelRooms{
 		HotelID: 7,
-		Facades: []rooms.FacadeInfo{{ID: 1, AzimuthDeg: 92}},
+		Facades: []rooms.FacadeInfo{{ID: 1, AzimuthDeg: 92, Lat: 41.38, Lon: 2.19,
+			Facts: []domain.Fact{{Key: "sea_view", Value: map[string]any{"min_floor": 4.0}, Confidence: 0.851}}}},
 		Categories: []rooms.CategoryView{{
 			Category: domain.RoomCategory{ID: 5, Name: "Standard", Rooms: 20,
 				Placements: []domain.StoredPlacement{{Placement: domain.Placement{FacadeID: 1, FloorFrom: 2, FloorTo: 6, Rooms: 6}}}},
@@ -53,6 +54,10 @@ func TestRoomsEndpoint(t *testing.T) {
 	var got roomsDTO
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
+	}
+	f0 := got.Facades[0]
+	if f0.Mid != [2]float64{41.38, 2.19} || len(f0.Values) != 1 || f0.Values[0].Key != "sea_view" || f0.Values[0].Confidence != 0.85 {
+		t.Errorf("фасад: %+v", f0)
 	}
 	ch := got.Categories[0].Characteristics[0]
 	if got.HotelID != 7 || ch.Probability != 0.24 || ch.Wish == nil || ch.Wish.Text != "восточная сторона, этаж 4+" {
