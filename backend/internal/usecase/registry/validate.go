@@ -32,7 +32,19 @@ func Validate(reg domain.Registry, tools []compute.Spec) error {
 	}
 	errs = append(errs, checkSharedParams(reg, tools)...)
 	errs = append(errs, checkAmbiguous(reg)...)
+	errs = append(errs, checkSynonymOverlaps(reg)...)
 	return errors.Join(errs...)
+}
+
+// checkSynonymOverlaps: фразы разных характеристик не должны входить друг в друга с учётом правила парсера «первые пять
+// букв»: общая короткая фраза («ночной») перехватила бы слова фразы другой характеристики («ночной шум»). Общие фразы
+// объявляются явно через ambiguous_synonyms.
+func checkSynonymOverlaps(reg domain.Registry) []error {
+	var errs []error
+	for _, o := range domain.SynonymOverlaps(reg) {
+		errs = append(errs, fmt.Errorf("%s: синоним «%s» пересекается с синонимом «%s» характеристики %s", o.KeyA, o.PhraseA, o.PhraseB, o.KeyB))
+	}
+	return errs
 }
 
 // ValidateOne проверяет одну характеристику; ключ не должен совпадать с уже существующим в reg.
@@ -156,6 +168,12 @@ func checkAmbiguous(reg domain.Registry) []error {
 }
 
 func validateOrigin(c domain.Characteristic) []string {
+	if c.SynonymsOrigin != "" && c.Origin != domain.OriginText {
+		return []string{"synonyms_origin задаётся только у характеристики, добавленной текстом (origin: text)"}
+	}
+	if o := c.SynonymsOrigin; o != "" && o != domain.SynonymsDerived && o != domain.SynonymsEdited {
+		return []string{fmt.Sprintf("synonyms_origin %q: допустимо derived или edited", o)}
+	}
 	switch c.Origin {
 	case "":
 		if c.OriginText != "" || c.AddedAt != "" {

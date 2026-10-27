@@ -73,6 +73,9 @@ type Characteristic struct {
 	AddedAt    string
 	// Synonyms — фразы гостя, называющие характеристику («питомец», «собака»); значение берётся по умолчанию.
 	Synonyms []string
+	// SynonymsOrigin — откуда synonyms у характеристики, добавленной текстом: derived — предложены кодом по названию и
+	// исходной фразе (DeriveSynonyms), edited — поправлены человеком при сохранении. Пусто у написанных вручную.
+	SynonymsOrigin string
 	// ValueSynonyms — фразы, которые задают значение: ключ — значение из values (или true / false у bool).
 	ValueSynonyms map[string][]string
 	// AmbiguousSynonyms — фразы, которые могут значить эту характеристику, но и другую («у моря»: вид или пляж).

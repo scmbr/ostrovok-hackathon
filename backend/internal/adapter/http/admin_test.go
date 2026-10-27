@@ -3,6 +3,8 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -12,6 +14,7 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/admin"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/agent"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/explain"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/registry"
 )
 
 type fakeAdmin struct{ hotel int64 }
@@ -110,5 +113,71 @@ func TestAdminHotelFactsChain(t *testing.T) {
 	hot := f.Evidence[1]
 	if hot.Chain.Base != 0.8 || hot.Chain.Asymmetry != domain.HotelierAsymmetry || hot.Chain.TrustMult != 1 || hot.Comment != "двойные окна" || hot.Role != domain.RoleAgainst {
 		t.Errorf("цепочка отельера: %+v", hot)
+	}
+}
+
+type fakeRegistryAdmin struct {
+	draftErr error
+	saveErr  error
+}
+
+func (f fakeRegistryAdmin) Draft(context.Context, string) (registry.Draft, error) {
+	if f.draftErr != nil {
+		return registry.Draft{}, f.draftErr
+	}
+	return registry.Draft{YAML: "key: night_shop\n", Key: "night_shop", Title: "Ночной магазин", Synonyms: []string{"ночной магазин"},
+		Errors: []string{"night_shop: нужна проверка"}}, nil
+}
+
+func (f fakeRegistryAdmin) Save(context.Context, string) (domain.Characteristic, error) {
+	return domain.Characteristic{Key: "night_shop", Title: "Ночной магазин"}, f.saveErr
+}
+func (f fakeRegistryAdmin) StartCompute(context.Context, string) (string, error) { return "job-1", nil }
+func (f fakeRegistryAdmin) Job(id string) (registry.JobView, bool) {
+	if id != "job-1" {
+		return registry.JobView{}, false
+	}
+	return registry.JobView{ID: id, Status: registry.JobRunning, Done: 3, Total: 60}, true
+}
+
+func TestAdminCharacteristicDraftSaveCompute(t *testing.T) {
+	mk := func(f fakeRegistryAdmin) *struct {
+		do func(m, u, b string) (int, string)
+	} { h := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, nil, WithRegistryAdmin(f), WithLLMMode(LLMModeCache, "")); return &struct {
+		do func(m, u, b string) (int, string)
+	}{func(m, u, b string) (int, string) {
+		rec := do(h, m, u, b)
+		return rec.Code, rec.Body.String()
+	}} }
+	ok := mk(fakeRegistryAdmin{})
+	if code, body := ok.do("POST", "/api/admin/characteristics/draft", `{"text":"есть ли рядом круглосуточный магазин"}`); code != 200 ||
+		!strings.Contains(body, `"mode":"cache"`) || !strings.Contains(body, `"errors":["night_shop: нужна проверка"]`) {
+		t.Errorf("draft: %d %s", code, body)
+	}
+	if code, _ := ok.do("POST", "/api/admin/characteristics/draft", `{"text":"  "}`); code != 400 {
+		t.Errorf("пустой текст: %d", code)
+	}
+	if code, body := mk(fakeRegistryAdmin{draftErr: fmt.Errorf("%w: night_pharmacy", registry.ErrExists)}).do("POST", "/api/admin/characteristics/draft", `{"text":"x"}`); code != 409 ||
+		!strings.Contains(body, "уже есть в реестре") {
+		t.Errorf("уже есть: %d %s", code, body)
+	}
+	if code, _ := mk(fakeRegistryAdmin{draftErr: errors.New("нет заготовки")}).do("POST", "/api/admin/characteristics/draft", `{"text":"x"}`); code != 422 {
+		t.Errorf("ошибка модели: %d", code)
+	}
+	if code, body := ok.do("POST", "/api/admin/characteristics", `{"yaml":"key: night_shop"}`); code != 201 || !strings.Contains(body, "night_shop") {
+		t.Errorf("save: %d %s", code, body)
+	}
+	bad := mk(fakeRegistryAdmin{saveErr: &registry.ValidationError{Problems: []string{"нет synonyms", "пересечение"}}})
+	if code, body := bad.do("POST", "/api/admin/characteristics", `{"yaml":"key: night_shop"}`); code != 422 || !strings.Contains(body, `"errors":["нет synonyms","пересечение"]`) {
+		t.Errorf("проверка: %d %s", code, body)
+	}
+	if code, body := ok.do("POST", "/api/admin/characteristics/night_shop/compute", ``); code != 202 || !strings.Contains(body, "job-1") {
+		t.Errorf("compute: %d %s", code, body)
+	}
+	if code, body := ok.do("GET", "/api/admin/jobs/job-1", ``); code != 200 || !strings.Contains(body, `"done":3`) {
+		t.Errorf("job: %d %s", code, body)
+	}
+	if code, _ := ok.do("GET", "/api/admin/jobs/zzz", ``); code != 404 {
+		t.Errorf("нет задания: %d", code)
 	}
 }
