@@ -21,6 +21,10 @@ type FacadeInfo struct {
 	AzimuthDeg  float64
 	FacesStreet bool
 	Courtyard   bool
+	// Lat, Lon — середина фасада (для стрелки на карте).
+	Lat, Lon float64
+	// Facts — активные факты фасада по характеристикам уровня фасада; заполняет Service.Hotel.
+	Facts []domain.Fact
 }
 
 // EvidenceView — свидетельство, из которого сложен факт категории, с вкладом в итог.

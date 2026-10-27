@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 )
@@ -86,6 +87,14 @@ func (s *Service) Hotel(ctx context.Context, hotelID int64) (HotelRooms, error) 
 	facts, err := s.Store.FacadeFacts(ctx, hotelID, projectionKeys(s.Registry))
 	if err != nil {
 		return out, fmt.Errorf("факты фасадов: %w", err)
+	}
+	for i := range out.Facades {
+		id := strconv.FormatInt(out.Facades[i].ID, 10)
+		for _, f := range facts {
+			if f.EntityID == id {
+				out.Facades[i].Facts = append(out.Facades[i].Facts, f)
+			}
+		}
 	}
 	catFacts, err := s.Store.CategoryFacts(ctx, hotelID)
 	if err != nil {

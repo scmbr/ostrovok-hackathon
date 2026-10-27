@@ -75,7 +75,7 @@ func Run() error {
 	srv := &http.Server{
 		Addr: ":" + cfg.Port,
 		Handler: apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules()),
-			roomSvc, cabinet, apphttp.WithSearch(searchSvc), apphttp.WithChat(chat), apphttp.WithGuestFlow(guest), apphttp.WithDialogExamples(examples)),
+			roomSvc, cabinet, apphttp.WithSearch(searchSvc), apphttp.WithChat(chat), apphttp.WithGuestFlow(guest), apphttp.WithDialogExamples(examples), apphttp.WithLLMMode(llmMode(cfg), cfg.LLMModel)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -96,4 +96,12 @@ func Run() error {
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
 	}
+}
+
+// llmMode — режим LLM для /api/meta: есть ключ — живая модель, нет — сохранённые ответы.
+func llmMode(cfg Config) string {
+	if cfg.LLMAPIKey != "" {
+		return apphttp.LLMModeLive
+	}
+	return apphttp.LLMModeCache
 }

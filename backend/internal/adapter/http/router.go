@@ -28,6 +28,7 @@ func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms Room
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
+	mux.Handle("GET /api/meta", handleMeta(deps.llmMode, deps.llmModel))
 	mux.Handle("GET /api/characteristics", handleCharacteristics(reg))
 	if traces != nil {
 		mux.Handle("GET /api/hotels/{id}/trace", handleTrace(traces))

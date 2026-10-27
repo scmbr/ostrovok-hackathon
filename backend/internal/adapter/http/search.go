@@ -30,6 +30,8 @@ type routerDeps struct {
 	chat     ChatService
 	guest    GuestFlow
 	examples []dialog.Example
+	llmMode  string
+	llmModel string
 }
 
 // WithSearch подключает поиск.

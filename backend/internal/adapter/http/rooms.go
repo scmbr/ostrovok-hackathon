@@ -31,6 +31,16 @@ type facadeDTO struct {
 	Side        string  `json:"side"` // сторона света словами
 	FacesStreet bool    `json:"faces_street"`
 	Courtyard   bool    `json:"courtyard"`
+	// Mid — середина фасада [lat, lon], от неё рисуется стрелка на карте.
+	Mid    [2]float64       `json:"mid"`
+	Values []facadeValueDTO `json:"values"`
+}
+
+// facadeValueDTO — итоговое значение характеристики на фасаде (поле значения — value_field реестра).
+type facadeValueDTO struct {
+	Key        string         `json:"key"`
+	Value      map[string]any `json:"value"`
+	Confidence float64        `json:"confidence"`
 }
 
 type categoryDTO struct {
