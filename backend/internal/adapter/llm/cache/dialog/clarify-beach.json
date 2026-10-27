@@ -5,36 +5,30 @@
     "070fd341161c41c8ef5ed4a2600ea0379fa6c8b82b2ba46bcebda10277063cd0": {
       "tool_calls": [
         {
-          "id": "call_MnmGoUMF4zi2Ce0nX4ne2RDA",
+          "id": "call_sztOt97WbD03uovVF2xTE2zW",
           "name": "ask_clarification",
           "arguments": "{\"phrase\":\"и чтобы рядом было метро\"}"
         }
       ]
     },
-    "25db15e1d647e5ae02efc0b9de737c2dbd2c66b400d17b629e1e70f3453303c2": {
-      "content": "Понято, что вам важно, чтобы рядом с отелем было метро. Я нашел несколько вариантов, которые соответствуют вашим требованиям. Рекомендую отель **Lugarus Beach**."
-    },
     "2afa8987836037ae4efc9b79bf9832d13d34538c1e0449e622a7dcfc1d67e6b5": {
       "tool_calls": [
         {
-          "id": "call_5VS9DYjdAK6uz7QbwRtZN4yK",
+          "id": "call_FZd3X7mz5CaadYgPzsmNblN6",
           "name": "ask_clarification",
           "arguments": "{\"phrase\": \"у моря\"}"
         },
         {
-          "id": "call_rxQDAPStpRikb7iXyF7bDH9Z",
+          "id": "call_CD898o02ak2mYVerz3Hc3qkx",
           "name": "search",
           "arguments": "{\"wishes\": [{\"key\": \"pets_allowed\", \"importance\": \"prefer\"}]}"
         }
       ]
     },
-    "3ce1d47cb2b55c236ea421ccecc7f45560a3fb9a920ba2d07b198a919825fe54": {
-      "content": "Я нашёл несколько отелей, которые подходят под ваши пожелания. Лучший вариант — отель Lugarus Beach, где можно находиться с питомцем и до пляжа всего 7 минут пешком."
-    },
     "514ff0edc7c05a960850d3f2e6812d784edd467a3e25008863d90d577215a01e": {
       "tool_calls": [
         {
-          "id": "call_qJ6YxrC5UPv3GV3vK3NDX7bH",
+          "id": "call_VOPaPY4YutSgnCXJ5idi9o62",
           "name": "parse_baseline",
           "arguments": "{\"text\":\"хочу отель у моря, чтобы можно было с собакой\"}"
         }
@@ -43,22 +37,28 @@
     "52084b02bb2c88c1a7328f6eaaf7a1a8285277056746a998827f50d41c085f4f": {
       "tool_calls": [
         {
-          "id": "call_GQYscPQI3oYUR9UgLolvGgdD",
+          "id": "call_8G0SKIJUivLRGE8CUVmNOKbJ",
           "name": "search",
           "arguments": "{}"
         }
       ]
     },
-    "9855c0ebe1104a4fa0f06b38d4dd2ff169c773ec480572b9e90d0fabe5a9306c": {
-      "content": "Я нашёл несколько отелей, которые соответствуют вашим пожеланиям: можно с питомцем (желательно) и пешком до пляжа (желательно). Лучший вариант — отель Lugarus Beach, где вы сможете находиться с питомцем и до пляжа всего 7 минут пешком."
+    "55fd23f8a2b7c1f193943066f187ae880fef190beb7a77a3f86ba38c769f3d6e": {
+      "content": "Понято, что вам важно, чтобы отель находился рядом с метро. Я нашел несколько вариантов, которые соответствуют вашим требованиям. Рекомендую отель **Lugarus Beach**."
     },
-    "abb6abf59edfc9ef35e0df132d659c267449ed02cf0f6bbb64164c8b75111816": {
-      "content": "Понято, что вам важно, чтобы рядом с отелем было метро. Рекомендую отель **Lugarus Beach**."
+    "67a1de4bb063309b006382dde777d68708beb3c22cf12222a1977bb28b5e275e": {
+      "content": "Понято, что вам важно, чтобы отель находился рядом с метро. Рекомендую отель **Lugarus Beach**."
+    },
+    "a5d3b1b3b4a6dfbe70f42dfbbd713aae62120be7a0825008ebe7d66750f26f3c": {
+      "content": "Я нашёл несколько отелей, которые отвечают вашим пожеланиям. Лучший вариант — отель Lugarus Beach, где можно находиться с питомцем и до пляжа всего 7 минут пешком."
+    },
+    "d3c3ff20c2f68fd8065176e294b1b5c99054131095b0b37c93caab95cdba57b1": {
+      "content": "Я нашёл несколько отелей, которые соответствуют вашим пожеланиям: можно с питомцем (желательно) и пешком до пляжа (желательно). Лучший вариант — отель Lugarus Beach, где вы сможете находиться с питомцем и до пляжа всего 7 минут пешком."
     },
     "d7ecb3afaa2ddc4c9587cf6b63cfc6f93552eb46ae09444a0bdb6a95bf67fc35": {
       "tool_calls": [
         {
-          "id": "call_vJS0yPCvIvoVgvvHqZgVAp9X",
+          "id": "call_WxTZuPmfwgw1JHlgmKgdztUJ",
           "name": "parse_baseline",
           "arguments": "{\"text\":\"и чтобы рядом было метро\"}"
         }
@@ -67,7 +67,7 @@
     "f042c7c1bf1acbee397b999d229b73cdc9e3ac673b78e4dab8bb8cf5845ef754": {
       "tool_calls": [
         {
-          "id": "call_XHWacPXGm4jlbdCaknEKDgkC",
+          "id": "call_3Fh7ywePhOJ33C8cVnLc1CSO",
           "name": "search",
           "arguments": "{\"wishes\":[{\"key\":\"walk_to_metro\",\"value\":10,\"importance\":\"prefer\"}]}"
         }

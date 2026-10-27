@@ -2,49 +2,61 @@
   "hotel": "177",
   "model": "gpt-4o-mini",
   "replies": {
-    "51527198a75a1b02d0e01f27bcb34ad2ba6b91af3549ebd94a9b70e674ee7675": {
+    "4afa53d79c6f0e04dc40386c1cb0ae56abadae02df8f6a151d3858db29eeb897": {
+      "content": "Статусы характеристик отеля «Hotel Attica 21» после обработки:\n\n- **ok**: climate_by_month, sea_view\n- **uncertain**: night_pharmacy (уверенность 0.60), night_services (уверенность 0.60), walk_to_beach (уверенность 0.70), walk_to_metro (уверенность 0.70)\n- **missing**: blackout_curtains, pets_allowed, wish_guarantee\n\nЗаданы вопросы отельеру по характеристикам с отсутствующими данными."
+    },
+    "52598bcb7d19f79f66cdb85b4dd644776c5113bed2a6eac2999757be035aa966": {
       "tool_calls": [
         {
-          "id": "call_PtzT6xPhrqj0tteSN67KcZHb",
+          "id": "call_DQlWuPRd1N1NsOsu9IZrNwTJ",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy\": \"night-services\"}"
         },
         {
-          "id": "call_oLDmOzBUb6BZp1OAQ3l6ZgaH",
+          "id": "call_l1XbvZddOSr5nH2KnenYgk7b",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy\": \"night-services\"}"
         },
         {
-          "id": "call_1Kh17DuqqmfCJakz6nx2CX15",
+          "id": "call_dZtUFLsTl4YmXYl4ITenBiFR",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy\": \"walk\"}"
         },
         {
-          "id": "call_i8fMpfZ05oXQYqOgzdRclN2t",
+          "id": "call_EMWqu0SffUpFdS63xUME1Jpo",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy\": \"walk\"}"
-        },
-        {
-          "id": "call_5AvOpriORMVZjtarlRfya7k8",
-          "name": "run_tool",
-          "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"noise_night\", \"strategy\": \"noise-night:bcn\"}"
         }
       ]
     },
-    "8629e66f8fc958121fed6b9c4f249936eeb5c752f90645abf507d01f20888b52": {
-      "content": "Статусы характеристик отеля «Hotel Attica 21» следующие:\n\n- **blackout_curtains**: missing (нужно уточнить у отельера)\n- **night_pharmacy**: uncertain (уверенность 0.6)\n- **night_services**: uncertain (уверенность 0.6)\n- **walk_to_beach**: uncertain (не удалось рассчитать)\n- **walk_to_metro**: uncertain (уверенность 0.7)\n- **noise_night**: uncertain (уверенность 0.6)\n- **pets_allowed**: missing (нужно уточнить у отельера)\n- **sea_view**: ok (уверенность 0.85)\n- **climate_by_month**: ok (уверенность 0.85)\n\nЗаданы вопросы отельеру по характеристикам blackout_curtains и pets_allowed."
-    },
-    "d62e75ae874415531aa19b1051b090ae9bbc30ac101887da1e54b9b88efb7bed": {
+    "5b680725a927afbfe3a1a3ca91b56abca228e75ac493d0f34fec30d6ae3c9d0d": {
       "tool_calls": [
         {
-          "id": "call_o0hNf5DApM9CxMsgYr8vpJLi",
+          "id": "call_LKgd6wtlpPguu8S6LVEYFh59",
+          "name": "run_tool",
+          "arguments": "{\"reason\":\"уверенность 0.60 ниже 0.75\",\"characteristic\":\"noise_night\",\"strategy\":\"noise-night:bcn\"}"
+        }
+      ]
+    },
+    "d24de01b625145ce32155da9227527027c7b2b5cd60b6e2d92e964cefe09f1d2": {
+      "content": "Статусы характеристик отеля «Hotel Attica 21» после обработки:\n\n- **ok**: climate_by_month, sea_view\n- **uncertain**: night_pharmacy (уверенность 0.60), night_services (уверенность 0.60), walk_to_beach (уверенность 0.70), walk_to_metro (уверенность 0.70), noise_night (уверенность 0.60)\n- **missing**: blackout_curtains, pets_allowed, wish_guarantee\n\nВсе характеристики обработаны."
+    },
+    "ffb2a0d0e35391c9a6608e4de5a364bd651afb0da00798ecb444ade0a904dcb3": {
+      "tool_calls": [
+        {
+          "id": "call_7ElTk5gshCWxI5u6M9D2dS74",
           "name": "ask_hotelier",
-          "arguments": "{\"reason\": \"факта нет, нужно уточнить\", \"characteristic\": \"blackout_curtains\"}"
+          "arguments": "{\"reason\": \"факта нет\", \"characteristic\": \"blackout_curtains\"}"
         },
         {
-          "id": "call_ZzTAKj3Un9EZwvrl4d9eRA6O",
+          "id": "call_IcZavv27qoNl5bjAO1rTBF40",
           "name": "ask_hotelier",
-          "arguments": "{\"reason\": \"факта нет, нужно уточнить\", \"characteristic\": \"pets_allowed\"}"
+          "arguments": "{\"reason\": \"факта нет\", \"characteristic\": \"pets_allowed\"}"
+        },
+        {
+          "id": "call_akteHtdtTSwERUVH3BEJGjVl",
+          "name": "ask_hotelier",
+          "arguments": "{\"reason\": \"факта нет\", \"characteristic\": \"wish_guarantee\"}"
         }
       ]
     }

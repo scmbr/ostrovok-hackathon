@@ -28,7 +28,7 @@
     "refused": "отель не гарантирует"
   },
   "persona": { "honest": "честный", "lazy": "ленивый", "embellishing": "приукрашивающий" },
-  "reason_kind": { "no_data": "данных нет", "low_confidence": "низкая уверенность", "conflict": "расчёт спорит с отелем", "guests": "гости сообщили иное" },
+  "reason_kind": { "no_data": "данных нет", "low_confidence": "низкая уверенность", "conflict": "расчёт спорит с отелем", "guests": "гости сообщили иное", "unconfirmed": "не подтверждено расчётом" },
   "question_status": { "answered": "ответ принят", "needs_clarification": "нужно уточнение", "open": "ждёт ответа" },
   "parsed_by": { "llm": "разобрано моделью", "cache": "разобрано по сохранённому ответу модели", "planner": "разобрано правилом да / нет" },
   "resolution_kind": { "agreed": "стороны сошлись", "weight_dropped": "спор снят в пользу расчёта: вес стороны стал нулевым", "below_threshold": "расхождение ниже порога конфликта", "evidence_removed": "свидетельства сняты" },

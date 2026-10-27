@@ -104,6 +104,9 @@ type Store interface {
 	RebuildAnswerScope(ctx context.Context, ev domain.Evidence) error
 	// CategoryIssues — категории номеров отеля, у которых утверждение отеля спорит с расчётом (открытый конфликт).
 	CategoryIssues(ctx context.Context, hotelID int64) ([]CategoryIssue, error)
+	// CategoryCalcs — все категории отеля с расчётным свидетельством по характеристике (в том числе без конфликта):
+	// вопрос на подтверждение расчёта опирается на него, а не на итоговый факт, который могли перевесить гости.
+	CategoryCalcs(ctx context.Context, hotelID int64) ([]CategoryIssue, error)
 	// Reopen возвращает вопрос в open с уточняющим вопросом: ответ не задал значения.
 	Reopen(ctx context.Context, id int64, text, previousAnswer string) error
 	AppendTrace(ctx context.Context, s agent.TraceStep) error

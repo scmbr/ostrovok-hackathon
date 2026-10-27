@@ -2,37 +2,49 @@
   "hotel": "279",
   "model": "gpt-4o-mini",
   "replies": {
-    "1fc56be918eb4ce4ce5e1931e2b6c08faa63c6a55699724790a9c38284dfec3a": {
-      "content": "Статусы характеристик отеля «Acta Voraport»:\n\n- **night_pharmacy**: статус uncertain, уверенность 0.6.\n- **night_services**: статус uncertain, уверенность 0.6.\n- **noise_night**: статус uncertain, уверенность 0.6.\n- **walk_to_beach**: статус uncertain, уверенность 0.6.\n- **walk_to_metro**: статус uncertain, уверенность 0.6.\n\nВсе характеристики с статусом uncertain имеют уверенность ниже 0.75 и требуют вопросов к отельеру."
+    "1822192940dcf067c1231cff83729f43ffe8fad0116774ab5ae5387fe2a8fcec": {
+      "content": "Статусы характеристик отеля «Acta Voraport»:\n\n- **blackout_curtains**: ok, уверенность 0.80\n- **climate_by_month**: ok, уверенность 0.85\n- **night_pharmacy**: uncertain, уверенность 0.60\n- **night_services**: uncertain, уверенность 0.60\n- **noise_night**: uncertain, уверенность 0.60\n- **pets_allowed**: ok, уверенность 0.80\n- **sea_view**: ok, уверенность 0.85\n- **walk_to_beach**: uncertain, уверенность 0.70\n- **walk_to_metro**: uncertain, уверенность 0.70\n- **wish_guarantee**: missing\n\nНочные сервисы и аптека, а также расстояния до пляжа и метро остались с неопределённым статусом."
     },
-    "bd19d423c5d79eb6e0ff20734188b24a2c8ea77a298f33c372bc4a33d9bec026": {
+    "54839fe6d12e78c12b701b4ca22f5e0e212663ca4902ddd8dec2f5a367864f32": {
       "tool_calls": [
         {
-          "id": "call_WKRuFrrhm0dz7dLet74YVADi",
+          "id": "call_5lmmRhUG3xk1E8nNh4ioi7xG",
+          "name": "ask_hotelier",
+          "arguments": "{\"reason\":\"факта нет, нужна информация от отельера\",\"characteristic\":\"wish_guarantee\"}"
+        }
+      ]
+    },
+    "f8f165c397386ba99756bea3a1901462294f05c6fe3be97b45f718bcce488280": {
+      "tool_calls": [
+        {
+          "id": "call_hBA2TsqvlfWFY04SOT9GPrk0",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy\": \"night-services\"}"
         },
         {
-          "id": "call_LWKArqvQwDW0HuJBB0xv2Djw",
+          "id": "call_WESmWdLY3RRue7mj8xu1yBeo",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy\": \"night-services\"}"
         },
         {
-          "id": "call_oRp3mZBKkLnDfUXSxQcA1SLD",
+          "id": "call_YbKfX9xntJIatnsERqOq0Hot",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"noise_night\", \"strategy\": \"noise-night:bcn\"}"
         },
         {
-          "id": "call_Y9CwPSSp6WiSEfS8B7uh9DNv",
+          "id": "call_p2QzUyqzl0TAT6SKxjDxEtQI",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy\": \"walk\"}"
         },
         {
-          "id": "call_LlVTjggKR6aQ9kcx1kBVtROo",
+          "id": "call_A3Cpivl7eBRBwCEhCgreqLtg",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy\": \"walk\"}"
         }
       ]
+    },
+    "fc7db3e7824dd459cdecbcce4c8991c71fbe9971d9e27a79cb7b61e56fc9dda7": {
+      "content": "Вопрос отельеру по характеристике **wish_guarantee** был задан: \n\n- **Вопрос**: Можете ли вы гарантировать пожелание к номеру (сторона здания, этаж), указанное при бронировании, и в каких категориях?\n\nТеперь все характеристики обработаны."
     }
   }
 }

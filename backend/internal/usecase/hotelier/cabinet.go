@@ -27,6 +27,8 @@ type InboxItem struct {
 	Title    string // название характеристики
 	// ReasonKind — почему спрашиваем: no_data, low_confidence, conflict (расчёт спорит с отелем) или guests (гости сообщили).
 	ReasonKind string
+	// Reason — причина по текущему состоянию, если сохранённая в вопросе устарела (спор снят); пусто — читать Question.Reason.
+	Reason string
 }
 
 // Виды причин вопроса в дайджесте (InboxItem.ReasonKind).
@@ -35,6 +37,8 @@ const (
 	ReasonLowConfidence = "low_confidence"
 	ReasonConflict      = "conflict"
 	ReasonGuests        = "guests"
+	// ReasonUnconfirmed — спор по категории снят, утверждение отеля расчётом не подтверждено.
+	ReasonUnconfirmed = "unconfirmed"
 )
 
 // Inbox — дайджест отельера: вопросы, ждущие ответа, по убыванию ценности, и сводка по остальным.
@@ -52,13 +56,30 @@ type Inbox struct {
 
 // reasonKind определяет причину вопроса по текущим фактам отеля и спорным категориям.
 func reasonKind(q Question, facts []domain.Fact, issues []CategoryIssue, hotelID int64) string {
+	kind, _ := reasonNow(q, facts, issues, nil, hotelID)
+	return kind
+}
+
+// reasonNow — причина вопроса по текущему состоянию. Для категории без открытого конфликта, у которой есть расчёт,
+// возвращает ReasonUnconfirmed и текст: сохранённый текст вопроса, написанный при создании, не меняется.
+func reasonNow(q Question, facts []domain.Fact, issues, calcs []CategoryIssue, hotelID int64) (string, string) {
 	if q.EntityType == domain.EntityRoomCategory {
 		for _, is := range issues {
 			if strconv.FormatInt(is.CategoryID, 10) == q.EntityID && is.Key == q.Key && is.GuestAgainst > 0 {
-				return ReasonGuests
+				return ReasonGuests, ""
 			}
 		}
-		return ReasonConflict
+		for _, is := range issues {
+			if strconv.FormatInt(is.CategoryID, 10) == q.EntityID && is.Key == q.Key {
+				return ReasonConflict, ""
+			}
+		}
+		for _, cs := range calcs {
+			if strconv.FormatInt(cs.CategoryID, 10) == q.EntityID && cs.Key == q.Key {
+				return ReasonUnconfirmed, fmt.Sprintf("утверждение отеля не подтверждено расчётом (уверенность %s)", strings.Replace(strconv.FormatFloat(cs.Confidence, 'f', 2, 64), ".", ",", 1))
+			}
+		}
+		return ReasonConflict, ""
 	}
 	id := strconv.FormatInt(hotelID, 10)
 	for _, f := range facts {
@@ -66,11 +87,11 @@ func reasonKind(q Question, facts []domain.Fact, issues []CategoryIssue, hotelID
 			continue
 		}
 		if f.Conflict != nil || f.WeakDisagreement {
-			return ReasonConflict
+			return ReasonConflict, ""
 		}
-		return ReasonLowConfidence
+		return ReasonLowConfidence, ""
 	}
-	return ReasonNoData
+	return ReasonNoData, ""
 }
 
 // MissedDemand — характеристика, которую искали гости, а у отеля её нет или уверенность низкая.
@@ -154,6 +175,10 @@ func (i *Interviewer) Inbox(ctx context.Context, hotelID int64) (Inbox, error) {
 	if err != nil {
 		return in, err
 	}
+	calcs, err := i.Store.CategoryCalcs(ctx, hotelID)
+	if err != nil {
+		return in, err
+	}
 	for _, q := range qs {
 		switch q.Status {
 		case StatusOpen, StatusNeedsClarification:
@@ -164,7 +189,8 @@ func (i *Interviewer) Inbox(ctx context.Context, hotelID int64) (Inbox, error) {
 			if c, ok := i.Registry.Get(q.Key); ok {
 				title = c.Title
 			}
-			in.Items = append(in.Items, InboxItem{Question: q, Title: title, ReasonKind: reasonKind(q, facts, issues, hotelID)})
+			kind, reason := reasonNow(q, facts, issues, calcs, hotelID)
+			in.Items = append(in.Items, InboxItem{Question: q, Title: title, ReasonKind: kind, Reason: reason})
 		case StatusPending:
 			in.Waiting++
 		case StatusLowValue:

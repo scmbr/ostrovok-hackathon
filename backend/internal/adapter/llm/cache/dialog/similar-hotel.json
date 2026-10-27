@@ -2,67 +2,72 @@
   "hotel": "similar-hotel",
   "model": "gpt-4o-mini",
   "replies": {
-    "13764ed976cf5de237bce0dc03e05aff4e21389396b8f709c99361d02f9b1a16": {
-      "content": "Я понял, что вам важен тихий отель с видом на море. Рекомендую отель Vincci Marítimo."
+    "30614b3997788bd43203d7bea245f47d263ab02e5d88a56a5aaa17bcc68914f9": {
+      "content": "Понято, вы ищете отель, похожий на Hotel Sofitel, но без вида на море. К сожалению, все похожие отели имеют вид на море. Однако, вот несколько вариантов, которые могут вас заинтересовать: Hotel Arts, Holiday Inn и Hotel Colonial. Все они имеют свои особенности, но, к сожалению, не соответствуют вашему запросу о отсутствии вида на море."
     },
-    "1617181f4732ab1204b29b3331737230905ce6ffde88034aa3487a67da5dfb56": {
+    "388e42848044b77db5e75b2a0e7c7e6169f9b96f16cdfed2c607ce46ddd7f875": {
+      "content": "Я понял, что вам важен тихий отель с видом на море. Рекомендую Vincci Marítimo."
+    },
+    "4cbf7f6ffdc06e4a16b219ed230893a547143517762dbf5a0f6502e8f245f57c": {
       "tool_calls": [
         {
-          "id": "call_9bMgpI1hEjY9tTYq41mumOqP",
+          "id": "call_nRhorjeAPQJ2pn60BdvGfiXR",
           "name": "parse_baseline",
-          "arguments": "{\"text\":\"похожий на второй\"}"
+          "arguments": "{\"text\":\"без вида на море\"}"
         }
       ]
-    },
-    "3822fe03bf59067c214d7d817738835928d09933a60b7213e652beed018f687b": {
-      "content": "Понято, вы ищете отель, похожий на Hotel Sofitel, но без вида на море. Рекомендую обратить внимание на Hotel Arts."
     },
     "5af966b25ddd385b5d6b54fecafa33eaf47ce0a39dfff4d880538730061e2924": {
       "tool_calls": [
         {
-          "id": "call_TM6V7bdD0uFzGYZNh3yBZN3p",
+          "id": "call_eD4SYboIjdj8HNnyyVoDzsTn",
           "name": "search",
           "arguments": "{\"wishes\":[{\"key\":\"noise_night\",\"value\":\"quiet\",\"importance\":\"prefer\"},{\"key\":\"sea_view\",\"value\":null}]}"
         }
       ]
     },
+    "6641ea9d3b453d11bda7b8a6743b9b9a2e449e65a827495df3c06cde017e036b": {
+      "tool_calls": [
+        {
+          "id": "call_O6NdOfqA9cjtwUjKuoX0E2RB",
+          "name": "search",
+          "arguments": "{\"remove\":[\"sea_view\"]}"
+        }
+      ]
+    },
+    "7cb74d09ec499275cc6f518090cbeb8d92c16253cc3decf52cee99a2ebd93e63": {
+      "content": "Я понял, что вам важен тихий отель с видом на море. Рекомендую вам отель Vincci Marítimo, который соответствует вашим пожеланиям."
+    },
     "8c8997a9465e2f2166eb25744433ce5deefa2d5ba78821568eff36a8224f2090": {
       "tool_calls": [
         {
-          "id": "call_oX69y5JB75bJJgGnswbEvUc5",
+          "id": "call_j7Bd02cr6luxv8ONBeOeQ8P0",
           "name": "similar",
-          "arguments": "{\"ordinal\":1}"
-        }
-      ]
-    },
-    "9e96136d3cd6377856a0d22eb4f115362db01e8f9190584da9344e84c3234d49": {
-      "content": "Понято, вы ищете отель, похожий на Hotel Sofitel, но без вида на море. В качестве альтернативы могу предложить Hotel Arts, Holiday Inn и Hotel Colonial, однако все они имеют вид на море. Если вам нужно что-то другое, дайте знать!"
-    },
-    "9f9881fd41210d841b3c175fc02b7130649668ef7957dafa85c30b23ede17732": {
-      "tool_calls": [
+          "arguments": "{\"ordinal\": 2}"
+        },
         {
-          "id": "call_EX3Gw9gbrZqDWhhAY1st8gzA",
+          "id": "call_j5F2Wc2dQowq151IO6BWEr0c",
           "name": "ask_clarification",
-          "arguments": "{\"phrase\":\"похожий на второй\"}"
+          "arguments": "{\"phrase\": \"без вида на море\"}"
         }
       ]
     },
-    "ac9cb54190532e23600b941746d649d4393156a6ac92e46bd883589fe0a772af": {
-      "content": "Я понял, что вам важен тихий отель с видом на море. Рекомендую вам отель Vincci Marítimo, который соответствует вашим пожеланиям."
+    "98256b96aefec21d882db2903b4986dfad0cf3e42abe954e5b42343f6193183c": {
+      "content": "Понято, вы ищете отель, похожий на Hotel Sofitel, но без вида на море. Рекомендую обратить внимание на Hotel Arts."
     },
-    "f0ce99fcf4bb25e5b089f7f1e9dd2a4550289023b92038d64e45994416283ed2": {
+    "c36910126b275b687cef5f41d9542d9f535d7c70ccd809c4e3aa91ced75c42c5": {
       "tool_calls": [
         {
-          "id": "call_hb7ZVVPSV9qK8JZ8DmwV7FIR",
-          "name": "search",
-          "arguments": "{\"remove\":[\"вид на море\"]}"
+          "id": "call_GGurOKcgo4xBPKHMAMKEzpLW",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\":\"без вида на море\"}"
         }
       ]
     },
     "f2d478f04056d2fa0e1a14d6cd282ae82c9f6ff66a0bfbd4aab24ffb8e6758e4": {
       "tool_calls": [
         {
-          "id": "call_s5cJt7x5xiTB4AKTZuTAYFtV",
+          "id": "call_sKBxgURHyttzKEgRu2Wxv9C8",
           "name": "parse_baseline",
           "arguments": "{\"text\":\"тихий отель с видом на море\"}"
         }
