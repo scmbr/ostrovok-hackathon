@@ -5,7 +5,7 @@
     "122cc4c04903389b9da14b62b496271226451b0fce9d607066ee5971e96ce290": {
       "tool_calls": [
         {
-          "id": "call_qDgtDYW2HwEzb6w6oBZZhvil",
+          "id": "call_Q8uQ1rrZUYsELAsxVX5VvcHR",
           "name": "ask_clarification",
           "arguments": "{\"phrase\":\"чтобы можно было с собакой\"}"
         }
@@ -14,40 +14,43 @@
     "1949062fc78ff4becd71b2a6bfb0558b015d2e2dd2f45d0e152153352f83dd09": {
       "tool_calls": [
         {
-          "id": "call_FFlRAB4Nn0uMuHMTM8WoayMG",
+          "id": "call_p5ZoikkV15C6Sncgug23n2xh",
           "name": "ask_clarification",
           "arguments": "{\"phrase\":\"у моря\"}"
         }
       ]
     },
-    "6b122ba328f27afa6ad9e9525d8e37a3a204bdd59202852d2b6d17b821d3bcad": {
+    "41be4326629829ef564a074590660d14a1aaac84ce61ebbf38ef65c179104147": {
       "tool_calls": [
         {
-          "id": "call_MSrN6x1KcRD2TTwCmbALcu8Y",
+          "id": "call_s7BgJV3ztdSFtjsjk2d3vJiA",
           "name": "search",
-          "arguments": "{\"wishes\":[{\"key\":\"pets_allowed\",\"importance\":\"prefer\"}]}"
+          "arguments": "{\"wishes\":[{\"key\":\"pets_allowed\",\"importance\":\"prefer\"}],\"remove\":[\"pets_allowed\"]}"
         }
       ]
     },
-    "74b6457b580d47ec90c90ed27fa436eb98fe3fa7bfd119d49389e6daac4d8d90": {
-      "content": "Понято, что вам важно, чтобы в отеле можно было остановиться с собакой. Один из лучших вариантов — Hotel Attica 21, стоимостью 164 € за ночь. Уточним информацию о возможности размещения с питомцем."
+    "60a84fc5f56ba31a2ee3f5df501bb80cc2ec2c6bc0cf7dff1df81e1b497a3efb": {
+      "content": "Я нашёл несколько отелей, которые могут вас заинтересовать. Лучший вариант — SB Icaria Barcelona, где гарантирована тишина ночью и до пляжа всего 7 минут пешком."
     },
     "7aceb7790ccf258959b31117ece251479d180602b4997538f5a2c4d55a736eb9": {
       "content": "Я нашёл несколько отелей, которые соответствуют вашим пожеланиям. Лучший вариант — SB Icaria Barcelona, где гарантирована тишина ночью и до пляжа всего 7 минут пешком."
     },
+    "89a67149f32ae4d2175837dfbed1555d2d8df270f3f72ec491781a869cdcee73": {
+      "content": "Понято, что вам важно, чтобы в отеле можно было остановиться с собакой. Один из лучших вариантов — Hotel Attica 21, стоимостью 164 € за ночь. Уточним информацию о возможности размещения с питомцем."
+    },
     "afcdf1efb67a3d0ca677454cf7adaa240972e996b46578ed95364b34ae10d9c1": {
       "tool_calls": [
         {
-          "id": "call_zhhmoYSp1u3nkvc1tj5r4Ld2",
+          "id": "call_ONHkteBRcqy75LfPkqMkuWJW",
           "name": "parse_baseline",
-          "arguments": "{\"text\":\"чтобы можно было с собакой\"}"
+          "arguments": "{\"text\":\"и чтобы можно было с собакой\"}"
         }
       ]
     },
     "e4df62c5fc601a11259b7503e2f58f6fc8dce402fa7969ec281a767338f06b18": {
       "tool_calls": [
         {
-          "id": "call_4FSmGbH0Z2uXZT6ktqdmTPNb",
+          "id": "call_ldqvJG23u3RtmZCxocpsynFZ",
           "name": "search",
           "arguments": "{}"
         }
@@ -56,11 +59,14 @@
     "e5b6a02dcff2d7914b5c1a408f7c903500bc7854de0a3ba3836579eba9436ba5": {
       "tool_calls": [
         {
-          "id": "call_0olPWlbOcuH5RSwhQGwvz5yI",
+          "id": "call_DnBtxF65RSkeOGcvMSFqauWq",
           "name": "parse_baseline",
           "arguments": "{\"text\":\"Хочу тихий отель у моря, до 200 евро за ночь\"}"
         }
       ]
+    },
+    "ea3aff55cd220a05a7b87a7e6a5e4d999ce70eaac783ed92de8dc5c7e56f64a2": {
+      "content": "Понято, что вам важно, чтобы в отеле можно было остановиться с собакой. Рекомендуем Hotel Attica 21, стоимостью 164 € за ночь."
     }
   }
 }
