@@ -74,6 +74,26 @@ WHERE status = $1 AND entity_type = $2 AND entity_id = $3 AND characteristic_key
 	return out, nil
 }
 
+// Authors — авторы типа authorType, у которых есть активные свидетельства или запись репутации.
+func (s *ReputationStore) Authors(ctx context.Context, authorType string) ([]domain.Author, error) {
+	rows, err := s.pool.Query(ctx, `
+SELECT author_id FROM evidence WHERE status = $2 AND author_type = $1
+UNION SELECT author_id FROM author_trust WHERE author_type = $1 ORDER BY 1`, authorType, domain.FactActive)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.Author
+	for rows.Next() {
+		a := domain.Author{Type: authorType}
+		if err := rows.Scan(&a.ID); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 func (s *ReputationStore) Trust(ctx context.Context, a domain.Author) (int, int, float64, bool, error) {
 	var agree, total int
 	var trust float64
