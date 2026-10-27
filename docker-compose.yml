@@ -6,8 +6,6 @@ services:
       POSTGRES_USER: tima
       POSTGRES_PASSWORD: tima
       POSTGRES_DB: tima
-    ports:
-      - "127.0.0.1:5432:5432" # для cmd/collect с хоста
     volumes:
       - dbdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,10 +19,12 @@ services:
     platform: linux/amd64
     ports:
       - "8080:8080"
-    env_file:
-      - .env
+    # Значения читаются из .env (подстановка Compose); пустое или отсутствующее значение = умолчание.
     environment:
       DATABASE_URL: postgres://tima:tima@db:5432/tima?sslmode=disable
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
     depends_on:
       db:
         condition: service_healthy

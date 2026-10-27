@@ -1,0 +1,7 @@
+# Для разработчика: БД на localhost:5432 (нужна cmd/collect с хоста и make test-replay*).
+# Жюри этот файл не нужен: основной docker-compose.yml порт БД не публикует.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build   (или make up)
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"

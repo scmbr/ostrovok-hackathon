@@ -1,10 +1,13 @@
 .PHONY: up down test test-replay test-replay-dialog seed demo-reset
 
+# Для разработчика: с портом БД 5432 на хосте (docker-compose.dev.yml). Для жюри — просто docker compose up --build.
+DEV := -f docker-compose.yml -f docker-compose.dev.yml
+
 up:
-	docker compose up --build
+	docker compose $(DEV) up --build
 
 down:
-	docker compose down
+	docker compose $(DEV) down
 
 test:
 	cd backend && go test ./... && go vet ./...
@@ -15,7 +18,7 @@ test:
 test-replay:
 	docker compose stop
 	status=0; \
-	docker compose -p clean-check up --build -d --wait && \
+	docker compose -p clean-check $(DEV) up --build -d --wait && \
 	( cd backend && AGENT_REPLAY_DATABASE_URL="postgres://tima:tima@localhost:5432/tima?sslmode=disable" \
 	  go test ./internal/app -run TestAgentReplayFromSeedHasNoMisses -count=1 -v ) || status=$$?; \
 	docker compose -p clean-check down -v; \
@@ -27,7 +30,7 @@ test-replay:
 test-replay-dialog:
 	docker compose stop
 	status=0; \
-	docker compose -p clean-check up --build -d --wait && \
+	docker compose -p clean-check $(DEV) up --build -d --wait && \
 	( cd backend && AGENT_REPLAY_DATABASE_URL="postgres://tima:tima@localhost:5432/tima?sslmode=disable" \
 	  go test ./internal/app -run TestDialogReplayFromSeedHasNoMisses -count=1 -v ) || status=$$?; \
 	docker compose -p clean-check down -v; \
