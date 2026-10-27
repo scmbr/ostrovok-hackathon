@@ -3,13 +3,15 @@ import { Link } from 'react-router-dom'
 import { AgentJournal } from '@/widgets/agent-journal'
 import { ConflictsBoard } from '@/widgets/conflicts-board'
 import { FactsExplorer } from '@/widgets/facts-explorer'
+import { RegistryBoard } from '@/widgets/registry-board'
 
-type Tab = 'journal' | 'facts' | 'conflicts'
+type Tab = 'journal' | 'facts' | 'conflicts' | 'registry'
 
 const TABS: { id: Tab; title: string }[] = [
   { id: 'journal', title: 'Журнал агентов' },
   { id: 'facts', title: 'Факты и свидетельства' },
   { id: 'conflicts', title: 'Конфликты' },
+  { id: 'registry', title: 'Реестр' },
 ]
 
 // «Под капотом» (роль админа): журнал агентов, факты со свидетельствами, конфликты.
@@ -41,6 +43,7 @@ export function AdminPage() {
       {tab === 'journal' && <AgentJournal />}
       {tab === 'facts' && <FactsExplorer />}
       {tab === 'conflicts' && <ConflictsBoard />}
+      {tab === 'registry' && <RegistryBoard />}
     </div>
   )
 }

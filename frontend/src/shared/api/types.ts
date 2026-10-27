@@ -305,6 +305,35 @@ export interface Characteristic {
   favorable_values?: string[]
   // Для характеристик, добавленных текстом.
   origin?: string
+  origin_text?: string
+  added_at?: string
+  synonyms?: string[]
+  synonyms_origin?: 'derived' | 'edited'
+  ttl_days?: number
+  ask_hotelier?: string
+  strategies?: { tool: string; strategy?: string; params?: Record<string, unknown>; base_reliability: number; independence_group: string }[]
+  conflict?: { steps: number; theta: number }
+}
+
+export interface CharacteristicDraft {
+  yaml: string
+  key: string
+  title: string
+  synonyms: string[]
+  notes: string[]
+  errors: string[]
+  attempts: number
+  mode: string
+}
+
+export interface Job {
+  id: string
+  title: string
+  status: 'running' | 'done' | 'failed'
+  done: number
+  total: number
+  message?: string
+  errors: string[]
 }
 
 // Шортлист, сравнение, контракт, бронь.

@@ -1,5 +1,5 @@
 export { FactCard, EvidenceList } from './ui/FactCard'
 export type { FactLike } from './ui/FactCard'
 export { FactChangeView, TrustChangeView } from './ui/FactChangeView'
-export { getCharacteristics, getExplainedFacts } from './api/factApi'
+export { getCharacteristics, getExplainedFacts, resetCharacteristics } from './api/factApi'
 export { ExplainChain } from './ui/ExplainChain'

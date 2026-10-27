@@ -3,6 +3,11 @@ import type { Characteristic, ExplainedFact } from '@/shared/api'
 
 let cache: Promise<Characteristic[]> | null = null
 
+// После добавления характеристики текстом реестр на сервере меняется: кеш в памяти сбрасывается.
+export function resetCharacteristics(): void {
+  cache = null
+}
+
 // Реестр характеристик: названия и поле значения. Неизменен до перезапуска сервера.
 export function getCharacteristics(): Promise<Characteristic[]> {
   if (!cache) {
