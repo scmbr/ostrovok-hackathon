@@ -71,6 +71,7 @@ func TestParsePhrases(t *testing.T) {
 		{"тихий номер с видом на море", "noise_night=quiet sea_view"},
 		{"до пляжа не больше 10 минут и с собакой", "walk_to_beach=10 pets_allowed"},
 		{"тихо ночью, затемняющие шторы", "noise_night=quiet blackout_curtains"},
+		{"шторы затемняющие и тихо", "blackout_curtains noise_night=quiet"},
 		{"вид на море, бюджет до 150 €", "sea_view price<=150"},
 		{"рядом ночная аптека, до метро не больше 5 минут", "night_pharmacy walk_to_metro=5"},
 		{"обязательно тихо и с питомцем", "noise_night=quiet! pets_allowed!"}, // маркер действует на всю часть до запятой
