@@ -76,6 +76,8 @@ func runDialog(args []string, reg domain.Registry) error {
 	cacheOnly := fs.Bool("cache", false, "не обращаться к LLM: ответы только из кеша")
 	rules := fs.Bool("rules", false, "без модели: детерминированный разбор и шаблонные тексты")
 	hotel := fs.Int64("hotel", 0, "открытый отель («похожий на этот»)")
+	limit := fs.Int("limit", 0, "сколько отелей в выдаче (по умолчанию 5)")
+	explain := fs.Bool("explain", false, "печатать построчное объяснение по каждому отелю выдачи (статусы, значения, источники)")
 	regionCode := fs.String("region", defaultRegion, "код региона")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -112,6 +114,7 @@ func runDialog(args []string, reg domain.Registry) error {
 		return err
 	}
 	fmt.Println(modeText)
+	e.ResultLimit = *limit
 	if err := e.Sessions.SaveState(ctx, *sessionID, []byte("{}")); err != nil {
 		return err
 	}
@@ -122,7 +125,7 @@ func runDialog(args []string, reg domain.Registry) error {
 			req.Message, req.Choice = "", strings.TrimPrefix(t, "@")
 		}
 		fmt.Printf("\n--- ход %d: %s\n", i+1, t)
-		if err := e.Turn(ctx, req, printDialogEvent); err != nil {
+		if err := e.Turn(ctx, req, func(ev dialog.Event) { printDialogEvent(ev, *explain) }); err != nil {
 			return err
 		}
 	}
@@ -137,7 +140,7 @@ func runDialog(args []string, reg domain.Registry) error {
 }
 
 // printDialogEvent печатает событие ответа кратко: то, что видел бы клиент SSE.
-func printDialogEvent(ev dialog.Event) {
+func printDialogEvent(ev dialog.Event, explain bool) {
 	switch d := ev.Data.(type) {
 	case dialog.StepEvent:
 		tool := d.Tool
@@ -163,6 +166,11 @@ func printDialogEvent(ev dialog.Event) {
 			names = append(names, fmt.Sprintf("%s [%d] (%.2f)", h.Name, h.HotelID, h.Best.Score))
 		}
 		fmt.Printf("results (%s): %s\n", d.Kind, strings.Join(names, "; "))
+		if explain {
+			for _, x := range d.Explanations {
+				fmt.Println(x.Text())
+			}
+		}
 	case dialog.MessageEvent:
 		fmt.Printf("message [%s]:\n%s\n", d.Source, d.Text)
 	case dialog.DoneEvent:

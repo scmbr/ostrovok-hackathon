@@ -1,0 +1,11 @@
+# Постоянный стенд на данных жюри (БД из демо-сида) для разработки интерфейса: порты 8081 (приложение) и 5433 (БД).
+# Рабочая БД на 5432 нужна только для collect и не трогается.
+#   docker compose -p demo -f docker-compose.yml -f docker-compose.demo.yml up --build -d
+# Остановить: docker compose -p demo stop; удалить вместе с данными: docker compose -p demo down -v
+services:
+  db:
+    ports: !override
+      - "127.0.0.1:5433:5432"
+  app:
+    ports: !override
+      - "8081:8080"
