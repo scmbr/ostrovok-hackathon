@@ -161,11 +161,11 @@ func TestParseAmbiguityNamesOptionsAndDefault(t *testing.T) {
 	labels := map[string]string{}
 	for _, o := range a.Options {
 		labels[o.Key] = o.Label
-		if o.Key == "walk_to_beach" && o.Desire.Value != 5.0 {
-			t.Errorf("пляж «в паре минут» — 5 минут: %+v", o.Desire)
+		if o.Key == "walk_to_beach" && o.Desire.Value != 10.0 {
+			t.Errorf("пляж рядом — до 10 минут: %+v", o.Desire)
 		}
 	}
-	if labels["sea_view"] != "вид из окна" || labels["walk_to_beach"] != "пляж в паре минут" {
+	if labels["sea_view"] != "вид из окна" || labels["walk_to_beach"] != "пляж рядом (до 10 минут)" {
 		t.Errorf("подписи трактовок: %v", labels)
 	}
 	// важность, названная гостем, переходит в трактовки

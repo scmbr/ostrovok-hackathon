@@ -26,9 +26,9 @@ synonyms:
   - пляжах
   - купаться
 ambiguous_synonyms:
-  - { phrase: у моря, label: пляж в паре минут, value: 5, default: true }
-  - { phrase: рядом с морем, label: пляж в паре минут, value: 5, default: true }
-  - { phrase: около моря, label: пляж в паре минут, value: 5, default: true }
-  - { phrase: возле моря, label: пляж в паре минут, value: 5, default: true }
-  - { phrase: близко к морю, label: пляж в паре минут, value: 5, default: true }
-  - { phrase: недалеко от моря, label: пляж в паре минут, value: 5, default: true }
+  - { phrase: у моря, label: пляж рядом (до 10 минут), value: 10, default: true }
+  - { phrase: рядом с морем, label: пляж рядом (до 10 минут), value: 10, default: true }
+  - { phrase: около моря, label: пляж рядом (до 10 минут), value: 10, default: true }
+  - { phrase: возле моря, label: пляж рядом (до 10 минут), value: 10, default: true }
+  - { phrase: близко к морю, label: пляж рядом (до 10 минут), value: 10, default: true }
+  - { phrase: недалеко от моря, label: пляж рядом (до 10 минут), value: 10, default: true }
