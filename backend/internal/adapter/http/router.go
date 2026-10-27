@@ -43,6 +43,19 @@ func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms Room
 	if deps.chat != nil {
 		mux.Handle("POST /api/chat", handleChat(deps.chat, reg))
 	}
+	if deps.examples != nil {
+		mux.Handle("GET /api/dialog/examples", handleDialogExamples(deps.examples))
+	}
+	if deps.guest != nil {
+		mux.Handle("GET /api/sessions/{id}/shortlist", handleShortlist(deps.guest))
+		mux.Handle("POST /api/sessions/{id}/shortlist/{hotel_id}", handleShortlistChange(deps.guest, true))
+		mux.Handle("DELETE /api/sessions/{id}/shortlist/{hotel_id}", handleShortlistChange(deps.guest, false))
+		mux.Handle("POST /api/compare", handleCompare(deps.guest, reg))
+		mux.Handle("POST /api/contract", handleContract(deps.guest))
+		mux.Handle("POST /api/contract/ask", handleAskHotel(deps.guest))
+		mux.Handle("POST /api/bookings", handleBook(deps.guest))
+		mux.Handle("GET /api/bookings/{id}", handleGetBooking(deps.guest))
+	}
 	if cabinet != nil {
 		mux.Handle("GET /api/hotelier/{hotel_id}/inbox", handleHotelierInbox(cabinet))
 		mux.Handle("POST /api/hotelier/questions/{id}/answer", handleHotelierAnswer(cabinet))

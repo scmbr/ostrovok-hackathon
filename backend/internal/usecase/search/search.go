@@ -101,7 +101,7 @@ func (s *Service) Search(ctx context.Context, q domain.Query) (Result, error) {
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			res, ok, err := s.evalHotel(ctx, c, q, chars)
+			res, _, ok, err := s.evalHotel(ctx, c, q, chars)
 			slots[i] = slot{res, ok, err}
 		}()
 	}
@@ -165,24 +165,24 @@ func (s *Service) normalize(q domain.Query) (domain.Query, map[string]domain.Cha
 }
 
 // evalHotel строит лучший вариант номера отеля; ok == false — у отеля нет подходящих вариантов (фильтр цены, нет категорий).
-func (s *Service) evalHotel(ctx context.Context, c Candidate, q domain.Query, chars map[string]domain.Characteristic) (domain.HotelResult, bool, error) {
+func (s *Service) evalHotel(ctx context.Context, c Candidate, q domain.Query, chars map[string]domain.Characteristic) (domain.HotelResult, []domain.Variant, bool, error) {
 	hr, err := s.Rooms.Hotel(ctx, c.ID)
 	if errors.Is(err, rooms.ErrNotFound) {
-		return domain.HotelResult{}, false, nil
+		return domain.HotelResult{}, nil, false, nil
 	}
 	if err != nil {
-		return domain.HotelResult{}, false, fmt.Errorf("категории отеля %d: %w", c.ID, err)
+		return domain.HotelResult{}, nil, false, fmt.Errorf("категории отеля %d: %w", c.ID, err)
 	}
 	facts, err := s.Store.HotelFacts(ctx, c.ID)
 	if err != nil {
-		return domain.HotelResult{}, false, fmt.Errorf("факты отеля %d: %w", c.ID, err)
+		return domain.HotelResult{}, nil, false, fmt.Errorf("факты отеля %d: %w", c.ID, err)
 	}
 	byKey := hotelFacts(facts)
 	azimuth := map[int64]float64{}
 	for _, f := range hr.Facades {
 		azimuth[f.ID] = f.AzimuthDeg
 	}
-	wishGuaranteed := wishGuarantee(byKey)
+	wishGuaranteed, wishRefused := wishGuarantee(byKey)
 
 	hotelEvals := map[string]domain.WishEval{}
 	categoryKeys := map[string]bool{}
@@ -221,7 +221,7 @@ func (s *Service) evalHotel(ctx context.Context, c Candidate, q domain.Query, ch
 					Caveat: "категория не оценена — спросим отель"})
 				continue
 			}
-			in := domain.CategoryWishInput{Assessment: a, WishGuaranteed: wishGuaranteed,
+			in := domain.CategoryWishInput{Assessment: a, WishGuaranteed: wishGuaranteed, WishRefused: wishRefused,
 				AzimuthOf: func(id int64) float64 { return azimuth[id] }}
 			var src []rooms.EvidenceView
 			for _, chv := range cv.Characteristics {
@@ -237,10 +237,10 @@ func (s *Service) evalHotel(ctx context.Context, c Candidate, q domain.Query, ch
 	}
 	best, alt, ok := domain.ChooseVariants(variants)
 	if !ok {
-		return domain.HotelResult{}, false, nil
+		return domain.HotelResult{}, nil, false, nil
 	}
 	return domain.HotelResult{HotelID: c.ID, Name: c.Name, District: c.District, Card: c.Card, Best: best, Alt: alt,
-		OtherConflicts: domain.ConflictsOutside(variants, best.CategoryID)}, true, nil
+		OtherConflicts: domain.ConflictsOutside(variants, best.CategoryID)}, variants, true, nil
 }
 
 // hotelFacts — факты уровня отеля по ключу.
@@ -254,14 +254,14 @@ func hotelFacts(fs []FactView) map[string]FactView {
 	return out
 }
 
-// wishGuarantee — отельер сообщил, что гарантирует пожелания к номеру.
-func wishGuarantee(byKey map[string]FactView) bool {
+// wishGuarantee — ответ отельера о пожеланиях к номеру: гарантирует (yes) или нет (refused); нет факта — оба false.
+func wishGuarantee(byKey map[string]FactView) (yes, refused bool) {
 	fv, ok := byKey[domain.WishGuaranteeKey]
 	if !ok {
-		return false
+		return false, false
 	}
-	v, _ := fv.Fact.Value["available"].(bool)
-	return v
+	v, ok := fv.Fact.Value["available"].(bool)
+	return ok && v, ok && !v
 }
 
 func sources(evs []rooms.EvidenceView) []domain.EvidenceSource {
@@ -383,4 +383,35 @@ func plainFacts(fs []FactView) []domain.Fact {
 		out[i] = f.Fact
 	}
 	return out
+}
+
+// HotelVariants — отель с лучшим вариантом и всеми вариантами номера для запроса (сравнение, контракт).
+type HotelVariants struct {
+	Result   domain.HotelResult
+	Variants []domain.Variant
+}
+
+// EvalHotel оценивает один отель по запросу. Фильтры карточки (цена, звёзды) не применяются: гость уже выбрал
+// отель, цена остаётся в варианте. ErrNotFound — нет отеля или у него нет категорий.
+func (s *Service) EvalHotel(ctx context.Context, hotelID int64, q domain.Query) (HotelVariants, domain.Query, error) {
+	q.Filters = domain.Filters{}
+	if len(q.Wishes) == 0 {
+		return HotelVariants{}, q, &ValidationError{"в сессии нет желаний: сравнивать не по чему"}
+	}
+	q, chars, err := s.normalize(q)
+	if err != nil {
+		return HotelVariants{}, q, err
+	}
+	c, err := s.Store.Candidate(ctx, hotelID)
+	if err != nil {
+		return HotelVariants{}, q, err
+	}
+	res, variants, ok, err := s.evalHotel(ctx, c, q, chars)
+	if err != nil {
+		return HotelVariants{}, q, err
+	}
+	if !ok {
+		return HotelVariants{}, q, ErrNotFound
+	}
+	return HotelVariants{Result: res, Variants: variants}, q, nil
 }

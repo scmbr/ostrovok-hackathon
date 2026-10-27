@@ -48,6 +48,8 @@ const (
 	ViolationProbability = 0.05
 	// WishFulfilProbability — вероятность, что отель выполнит пожелание к брони, пока он его не подтвердил (мок).
 	WishFulfilProbability = 0.7
+	// WishRefusedProbability — то же, если отельер ответил, что пожелания не гарантирует (wish_guarantee = false).
+	WishRefusedProbability = 0.4
 	// WishGuaranteedProbability — то же, если отельер сообщил, что гарантирует пожелания (wish_guarantee).
 	WishGuaranteedProbability = 0.95
 	// WishGuaranteeKey — характеристика «отель гарантирует пожелание к номеру», только от отельера.
@@ -265,6 +267,8 @@ type VariantWish struct {
 	Probability float64
 	// HotelConfirmed — отельер сообщил, что гарантирует пожелания (wish_guarantee).
 	HotelConfirmed bool
+	// HotelRefused — отельер ответил, что пожелания не гарантирует.
+	HotelRefused bool
 }
 
 // WishEval — оценка одного желания в варианте номера. Структура, а не текст: текст строится из неё.
@@ -485,6 +489,8 @@ type CategoryWishInput struct {
 	Fact *Fact
 	// WishGuaranteed — отельер сообщил, что гарантирует пожелания.
 	WishGuaranteed bool
+	// WishRefused — отельер сообщил, что не гарантирует пожелания.
+	WishRefused bool
 	// AzimuthOf — азимут фасада по id для пожелания.
 	AzimuthOf func(facadeID int64) float64
 }
@@ -525,11 +531,14 @@ func EvalCategoryWish(c Characteristic, w Desire, in CategoryWishInput) WishEval
 	if !e.Guarantee && !disagree && a.Wish != nil && pBase > 0 {
 		cover := math.Min(1, a.Wish.Rooms/(pBase*float64(a.Rooms)))
 		fulfil := WishFulfilProbability
-		if in.WishGuaranteed {
+		switch {
+		case in.WishGuaranteed:
 			fulfil = WishGuaranteedProbability
+		case in.WishRefused:
+			fulfil = WishRefusedProbability
 		}
 		vw := &VariantWish{FacadeID: a.Wish.FacadeID, MinFloor: a.Wish.MinFloor, Rooms: a.Wish.Rooms, Share: a.Wish.Share,
-			Probability: cover * fulfil, HotelConfirmed: in.WishGuaranteed}
+			Probability: cover * fulfil, HotelConfirmed: in.WishGuaranteed, HotelRefused: in.WishRefused && !in.WishGuaranteed}
 		if in.AzimuthOf != nil {
 			vw.AzimuthDeg = in.AzimuthOf(a.Wish.FacadeID)
 		}

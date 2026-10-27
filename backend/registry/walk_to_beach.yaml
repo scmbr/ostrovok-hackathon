@@ -32,3 +32,5 @@ ambiguous_synonyms:
   - { phrase: возле моря, label: пляж рядом (до 10 минут), value: 10, default: true }
   - { phrase: близко к морю, label: пляж рядом (до 10 минут), value: 10, default: true }
   - { phrase: недалеко от моря, label: пляж рядом (до 10 минут), value: 10, default: true }
+
+day_part: day

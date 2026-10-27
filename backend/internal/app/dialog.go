@@ -75,6 +75,7 @@ func runDialog(args []string, reg domain.Registry) error {
 	record := fs.String("record", "", "сохранить ответы живой модели в cache/dialog/<имя>.json")
 	cacheOnly := fs.Bool("cache", false, "не обращаться к LLM: ответы только из кеша")
 	rules := fs.Bool("rules", false, "без модели: детерминированный разбор и шаблонные тексты")
+	fixture := fs.String("fixture", "", "демо-диалог из demo_dialogs.json (ходы берутся из фикстуры); запись — в cache/dialog/<имя>.json")
 	hotel := fs.Int64("hotel", 0, "открытый отель («похожий на этот»)")
 	limit := fs.Int("limit", 0, "сколько отелей в выдаче (по умолчанию 5)")
 	explain := fs.Bool("explain", false, "печатать построчное объяснение по каждому отелю выдачи (статусы, значения, источники)")
@@ -83,6 +84,16 @@ func runDialog(args []string, reg domain.Registry) error {
 		return err
 	}
 	turns := fs.Args()
+	if *fixture != "" {
+		d, ok := dialog.DemoDialogByName(*fixture)
+		if !ok {
+			return fmt.Errorf("в demo_dialogs.json нет диалога %q", *fixture)
+		}
+		turns = d.Turns
+		if *record != "" && *record != d.Name {
+			return fmt.Errorf("запись фикстуры идёт под её именем %q", d.Name)
+		}
+	}
 	if len(turns) == 0 {
 		return fmt.Errorf("нужна хотя бы одна фраза; ответ кнопкой — «@id»")
 	}

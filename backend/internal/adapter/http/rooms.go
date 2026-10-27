@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"log"
 	"math"
 	"net/http"
@@ -148,14 +149,7 @@ func wishText(side string, minFloor int) string {
 }
 
 // sideRU — сторона света, в которую смотрит фасад, по азимуту внешней нормали.
-func sideRU(az float64) string {
-	sides := []string{"северная", "северо-восточная", "восточная", "юго-восточная", "южная", "юго-западная", "западная", "северо-западная"}
-	i := int(math.Mod(math.Round(math.Mod(az, 360)/45), 8))
-	if i < 0 {
-		i += 8
-	}
-	return sides[i]
-}
+func sideRU(az float64) string { return domain.SideRU(az) }
 
 func round2(x float64) float64 { return math.Round(x*100) / 100 }
 

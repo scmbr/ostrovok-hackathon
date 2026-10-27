@@ -590,3 +590,18 @@ func TestSharedToolMarksAllItsCharacteristicsProcessed(t *testing.T) {
 		}
 	}
 }
+
+// day_part нужен только сравнению: агент-сборщик его не видит, иначе кеш сборщика устарел бы.
+func TestCharacteristicsViewHasNoDayPart(t *testing.T) {
+	reg, err := domain.NewRegistry([]domain.Characteristic{
+		{Key: "noise_night", Title: "Тишина", Level: domain.LevelHotel, ValueType: domain.ValueBool, DayPart: domain.DayNight},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &run{a: &Agent{Registry: reg}, states: map[string]State{}}
+	b, _ := json.Marshal(r.characteristicsView())
+	if strings.Contains(string(b), "day_part") {
+		t.Errorf("characteristicsView выдаёт day_part: %s", b)
+	}
+}

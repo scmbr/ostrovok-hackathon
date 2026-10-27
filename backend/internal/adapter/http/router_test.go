@@ -9,6 +9,7 @@ import (
 	"testing/fstest"
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/dialog"
 )
 
 func TestHealth(t *testing.T) {
@@ -94,5 +95,21 @@ func TestCharacteristicsEndpoint(t *testing.T) {
 	newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, nil).ServeHTTP(rec, httptest.NewRequest("GET", "/api/characteristics", nil))
 	if !strings.Contains(rec.Body.String(), `"characteristics":[]`) {
 		t.Errorf("пустой реестр: %s", rec.Body.String())
+	}
+}
+
+func TestDialogExamplesRoute(t *testing.T) {
+	ex, err := dialog.Examples()
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, nil, WithDialogExamples(ex))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/dialog/examples", nil))
+	var body struct {
+		Examples []exampleDTO `json:"examples"`
+	}
+	if rec.Code != http.StatusOK || json.Unmarshal(rec.Body.Bytes(), &body) != nil || len(body.Examples) != 3 || body.Examples[0].Text == "" {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }

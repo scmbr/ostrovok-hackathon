@@ -17,3 +17,5 @@ ask_guest: Сколько минут вы шли от отеля до метро
 default_number: 10
 synonyms:
   - метро
+
+day_part: day

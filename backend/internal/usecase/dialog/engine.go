@@ -28,6 +28,7 @@ const (
 	EventStep          = "step"
 	EventClarification = "clarification"
 	EventResults       = "results"
+	EventCompare       = "compare"
 	EventMessage       = "message"
 	EventDone          = "done"
 )
@@ -98,6 +99,8 @@ type Engine struct {
 	Search   Searcher
 	Sessions SessionStore
 	Unmet    UnmetStore
+	// Compare — умное сравнение (booking.Service); nil — команда «сравни …» не распознаётся.
+	Compare  Comparer
 	Trace    TraceWriter
 	RegionID int64
 	// Chat — LLM с tool calling (живая, с записью или из кеша); nil — только правила. ChatMode — llm | cache.
@@ -481,6 +484,9 @@ func (r *run) checkIntro(candidate string) error {
 // Turn обрабатывает сообщение гостя. С Chat выбор шагов делает модель; при её недоступности или промахе кеша
 // ход повторяется по правилам (детерминированный разбор и шаблонные тексты).
 func (e *Engine) Turn(ctx context.Context, req Request, emit func(Event)) error {
+	if handled, err := e.turnCompare(ctx, req, emit); handled || err != nil {
+		return err
+	}
 	if e.Chat != nil {
 		handled, err := e.turnLLM(ctx, req, emit)
 		if handled || err != nil {

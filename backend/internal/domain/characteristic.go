@@ -79,6 +79,8 @@ type Characteristic struct {
 	AmbiguousSynonyms []AmbiguousSynonym
 	// DefaultNumber — для number: порог желания, если гость назвал характеристику без числа («пляж рядом»); 0 — нет.
 	DefaultNumber float64
+	// DayPart — когда в «дне гостя» характеристика важна в сравнении: morning | day | night; пусто — «прочее».
+	DayPart string
 }
 
 // AmbiguousSynonym — фраза, которую понимают как несколько характеристик; у всех, кто её перечисляет, она одна.
@@ -248,3 +250,10 @@ func (r Registry) ToolUses(tool string) []ToolUse {
 	}
 	return out
 }
+
+// Части дня для группировки сравнения «как пройдёт ваш день» (Characteristic.DayPart).
+const (
+	DayMorning = "morning"
+	DayDay     = "day"
+	DayNight   = "night"
+)

@@ -5,6 +5,7 @@ import (
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/agent"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/booking"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/search"
 )
 
@@ -30,4 +31,9 @@ type UnmetStore interface {
 // TraceWriter — журнал решений агента (agent_trace).
 type TraceWriter interface {
 	AppendTrace(ctx context.Context, s agent.TraceStep) error
+}
+
+// Comparer — умное сравнение для команды «сравни …» в чате (booking.Service).
+type Comparer interface {
+	Compare(ctx context.Context, req booking.CompareRequest) (booking.Compared, error)
 }
