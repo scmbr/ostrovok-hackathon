@@ -2,104 +2,99 @@
   "hotel": "unmet-night",
   "model": "gpt-4o-mini",
   "replies": {
+    "1eef385a161bd0a985d2458f1c08f28582cac1bdbd091baededebcba2b91fdf0": {
+      "tool_calls": [
+        {
+          "id": "call_1HXp0RlVRQ9XiNVs2XrA86EO",
+          "name": "search",
+          "arguments": "{}"
+        }
+      ]
+    },
     "20be6104a4ac1faeb163f4322ee5f9266505da4084351de91897d29b9d8984f9": {
       "tool_calls": [
         {
-          "id": "call_0IMScimjNHRZNM7uTAc9zrum",
-          "name": "ask_clarification",
-          "arguments": "{\"phrase\": \"хочу у моря\"}"
-        },
-        {
-          "id": "call_R4pWmmglZFfRZ01K2eJhxjCK",
-          "name": "ask_clarification",
-          "arguments": "{\"phrase\": \"тишина ночью\"}"
+          "id": "call_tc0ozviALpS8M0LeANeGe0pD",
+          "name": "log_unmet_wish",
+          "arguments": "{\"text\":\"хочу у моря\",\"normalized\":\"у моря\",\"proposal\":{\"key\":\"near_sea\",\"title\":\"близость к морю\",\"how\":\"отель находится рядом с морем\"}}"
         }
       ]
     },
-    "3d55acfd84d5dbaf7432147cdf947a80d5bee60a6ff2e39eab0379156ed47a60": {
-      "content": "Я нашел несколько отелей, которые могут вас заинтересовать. К сожалению, не удалось найти варианты, где все ваши пожелания совпадают. Однако есть отели, которые удовлетворяют большинству ваших требований.\n\nНапример, Hotel Sofitel предлагает пешую доступность до метро и пляжа, а также гарантирует тишину ночью, но не имеет ночной аптеки рядом. Также есть Hotel Suites Avenue и Hotel Royal, которые соответствуют вашим критериям, но с некоторыми ограничениями по пешей доступности до пляжа."
-    },
-    "4bced88ae25251112a05869ee57f33db702fb2e2996f29fd0a3e9191f8b49b70": {
+    "3ed92f9502a4293623b66d324353b8f941353d9e64b26e93c902cc6065ab03a7": {
       "tool_calls": [
         {
-          "id": "call_hqSZpgyjYzjtbDUvkCCCGrI5",
-          "name": "parse_baseline",
-          "arguments": "{\"text\":\"хочу у моря\"}"
-        }
-      ]
-    },
-    "6724f94cb67e73e6d22465e20b47edcf9da7e999ce6e9b4f70092408dfbe3332": {
-      "content": "Я нашел несколько отелей, которые могут вас заинтересовать. Лучший вариант — Hotel Sofitel, который предлагает пешую доступность до метро и пляжа, а также гарантирует тишину ночью."
-    },
-    "859998908bd0bd3fc3bbcea96f77f51832805950d83cf2560e8b24973c60f89b": {
-      "tool_calls": [
-        {
-          "id": "call_749ESqmCl1AOxkEN753ftypm",
+          "id": "call_9PUJZszCz5DJEf826H9TIx2i",
           "name": "ask_clarification",
           "arguments": "{\"phrase\": \"нужна ночная аптека рядом\"}"
         },
         {
-          "id": "call_7odYAd3h0G1iBgK4ZByhl79U",
+          "id": "call_rmGzw7W120zRLOuQctOAQMW1",
           "name": "ask_clarification",
           "arguments": "{\"phrase\": \"важно тихо ночью\"}"
         }
       ]
+    },
+    "56202b1b0d84fbfefcc130387535d78fb902bbed6e1bdd81108ff2859e3dcda4": {
+      "content": "Я нашел несколько вариантов отелей, которые могут вас заинтересовать. К сожалению, не удалось найти отель, который бы соответствовал всем вашим пожеланиям сразу. Однако есть интересный вариант: Hotel Sofitel, который находится у метро, тихо ночью, с видом на море и в 3 минутах пешком до пляжа. Ночная аптека рядом не подтверждена."
     },
     "8d72f50564c5bde211ac1a5c873bd26bd5802aee5191802919c34f23e76b221e": {
       "tool_calls": [
         {
-          "id": "call_yHu1Z0XrkLnRT8qF31s0Yhma",
+          "id": "call_PHVsJ0O46Wi9yhOXd1tgUy6n",
           "name": "log_unmet_wish",
           "arguments": "{\"text\": \"морской воздух\", \"normalized\": \"морской воздух\", \"proposal\": {\"key\": \"sea_view\", \"title\": \"Вид на море\", \"how\": \"С какого этажа каждый фасад видит море\"}}"
         },
         {
-          "id": "call_FlZadXOGYJc8gaqIjiGsf57u",
+          "id": "call_L0lUAyq2jkeO5lGt8bVK0iBh",
           "name": "ask_clarification",
           "arguments": "{\"phrase\": \"нужна ночная аптека рядом\"}"
         },
         {
-          "id": "call_44HrcFuMLwLyQQPvOnhZfydl",
-          "name": "ask_clarification",
-          "arguments": "{\"phrase\": \"хочу морской воздух\"}"
-        },
-        {
-          "id": "call_hc1omIbNbU64VgCGY7XapwGp",
+          "id": "call_Hld1k3JMmoIR1NZLPTQIWdJU",
           "name": "ask_clarification",
           "arguments": "{\"phrase\": \"важно тихо ночью\"}"
+        },
+        {
+          "id": "call_TrUSqHvLhWBD04jol7MybXoD",
+          "name": "ask_clarification",
+          "arguments": "{\"phrase\": \"хочу морской воздух\"}"
+        }
+      ]
+    },
+    "9ade351e8f653dee162ab323c35bf526b73cfebcd1baa2a76a8e4e3cd4a41e7b": {
+      "tool_calls": [
+        {
+          "id": "call_m6sjDGwKS4hszxUvemUxz9cw",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"near_sea\",\"importance\":\"prefer\"}]}"
         }
       ]
     },
     "a55eca5122c13a3571d4060e20b3250f86e5b810677e6af07218c133a8ee735c": {
       "tool_calls": [
         {
-          "id": "call_k2j2o0upPka8oJLqFDbrxrgK",
+          "id": "call_382PswpmIdaCqcyBQzUliIEt",
           "name": "parse_baseline",
           "arguments": "{\"text\": \"нужна ночная аптека рядом и метро, ещё хочу морской воздух; важно тихо ночью\"}"
         },
         {
-          "id": "call_FitROQgvvFw4GQxROtA480OP",
+          "id": "call_Uy62Yst0RWGEY9nT5ILTNiWL",
           "name": "list_characteristics",
           "arguments": "{}"
         }
       ]
     },
-    "a57356b664c70a843c5b7e109de8253f481fef672aa9298e00ef879d36cd54a4": {
+    "cfab4c72b2c0997d2471230eb2c46992fbab0f53207f4d60397c0bf989a149d7": {
       "tool_calls": [
         {
-          "id": "call_cdYaSaLwf766rsORV6FTmjOe",
-          "name": "ask_clarification",
-          "arguments": "{\"phrase\":\"у моря\"}"
+          "id": "call_qecmmJTECzKtnsx1sR0asTLS",
+          "name": "search",
+          "arguments": "{\"wishes\":[{\"key\":\"sea_view\",\"importance\":\"prefer\"}]}"
         }
       ]
     },
-    "fc61b2cbbfd906ff407ac08a5ace2d627bd7b464a61a26a792683e9f1c33deec": {
-      "tool_calls": [
-        {
-          "id": "call_LQagkgSMFRj0VaPrhqLhbPkn",
-          "name": "search",
-          "arguments": "{}"
-        }
-      ]
+    "e11eb6fbb7ecb6392a597532936ade195357b3074294bf7dc25e609260dd84fb": {
+      "content": "Я нашел несколько вариантов отелей, включая Hotel Sofitel, который находится у метро и в 3 минутах пешком до пляжа. Он также предлагает тихие номера и вид на море, но ночная аптека рядом не подтверждена."
     }
   }
 }

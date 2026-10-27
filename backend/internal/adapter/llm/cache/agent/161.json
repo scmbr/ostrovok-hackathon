@@ -2,37 +2,49 @@
   "hotel": "161",
   "model": "gpt-4o-mini",
   "replies": {
-    "282a10ecdd376d545ae3d4215430fd2ef91a52c6a36d6da0314e5cd2eb068ace": {
+    "19ef4696ef66dbaa8504d64bfe74d8a7866f792b56c339e5161a59fdb3f4fd24": {
+      "content": "Статусы характеристик отеля «Hotel Best Western Hotel 54 Barceloneta» после обработки:\n\n- **night_pharmacy**: статус uncertain, уверенность 0.60.\n- **night_services**: статус uncertain, уверенность 0.60.\n- **noise_night**: статус weak, уверенность 0.99.\n- **walk_to_beach**: статус uncertain, уверенность не удалось рассчитать.\n- **walk_to_metro**: статус uncertain, уверенность не удалось рассчитать.\n\nВопросы отельеру не требуются, так как уверенность по всем характеристикам выше 0.60, кроме walk_to_beach, для которого нет исходных данных."
+    },
+    "25762abce66cf96b6050471ee32775fa93e5ce6b62f12f7bc39715dd4f602fc7": {
       "tool_calls": [
         {
-          "id": "call_Pccs0Fdja6dwEyj0VACWEJAu",
+          "id": "call_R9gyRpKHZW0tK7mht2jsSHdp",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_pharmacy\", \"strategy\": \"night-services\"}"
         },
         {
-          "id": "call_6RkSwV8uHhBUy6YOPszchRWh",
+          "id": "call_INkdP21QeQUzYce17OmL0pxH",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.60 ниже 0.75\", \"characteristic\": \"night_services\", \"strategy\": \"night-services\"}"
         },
         {
-          "id": "call_OQUoGueTTvGbtsdTvbBj6aOx",
+          "id": "call_WXmby4Jdnb0xmX4a9Gba6ML9",
           "name": "run_tool",
-          "arguments": "{\"reason\": \"слабое расхождение источников (weak_disagreement): 1\", \"characteristic\": \"noise_night\", \"strategy\": \"noise-night:bcn\"}"
+          "arguments": "{\"reason\": \"слабое расхождение источников (weak_disagreement): 1\", \"characteristic\": \"noise_night\", \"strategy\": \"noise-night:osm\"}"
         },
         {
-          "id": "call_o8MsKPnlkaMOA5d3cHJpxbFz",
+          "id": "call_n7eSPJW7zZ7Ag2jZCebYJAf7",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_beach\", \"strategy\": \"walk\"}"
         },
         {
-          "id": "call_RYmzwxcwKJbf2nhDP61Rjt3l",
+          "id": "call_6S1qS7HZPBukHqMOjfGCh7Sm",
           "name": "run_tool",
           "arguments": "{\"reason\": \"уверенность 0.70 ниже 0.75\", \"characteristic\": \"walk_to_metro\", \"strategy\": \"walk\"}"
         }
       ]
     },
-    "b6c8c4cf7f4f987d7e0c7ae01aa692cc3d226ef1e982d4e97478006d9fadeb73": {
-      "content": "Статусы характеристик отеля «Hotel Best Western Hotel 54 Barceloneta» после обработки:\n\n- **night_pharmacy**: статус uncertain, уверенность 0.60.\n- **night_services**: статус uncertain, уверенность 0.60.\n- **noise_night**: статус weak, уверенность 0.99.\n- **walk_to_beach**: статус uncertain, уверенность не удалось рассчитать (нет данных).\n- **walk_to_metro**: статус uncertain, уверенность не удалось рассчитать (нет данных).\n\nХарактеристики с статусом ok не изменились."
+    "885280e82c7731fe93281ceac4880adac41b91e7dff9eab297ce35240a65195b": {
+      "tool_calls": [
+        {
+          "id": "call_ZB53hZ7mX94fZdDgpS92O8y0",
+          "name": "ask_hotelier",
+          "arguments": "{\"reason\":\"факта нет, нужна информация от отельера\",\"characteristic\":\"wish_guarantee\"}"
+        }
+      ]
+    },
+    "fc2dfa4e89aae1cb99162ab3cc28b9b4521f666094b003af12612996816ebd5b": {
+      "content": "Вопрос отельеру по характеристике **wish_guarantee** был успешно задан: \n\n- **Вопрос**: Можете ли вы гарантировать пожелание к номеру (сторона здания, этаж), указанное при бронировании, и в каких категориях?\n\nТеперь все характеристики обработаны."
     }
   }
 }
