@@ -502,6 +502,8 @@ export interface FactChange {
   before: FactSnap
   after: FactSnap
   conflict_change: ConflictChange
+  // Почему закрылся конфликт: agreed — стороны сошлись, weight_dropped — вес утверждения отеля стал нулевым.
+  resolution?: { kind: 'agreed' | 'weight_dropped' | 'below_threshold' | 'evidence_removed'; text: string }
 }
 
 export interface TrustChange {
