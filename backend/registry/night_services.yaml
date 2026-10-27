@@ -1,5 +1,7 @@
 key: night_services
 title: Что открыто ночью рядом
+title_met: ночью есть что открыто
+title_unmet: ночью всё закрыто
 description: Аптеки, магазины и заведения еды, открытые ночью в 300 м от отеля, по opening_hours из OSM
 level: hotel
 value_type: enum

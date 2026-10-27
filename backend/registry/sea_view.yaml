@@ -1,5 +1,7 @@
 key: sea_view
 title: Вид на море
+title_met: с видом на море
+title_unmet: без вида на море
 description: С какого этажа каждый фасад видит море
 level: facade
 value_type: range

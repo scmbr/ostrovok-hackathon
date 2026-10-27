@@ -33,6 +33,7 @@ func Validate(reg domain.Registry, tools []compute.Spec) error {
 	errs = append(errs, checkSharedParams(reg, tools)...)
 	errs = append(errs, checkAmbiguous(reg)...)
 	errs = append(errs, checkSynonymOverlaps(reg)...)
+	errs = append(errs, checkTitleForms(reg)...)
 	return errors.Join(errs...)
 }
 
@@ -133,7 +134,49 @@ func validateSynonyms(c domain.Characteristic) []string {
 	if c.DefaultNumber < 0 {
 		out = append(out, "default_number не может быть отрицательным")
 	}
+	out = append(out, validateTitleForms(c)...)
 	return out
+}
+
+// MaxTitleFormRunes — предел длины title_met / title_unmet: формы склеиваются в заголовок группы.
+const MaxTitleFormRunes = 40
+
+// validateTitleForms проверяет короткие формы для заголовков групп: непустые (если заданы), не длиннее предела, разные.
+func validateTitleForms(c domain.Characteristic) []string {
+	var out []string
+	for _, f := range []struct{ name, v string }{{"title_met", c.TitleMet}, {"title_unmet", c.TitleUnmet}} {
+		if f.v == "" {
+			continue
+		}
+		if strings.TrimSpace(f.v) == "" {
+			out = append(out, f.name+": пустая форма")
+		} else if n := len([]rune(f.v)); n > MaxTitleFormRunes {
+			out = append(out, fmt.Sprintf("%s: %d символов, допустимо не больше %d", f.name, n, MaxTitleFormRunes))
+		}
+	}
+	if c.TitleMet != "" && strings.EqualFold(strings.TrimSpace(c.TitleMet), strings.TrimSpace(c.TitleUnmet)) {
+		out = append(out, "title_met и title_unmet совпадают")
+	}
+	return out
+}
+
+// checkTitleForms: одна и та же форма у двух характеристик сделала бы заголовки групп неразличимыми.
+func checkTitleForms(reg domain.Registry) []error {
+	var errs []error
+	seen := map[string]string{}
+	for _, c := range reg.All() {
+		for _, f := range []string{c.TitleMet, c.TitleUnmet} {
+			k := strings.ToLower(strings.TrimSpace(f))
+			if k == "" {
+				continue
+			}
+			if other, dup := seen[k]; dup && other != c.Key {
+				errs = append(errs, fmt.Errorf("%s: форма заголовка %q уже есть у %s", c.Key, f, other))
+			}
+			seen[k] = c.Key
+		}
+	}
+	return errs
 }
 
 // checkAmbiguous: неоднозначная фраза должна быть у двух и более характеристик, трактовка по умолчанию — ровно одна.

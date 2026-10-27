@@ -84,6 +84,10 @@ type Characteristic struct {
 	DefaultNumber float64
 	// DayPart — когда в «дне гостя» характеристика важна в сравнении: morning | day | night; пусто — «прочее».
 	DayPart string
+	// TitleMet и TitleUnmet — короткие формы желания для заголовков групп компромиссов: когда желание выполнено
+	// («у пляжа», «тихо ночью») и когда нет («до пляжа дальше», «ночью шумнее»). Пусто — шаблонная форма по Title.
+	TitleMet   string
+	TitleUnmet string
 }
 
 // AmbiguousSynonym — фраза, которую понимают как несколько характеристик; у всех, кто её перечисляет, она одна.

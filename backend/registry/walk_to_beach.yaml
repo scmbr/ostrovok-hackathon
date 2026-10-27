@@ -1,5 +1,7 @@
 key: walk_to_beach
 title: Пешком до пляжа
+title_met: у пляжа
+title_unmet: до пляжа дальше
 description: Минуты пешком от отеля до ближайшего пляжа по пешеходному графу OSM
 level: hotel
 value_type: number

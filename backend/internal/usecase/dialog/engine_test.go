@@ -414,7 +414,7 @@ func TestResultsPartsCompromiseBlocks(t *testing.T) {
 	_, rest := r.e.resultsParts(res, nil, nil, nil)
 	for _, want := range []string{
 		"Отелей, где есть всё сразу, не нашлось: тишина ночью и пешком до пляжа вместе не встречаются. Варианты:",
-		"Тишина ночью, но пешком до пляжа от 18 мин:",
+		"Тихо ночью, но до пляжа дальше (от 18 мин):",
 		"1. Hotel Arts — Стандарт",
 		"2. Hotel Omm — Стандарт",
 	} {
