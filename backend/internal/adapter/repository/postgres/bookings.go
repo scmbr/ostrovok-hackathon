@@ -47,8 +47,12 @@ func (s *BookingStore) Booking(ctx context.Context, id int64) (booking.Record, e
 	var cat, qid *int64
 	var session *string
 	err := s.pool.QueryRow(ctx, `
-SELECT id, hotel_id, room_category_id, wishes, expectations, session_id, wish_question_id, created_at
-FROM bookings WHERE id = $1`, id).Scan(&r.ID, &r.HotelID, &cat, &wb, &eb, &session, &qid, &r.CreatedAt)
+SELECT b.id, b.hotel_id, b.room_category_id, b.wishes, b.expectations, b.session_id, b.wish_question_id, b.created_at,
+       h.name, COALESCE(rc.name, '')
+FROM bookings b
+JOIN hotels h ON h.id = b.hotel_id
+LEFT JOIN room_categories rc ON rc.id = b.room_category_id
+WHERE b.id = $1`, id).Scan(&r.ID, &r.HotelID, &cat, &wb, &eb, &session, &qid, &r.CreatedAt, &r.HotelName, &r.CategoryName)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r, booking.ErrNotFound
 	}

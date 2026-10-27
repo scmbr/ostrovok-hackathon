@@ -24,7 +24,17 @@ var (
 type InboxItem struct {
 	Question Question
 	Title    string // название характеристики
+	// ReasonKind — почему спрашиваем: no_data, low_confidence, conflict (расчёт спорит с отелем) или guests (гости сообщили).
+	ReasonKind string
 }
+
+// Виды причин вопроса в дайджесте (InboxItem.ReasonKind).
+const (
+	ReasonNoData        = "no_data"
+	ReasonLowConfidence = "low_confidence"
+	ReasonConflict      = "conflict"
+	ReasonGuests        = "guests"
+)
 
 // Inbox — дайджест отельера: вопросы, ждущие ответа, по убыванию ценности, и сводка по остальным.
 type Inbox struct {
@@ -33,8 +43,94 @@ type Inbox struct {
 	Items []InboxItem
 	// Waiting и LowValue — копятся и в дайджест не попадают: ждут бюджета и ниже порога ценности.
 	Waiting, LowValue int
-	// SentRecent — отправлено за окно бюджета.
+	// SentRecent — отправлено за окно бюджета (без подтверждений пожеланий из броней).
 	SentRecent int
+	// WishRequests — брони с пожеланием, ждущие подтверждения: вне бюджета и вне Items.
+	WishRequests []WishRequest
+}
+
+// reasonKind определяет причину вопроса по текущим фактам отеля и спорным категориям.
+func reasonKind(q Question, facts []domain.Fact, issues []CategoryIssue, hotelID int64) string {
+	if q.EntityType == domain.EntityRoomCategory {
+		for _, is := range issues {
+			if strconv.FormatInt(is.CategoryID, 10) == q.EntityID && is.Key == q.Key && is.GuestAgainst > 0 {
+				return ReasonGuests
+			}
+		}
+		return ReasonConflict
+	}
+	id := strconv.FormatInt(hotelID, 10)
+	for _, f := range facts {
+		if f.Key != q.Key || f.EntityType != domain.EntityHotel || f.EntityID != id {
+			continue
+		}
+		if f.Conflict != nil || f.WeakDisagreement {
+			return ReasonConflict
+		}
+		return ReasonLowConfidence
+	}
+	return ReasonNoData
+}
+
+// MissedDemand — характеристика, которую искали гости, а у отеля её нет или уверенность низкая.
+type MissedDemand struct {
+	Key, Title string
+	Demand     int
+	Text       string
+	// QuestionID — открытый вопрос по этой характеристике в дайджесте; 0, если вопроса нет.
+	QuestionID int64
+}
+
+// MissedDemand — упущенный спрос отеля по характеристикам с вопросом отельеру, по убыванию спроса.
+func (i *Interviewer) MissedDemand(ctx context.Context, hotelID int64) ([]MissedDemand, error) {
+	h, err := i.Store.Hotel(ctx, hotelID)
+	if err != nil {
+		return nil, err
+	}
+	demand, err := i.Store.Demand(ctx, h.RegionID)
+	if err != nil {
+		return nil, err
+	}
+	facts, err := i.Store.HotelFacts(ctx, hotelID)
+	if err != nil {
+		return nil, err
+	}
+	qs, err := i.Store.Questions(ctx, hotelID)
+	if err != nil {
+		return nil, err
+	}
+	id := strconv.FormatInt(hotelID, 10)
+	var out []MissedDemand
+	for _, c := range i.Registry.All() {
+		n := demand[c.Key]
+		if n == 0 || c.AskHotelier == "" || c.Key == domain.WishGuaranteeKey || c.Level == domain.LevelDistrict {
+			continue
+		}
+		known := false
+		for _, f := range facts {
+			if f.Key == c.Key && f.EntityType == domain.EntityHotel && f.EntityID == id && f.Confidence >= domain.AskConfidenceMark {
+				known = true
+			}
+		}
+		if known {
+			continue
+		}
+		m := MissedDemand{Key: c.Key, Title: c.Title, Demand: n}
+		m.Text = guestsSearched(n, c.Title) + "; у вас не указано. " + c.AskHotelier
+		for _, q := range qs {
+			if q.Key == c.Key && (q.Status == StatusOpen || q.Status == StatusNeedsClarification) {
+				m.QuestionID = q.ID
+			}
+		}
+		out = append(out, m)
+	}
+	sort.SliceStable(out, func(a, b int) bool { return out[a].Demand > out[b].Demand })
+	return out, nil
+}
+
+// Hotels — демо-отели для переключателя роли.
+func (i *Interviewer) Hotels(ctx context.Context) ([]HotelSummary, error) {
+	return i.Store.HotelList(ctx)
 }
 
 // Inbox собирает дайджест отельера по отелю hotelID.
@@ -49,14 +145,25 @@ func (i *Interviewer) Inbox(ctx context.Context, hotelID int64) (Inbox, error) {
 	if err != nil {
 		return in, err
 	}
+	facts, err := i.Store.HotelFacts(ctx, hotelID)
+	if err != nil {
+		return in, err
+	}
+	issues, err := i.Store.CategoryIssues(ctx, hotelID)
+	if err != nil {
+		return in, err
+	}
 	for _, q := range qs {
 		switch q.Status {
 		case StatusOpen, StatusNeedsClarification:
+			if q.Key == domain.WishGuaranteeKey {
+				continue // подтверждения пожеланий идут отдельным блоком WishRequests
+			}
 			title := q.Key
 			if c, ok := i.Registry.Get(q.Key); ok {
 				title = c.Title
 			}
-			in.Items = append(in.Items, InboxItem{Question: q, Title: title})
+			in.Items = append(in.Items, InboxItem{Question: q, Title: title, ReasonKind: reasonKind(q, facts, issues, hotelID)})
 		case StatusPending:
 			in.Waiting++
 		case StatusLowValue:
@@ -64,7 +171,10 @@ func (i *Interviewer) Inbox(ctx context.Context, hotelID int64) (Inbox, error) {
 		}
 	}
 	sort.SliceStable(in.Items, func(a, b int) bool { return in.Items[a].Question.Score.Value > in.Items[b].Question.Score.Value })
-	in.SentRecent, err = i.Store.SentSince(ctx, hotelID, i.now().AddDate(0, 0, -domain.QuestionBudgetDays))
+	if in.SentRecent, err = i.Store.SentSince(ctx, hotelID, i.now().AddDate(0, 0, -domain.QuestionBudgetDays)); err != nil {
+		return in, err
+	}
+	in.WishRequests, err = i.Store.WishRequests(ctx, hotelID)
 	return in, err
 }
 
@@ -84,6 +194,29 @@ func (i *Interviewer) AnswerQuestion(ctx context.Context, questionID int64, text
 	return i.Answer(ctx, q, text)
 }
 
+// ErrNoPersona — у отеля нет имитированной персоны: ответ ждёт живого отельера.
+var ErrNoPersona = errors.New("у отеля нет имитированной персоны")
+
+// PreviewQuestion — ответ персоны на вопрос и его разбор без записи в БД. Вопрос читается из хранилища, а разбор идёт
+// тем же путём, что при отправке ответа (processAnswer), поэтому запрос к модели и результат совпадают.
+func (i *Interviewer) PreviewQuestion(ctx context.Context, questionID int64) (*Preview, error) {
+	q, err := i.Store.Question(ctx, questionID)
+	if err != nil {
+		return nil, err
+	}
+	if q.Status != StatusOpen && q.Status != StatusNeedsClarification {
+		return nil, fmt.Errorf("%w (статус %s)", ErrState, q.Status)
+	}
+	pv, err := i.Preview(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	if pv == nil {
+		return nil, ErrNoPersona
+	}
+	return pv, nil
+}
+
 // FactOutcome — результат подтверждения или исправления факта.
 type FactOutcome struct {
 	FactID   int64
@@ -94,6 +227,50 @@ type FactOutcome struct {
 	Note     string
 	Recheck  bool // факт поставлен на пересчёт, свидетельство не записано
 	Evidence bool // записано свидетельство отельера
+	// Change — факт до и после записи (с пересчётом репутации); nil у recheck.
+	Change *Change
+}
+
+// FactAddress — адрес факта, не зависящий от его id: сущность и характеристика.
+type FactAddress struct {
+	EntityType, EntityID, Key string
+}
+
+// factAt находит активный факт по адресу и проверяет, что он принадлежит отелю hotelID.
+func (i *Interviewer) factAt(ctx context.Context, hotelID int64, a FactAddress) (int64, error) {
+	snap, err := i.Store.FactAt(ctx, a.EntityType, a.EntityID, a.Key)
+	if err != nil {
+		return 0, err
+	}
+	if !snap.Found {
+		return 0, fmt.Errorf("%w: нет активного факта %s/%s %s", ErrNotFound, a.EntityType, a.EntityID, a.Key)
+	}
+	ref, err := i.Store.Fact(ctx, snap.FactID)
+	if err != nil {
+		return 0, err
+	}
+	if ref.HotelID != hotelID {
+		return 0, fmt.Errorf("%w: факт принадлежит другому отелю", ErrNotFound)
+	}
+	return snap.FactID, nil
+}
+
+// ConfirmFactAt подтверждает факт по адресу «сущность + характеристика» в отеле hotelID.
+func (i *Interviewer) ConfirmFactAt(ctx context.Context, hotelID int64, a FactAddress) (*FactOutcome, error) {
+	id, err := i.factAt(ctx, hotelID, a)
+	if err != nil {
+		return nil, err
+	}
+	return i.ConfirmFact(ctx, id)
+}
+
+// CorrectFactAt исправляет факт по адресу «сущность + характеристика» в отеле hotelID.
+func (i *Interviewer) CorrectFactAt(ctx context.Context, hotelID int64, a FactAddress, value string, details map[string]any) (*FactOutcome, error) {
+	id, err := i.factAt(ctx, hotelID, a)
+	if err != nil {
+		return nil, err
+	}
+	return i.CorrectFact(ctx, id, value, details)
 }
 
 // ConfirmFact: отельер подтверждает значение факта. Пишется свидетельство отельера с тем же значением; прежнее
@@ -186,6 +363,10 @@ func (i *Interviewer) writeFactEvidence(ctx context.Context, ref FactRef, c doma
 		Reliability: domain.HotelierBaseReliability, ObservedAt: now, ValidUntil: &until,
 		Details: map[string]any{"fact_id": ref.Fact.ID, "action": action, "note": "подтверждение или исправление факта в кабинете"},
 	}
+	before, err := i.Store.FactAt(ctx, ref.Fact.EntityType, ref.Fact.EntityID, c.Key)
+	if err != nil {
+		return nil, fmt.Errorf("факт до записи: %w", err)
+	}
 	if err := i.Store.SaveAnswerEvidence(ctx, ev); err != nil {
 		return nil, fmt.Errorf("свидетельство отельера: %w", err)
 	}
@@ -203,6 +384,11 @@ func (i *Interviewer) writeFactEvidence(ctx context.Context, ref FactRef, c doma
 		i.trace(ctx, s, h, agent.ModePlanner, fmt.Sprintf("репутация отельера: %.2f → %.2f (подтверждено %d из %d)", up.Before, up.After, up.Agree, up.Total),
 			"reputation", map[string]any{"author": up.Author.ID}, map[string]any{"before": up.Before, "after": up.After, "agree": up.Agree, "total": up.Total})
 	}
+	after, err := i.Store.FactAt(ctx, ref.Fact.EntityType, ref.Fact.EntityID, c.Key)
+	if err != nil {
+		return nil, fmt.Errorf("факт после записи: %w", err)
+	}
+	out.Change = &Change{EntityType: ref.Fact.EntityType, EntityID: ref.Fact.EntityID, Key: c.Key, Before: before, After: after}
 	return out, nil
 }
 

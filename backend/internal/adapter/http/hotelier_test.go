@@ -17,6 +17,7 @@ import (
 type fakeCabinet struct {
 	answered string
 	err      error
+	addr     hotelier.FactAddress
 }
 
 func (f *fakeCabinet) Inbox(_ context.Context, id int64) (hotelier.Inbox, error) {
@@ -40,12 +41,42 @@ func (f *fakeCabinet) AnswerQuestion(_ context.Context, id int64, text string) (
 	return &hotelier.Outcome{Question: hotelier.Question{ID: id}, Status: hotelier.StatusAnswered, Parsed: hotelier.Parsed{Found: true, Mode: "planner"}}, nil
 }
 
+func (f *fakeCabinet) PreviewQuestion(_ context.Context, id int64) (*hotelier.Preview, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &hotelier.Preview{Question: hotelier.Question{ID: id}, Persona: "embellishing", Answer: "Да, у нас всё тихо",
+		Parsed: hotelier.Parsed{Found: true, Mode: "cache", Claimed: map[string]any{"level": "quiet"}}}, nil
+}
+
 func (f *fakeCabinet) ConfirmFact(_ context.Context, id int64) (*hotelier.FactOutcome, error) {
 	return &hotelier.FactOutcome{FactID: id, Key: "pets_allowed", Action: "confirm", Evidence: true}, f.err
 }
 
 func (f *fakeCabinet) CorrectFact(_ context.Context, id int64, value string, _ map[string]any) (*hotelier.FactOutcome, error) {
 	return &hotelier.FactOutcome{FactID: id, Key: "pets_allowed", Action: "correct", Claimed: map[string]any{"available": value == "true"}, Evidence: true}, f.err
+}
+
+func (f *fakeCabinet) Hotels(context.Context) ([]hotelier.HotelSummary, error) {
+	return []hotelier.HotelSummary{{ID: 326, Name: "Hotel 326", Persona: "embellishing"}}, f.err
+}
+
+func (f *fakeCabinet) MissedDemand(_ context.Context, id int64) ([]hotelier.MissedDemand, error) {
+	return []hotelier.MissedDemand{{Key: "noise_night", Title: "Тишина ночью", Demand: 14, Text: "14 гостей искали", QuestionID: 7}}, f.err
+}
+
+var changeFixture = &hotelier.Change{EntityType: "hotel", EntityID: "5", Key: "pets_allowed",
+	Before: hotelier.FactSnap{Found: true, Confidence: 0.5, Value: map[string]any{"available": false}},
+	After:  hotelier.FactSnap{Found: true, Confidence: 0.6, Value: map[string]any{"available": true}, Conflict: "спор"}}
+
+func (f *fakeCabinet) ConfirmFactAt(_ context.Context, hotelID int64, a hotelier.FactAddress) (*hotelier.FactOutcome, error) {
+	f.addr = a
+	return &hotelier.FactOutcome{FactID: 1, Key: a.Key, Action: "confirm", Evidence: true, Change: changeFixture}, f.err
+}
+
+func (f *fakeCabinet) CorrectFactAt(_ context.Context, hotelID int64, a hotelier.FactAddress, value string, _ map[string]any) (*hotelier.FactOutcome, error) {
+	f.addr = a
+	return &hotelier.FactOutcome{FactID: 1, Key: a.Key, Action: "correct", Evidence: true, Change: changeFixture}, f.err
 }
 
 func do(h http.Handler, method, url, body string) *httptest.ResponseRecorder {
@@ -91,6 +122,22 @@ func TestHotelierAnswer(t *testing.T) {
 	}
 }
 
+func TestHotelierPersonaPreview(t *testing.T) {
+	h := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, &fakeCabinet{})
+	rec := do(h, "POST", "/api/hotelier/questions/7/persona-preview", "")
+	var out previewDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || rec.Code != 200 {
+		t.Fatalf("статус %d: %s", rec.Code, rec.Body)
+	}
+	if !out.Simulated || out.Persona != "embellishing" || !out.Found || out.ParsedBy != "cache" || out.Text == "" {
+		t.Errorf("превью: %+v", out)
+	}
+	nobody := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, &fakeCabinet{err: hotelier.ErrNoPersona})
+	if rec := do(nobody, "POST", "/api/hotelier/questions/7/persona-preview", ""); rec.Code != 409 {
+		t.Errorf("без персоны: %d", rec.Code)
+	}
+}
+
 func TestHotelierErrorsMapToStatuses(t *testing.T) {
 	cases := map[error]int{
 		hotelier.ErrNotFound: 404,
@@ -126,5 +173,54 @@ func TestHotelierRoutesAbsentWithoutCabinet(t *testing.T) {
 	h := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, nil)
 	if rec := do(h, "GET", "/api/hotelier/5/inbox", ""); rec.Code != 404 {
 		t.Errorf("%d", rec.Code)
+	}
+}
+
+func TestHotelierFactsByAddress(t *testing.T) {
+	svc := &fakeCabinet{}
+	h := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, svc)
+	body := `{"entity_type":"hotel","entity_id":"5","key":"pets_allowed","value":"true"}`
+	rec := do(h, "POST", "/api/hotelier/hotels/5/facts/confirm", body)
+	var out factOutcomeDTO
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || rec.Code != 200 {
+		t.Fatalf("confirm: %d %s", rec.Code, rec.Body)
+	}
+	if svc.addr.Key != "pets_allowed" || svc.addr.EntityID != "5" {
+		t.Errorf("адрес: %+v", svc.addr)
+	}
+	if out.Change == nil || out.Change.ConflictChange != conflictOpened || out.Change.Before.Confidence != 0.5 || out.Change.After.Confidence != 0.6 {
+		t.Errorf("до и после: %+v", out.Change)
+	}
+	if rec := do(h, "POST", "/api/hotelier/hotels/5/facts/correct", body); rec.Code != 200 {
+		t.Errorf("correct: %d", rec.Code)
+	}
+	if rec := do(h, "POST", "/api/hotelier/hotels/5/facts/correct", `{"entity_type":"hotel","entity_id":"5","key":"k"}`); rec.Code != 400 {
+		t.Errorf("correct без value: %d", rec.Code)
+	}
+	if rec := do(h, "POST", "/api/hotelier/hotels/5/facts/confirm", `{}`); rec.Code != 400 {
+		t.Errorf("без адреса: %d", rec.Code)
+	}
+	if rec := do(h, "POST", "/api/hotelier/hotels/5/facts/delete", body); rec.Code != 404 {
+		t.Errorf("действие: %d", rec.Code)
+	}
+}
+
+func TestConflictChange(t *testing.T) {
+	for _, c := range []struct{ before, after, want string }{
+		{"", "", conflictNone}, {"", "спор", conflictOpened}, {"спор", "", conflictClosed}, {"a", "b", conflictRemains},
+	} {
+		if got := conflictChange(c.before, c.after); got != c.want {
+			t.Errorf("%q→%q: %s", c.before, c.after, got)
+		}
+	}
+}
+
+func TestHotelierHotelsAndDemand(t *testing.T) {
+	h := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, &fakeCabinet{})
+	if rec := do(h, "GET", "/api/hotelier/hotels", ""); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"persona":"embellishing"`) {
+		t.Errorf("отели: %d %s", rec.Code, rec.Body)
+	}
+	if rec := do(h, "GET", "/api/hotelier/5/demand", ""); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"question_id":7`) {
+		t.Errorf("спрос: %d %s", rec.Code, rec.Body)
 	}
 }

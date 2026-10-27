@@ -258,6 +258,7 @@ type factDTO struct {
 	Key              string         `json:"key"`
 	Title            string         `json:"title"`
 	EntityType       string         `json:"entity_type"`
+	EntityID         string         `json:"entity_id"`
 	Value            map[string]any `json:"value"`
 	Confidence       float64        `json:"confidence"`
 	Source           string         `json:"source"`
@@ -267,6 +268,7 @@ type factDTO struct {
 	Stale            bool           `json:"stale,omitempty"`
 	WeakDisagreement bool           `json:"weak_disagreement,omitempty"`
 	Conflict         string         `json:"conflict,omitempty"`
+	TrustNote        string         `json:"trust_note,omitempty"`
 	Evidence         []evidenceDTO  `json:"evidence"`
 }
 
@@ -295,16 +297,16 @@ func handleHotelCard(svc SearchService, reg domain.Registry) http.HandlerFunc {
 		out := hotelCardDTO{ID: h.ID, Name: h.Name, District: h.District, Lat: h.Lat, Lon: h.Lon, Card: newCardDTO(h.Card), Facts: []factDTO{}}
 		for _, fv := range h.Facts {
 			f := fv.Fact
-			d := factDTO{ID: f.ID, Key: f.Key, Title: titleOf(reg, f.Key), EntityType: f.EntityType, Value: f.Value, Confidence: round2(f.Confidence),
+			d := factDTO{ID: f.ID, Key: f.Key, Title: titleOf(reg, f.Key), EntityType: f.EntityType, EntityID: f.EntityID, Value: f.Value, Confidence: round2(f.Confidence),
 				Source: f.Source, Method: f.Method, ObservedAt: f.ObservedAt, ValidUntil: f.ValidUntil, Stale: f.Stale,
 				WeakDisagreement: f.WeakDisagreement, Evidence: []evidenceDTO{}}
 			if f.Conflict != nil {
 				d.Conflict = f.Conflict.Description
 			}
 			for _, e := range fv.Evidence {
-				d.Evidence = append(d.Evidence, evidenceDTO{ID: e.ID, Source: e.Source, AuthorType: e.AuthorType, Claimed: e.Claimed,
-					Reliability: round2(e.Reliability), Contribution: round2(e.Contribution), ObservedAt: e.ObservedAt})
+				d.Evidence = append(d.Evidence, newEvidenceDTO(e))
 			}
+			d.TrustNote = trustNote(fv.Evidence)
 			out.Facts = append(out.Facts, d)
 		}
 		if h.Rooms != nil {

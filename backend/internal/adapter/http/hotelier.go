@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/hotelier"
 )
 
@@ -16,6 +17,11 @@ import (
 type HotelierService interface {
 	Inbox(ctx context.Context, hotelID int64) (hotelier.Inbox, error)
 	AnswerQuestion(ctx context.Context, questionID int64, text string) (*hotelier.Outcome, error)
+	PreviewQuestion(ctx context.Context, questionID int64) (*hotelier.Preview, error)
+	Hotels(ctx context.Context) ([]hotelier.HotelSummary, error)
+	MissedDemand(ctx context.Context, hotelID int64) ([]hotelier.MissedDemand, error)
+	ConfirmFactAt(ctx context.Context, hotelID int64, a hotelier.FactAddress) (*hotelier.FactOutcome, error)
+	CorrectFactAt(ctx context.Context, hotelID int64, a hotelier.FactAddress, value string, details map[string]any) (*hotelier.FactOutcome, error)
 	ConfirmFact(ctx context.Context, factID int64) (*hotelier.FactOutcome, error)
 	CorrectFact(ctx context.Context, factID int64, value string, details map[string]any) (*hotelier.FactOutcome, error)
 }
@@ -28,6 +34,16 @@ type inboxDTO struct {
 	// Waiting и LowValue — копятся и в дайджест не попадают.
 	Waiting  int `json:"waiting"`
 	LowValue int `json:"low_value"`
+	// WishRequests — подтверждения пожеланий из броней: вне бюджета.
+	WishRequests []wishRequestDTO `json:"wish_requests"`
+}
+
+type wishRequestDTO struct {
+	QuestionID int64          `json:"question_id"`
+	BookingID  int64          `json:"booking_id"`
+	Category   string         `json:"category"`
+	Wishes     map[string]any `json:"wishes"`
+	CreatedAt  time.Time      `json:"created_at"`
 }
 
 type budgetDTO struct {
@@ -45,6 +61,7 @@ type inboxItemDTO struct {
 	EntityID       string     `json:"entity_id,omitempty"`
 	Question       string     `json:"question"`
 	Reason         string     `json:"reason"`
+	ReasonKind     string     `json:"reason_kind"`
 	Value          float64    `json:"value"`
 	Score          scoreDTO   `json:"score"`
 	Status         string     `json:"status"`
@@ -72,15 +89,19 @@ func handleHotelierInbox(svc HotelierService) http.HandlerFunc {
 			hotelierError(w, "дайджест", err)
 			return
 		}
-		out := inboxDTO{HotelID: id, Hotel: in.Hotel.Name, Waiting: in.Waiting, LowValue: in.LowValue, Items: []inboxItemDTO{},
+		out := inboxDTO{HotelID: id, Hotel: in.Hotel.Name, Waiting: in.Waiting, LowValue: in.LowValue, Items: []inboxItemDTO{}, WishRequests: []wishRequestDTO{},
 			Budget: budgetDTO{Limit: hotelier.Budget, WindowDays: hotelier.BudgetDays, Sent: in.SentRecent}}
 		for _, it := range in.Items {
 			q := it.Question
 			out.Items = append(out.Items, inboxItemDTO{
 				ID: q.ID, Characteristic: q.Key, Title: it.Title, Format: q.Format, EntityType: q.EntityType, EntityID: q.EntityID,
-				Question: q.Text, Reason: q.Reason, Value: q.Score.Value, Status: q.Status, SentAt: q.SentAt,
+				Question: q.Text, Reason: q.Reason, ReasonKind: it.ReasonKind, Value: q.Score.Value, Status: q.Status, SentAt: q.SentAt,
 				Score: scoreDTO{q.Score.Demand, q.Score.DemandNorm, q.Score.Uncertainty, q.Score.Impact, q.Score.CategoriesChanged, q.Score.Categories},
 			})
+		}
+		for _, wr := range in.WishRequests {
+			out.WishRequests = append(out.WishRequests, wishRequestDTO{QuestionID: wr.QuestionID, BookingID: wr.BookingID, Category: wr.Category,
+				Wishes: wr.Wishes, CreatedAt: wr.CreatedAt})
 		}
 		writeJSON(w, http.StatusOK, out)
 	}
@@ -101,6 +122,8 @@ type outcomeDTO struct {
 	// FollowUp — уточняющий вопрос, если ответ не задал значения.
 	FollowUp string    `json:"follow_up,omitempty"`
 	Trust    *trustDTO `json:"trust,omitempty"`
+	// Change — факт до и после ответа (после записи и пересчёта репутации); нет, если свидетельство не записано.
+	Change *changeDTO `json:"change,omitempty"`
 }
 
 type trustDTO struct {
@@ -110,7 +133,7 @@ type trustDTO struct {
 	Total  int     `json:"total"`
 }
 
-func handleHotelierAnswer(svc HotelierService) http.HandlerFunc {
+func handleHotelierAnswer(svc HotelierService, reg domain.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 		if err != nil || id <= 0 {
@@ -139,11 +162,41 @@ func handleHotelierAnswer(svc HotelierService) http.HandlerFunc {
 			return
 		}
 		dto := outcomeDTO{QuestionID: out.Question.ID, Status: out.Status, Note: out.Parsed.Note, ParsedBy: out.Parsed.Mode,
-			Claimed: out.Parsed.Claimed, FollowUp: out.Parsed.FollowUp}
+			Claimed: out.Parsed.Claimed, FollowUp: out.Parsed.FollowUp, Change: newChangeDTO(reg, out.Change)}
 		if t := out.Trust; t != nil {
-			dto.Trust = &trustDTO{t.Before, t.After, t.Agree, t.Total}
+			dto.Trust = &trustDTO{round2(t.Before), round2(t.After), t.Agree, t.Total}
 		}
 		writeJSON(w, http.StatusOK, dto)
+	}
+}
+
+type previewDTO struct {
+	QuestionID int64  `json:"question_id"`
+	Persona    string `json:"persona"`
+	// Text — ответ персоны; Simulated всегда true: это имитация, в БД ничего не записано.
+	Text      string         `json:"answer"`
+	Simulated bool           `json:"simulated"`
+	Found     bool           `json:"found"`
+	Claimed   map[string]any `json:"claimed,omitempty"`
+	FollowUp  string         `json:"follow_up,omitempty"`
+	Note      string         `json:"note,omitempty"`
+	ParsedBy  string         `json:"parsed_by"`
+}
+
+func handleHotelierPreview(svc HotelierService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil || id <= 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "некорректный id вопроса"})
+			return
+		}
+		pv, err := svc.PreviewQuestion(r.Context(), id)
+		if err != nil {
+			hotelierError(w, "ответ персоны", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, previewDTO{QuestionID: pv.Question.ID, Persona: pv.Persona, Text: pv.Answer, Simulated: true,
+			Found: pv.Parsed.Found, Claimed: pv.Parsed.Claimed, FollowUp: pv.Parsed.FollowUp, Note: pv.Parsed.Note, ParsedBy: pv.Parsed.Mode})
 	}
 }
 
@@ -161,9 +214,10 @@ type factOutcomeDTO struct {
 	Recheck  bool           `json:"recheck"`
 	Note     string         `json:"note,omitempty"`
 	Trust    *trustDTO      `json:"trust,omitempty"`
+	Change   *changeDTO     `json:"change,omitempty"`
 }
 
-func handleHotelierFact(svc HotelierService) http.HandlerFunc {
+func handleHotelierFact(svc HotelierService, reg domain.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 		if err != nil || id <= 0 {
@@ -202,7 +256,7 @@ func hotelierError(w http.ResponseWriter, what string, err error) {
 	switch {
 	case errors.Is(err, hotelier.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
-	case errors.Is(err, hotelier.ErrState):
+	case errors.Is(err, hotelier.ErrState), errors.Is(err, hotelier.ErrNoPersona):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 	case errors.Is(err, hotelier.ErrInvalid):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})

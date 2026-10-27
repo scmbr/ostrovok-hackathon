@@ -379,14 +379,16 @@ type placedWishDTO struct {
 }
 
 type bookingDTO struct {
-	ID         int64             `json:"id"`
-	HotelID    int64             `json:"hotel_id"`
-	HotelName  string            `json:"hotel_name,omitempty"`
-	CategoryID int64             `json:"category_id"`
-	Category   string            `json:"category,omitempty"`
-	PriceEUR   int               `json:"price_eur,omitempty"`
-	Wish       *placedWishDTO    `json:"wish,omitempty"`
-	Contract   []contractLineDTO `json:"contract"`
+	ID         int64  `json:"id"`
+	HotelID    int64  `json:"hotel_id"`
+	HotelName  string `json:"hotel_name,omitempty"`
+	CategoryID int64  `json:"category_id"`
+	Category   string `json:"category,omitempty"`
+	PriceEUR   int    `json:"price_eur,omitempty"`
+	// PriceMock — цена из мок-карточки отеля (в интерфейсе подписывается «мок»).
+	PriceMock bool              `json:"price_mock,omitempty"`
+	Wish      *placedWishDTO    `json:"wish,omitempty"`
+	Contract  []contractLineDTO `json:"contract"`
 }
 
 func handleBook(g GuestFlow) http.HandlerFunc {
@@ -409,7 +411,7 @@ func handleBook(g GuestFlow) http.HandlerFunc {
 			return
 		}
 		out := bookingDTO{ID: b.ID, HotelID: b.Contract.HotelID, HotelName: b.Contract.HotelName, CategoryID: b.Contract.CategoryID,
-			Category: b.Contract.Variant.Name, PriceEUR: b.Contract.Variant.PriceEUR, Contract: newContractLines(b.Contract.Lines)}
+			Category: b.Contract.Variant.Name, PriceEUR: b.Contract.Variant.PriceEUR, PriceMock: b.Contract.Variant.PriceEUR > 0, Contract: newContractLines(b.Contract.Lines)}
 		if b.WishText != "" {
 			out.Wish = &placedWishDTO{Text: b.WishText, FacadeID: breq.FacadeID, Status: b.WishStatus, QuestionReused: b.Reused}
 			if b.Question != nil {
@@ -433,7 +435,8 @@ func handleGetBooking(g GuestFlow) http.HandlerFunc {
 			return
 		}
 		rec := v.Record
-		out := bookingDTO{ID: rec.ID, HotelID: rec.HotelID, CategoryID: rec.CategoryID, Contract: newContractLines(rec.Expectations)}
+		out := bookingDTO{ID: rec.ID, HotelID: rec.HotelID, HotelName: rec.HotelName, CategoryID: rec.CategoryID, Category: rec.CategoryName,
+			PriceEUR: v.PriceEUR, PriceMock: v.PriceEUR > 0, Contract: newContractLines(rec.Expectations)}
 		if rec.Wish != nil {
 			text, _ := rec.Wish["text"].(string)
 			facade, _ := rec.Wish["facade_id"].(float64)

@@ -25,6 +25,9 @@ type fakeStore struct {
 	reopened  map[int64]string
 	refs      map[int64]FactRef
 	stale     []int64
+	// afterSnap — срез факта после записи свидетельства; wishRequests — брони с пожеланием.
+	afterSnap    *FactSnap
+	wishRequests []WishRequest
 }
 
 func (f *fakeStore) Hotel(context.Context, int64) (Hotel, error) { return f.hotel, nil }
@@ -481,6 +484,23 @@ func (f *fakeStore) Fact(_ context.Context, id int64) (FactRef, error) {
 func (f *fakeStore) MarkStale(_ context.Context, id int64) error {
 	f.stale = append(f.stale, id)
 	return nil
+}
+
+// FactAt: до записи свидетельства — факт из refs, после — f.afterSnap (если задан).
+func (f *fakeStore) FactAt(_ context.Context, entityType, entityID, key string) (FactSnap, error) {
+	if len(f.evidence) > 0 && f.afterSnap != nil {
+		return *f.afterSnap, nil
+	}
+	for _, r := range f.refs {
+		if r.Fact.EntityType == entityType && r.Fact.EntityID == entityID && r.Fact.Key == key {
+			return FactSnap{Found: true, FactID: r.Fact.ID, Value: r.Fact.Value, Confidence: r.Fact.Confidence}, nil
+		}
+	}
+	return FactSnap{}, nil
+}
+func (f *fakeStore) HotelList(context.Context) ([]HotelSummary, error) { return nil, nil }
+func (f *fakeStore) WishRequests(context.Context, int64) ([]WishRequest, error) {
+	return f.wishRequests, nil
 }
 
 // LLM не должна подменять подтверждение расчёта другим вопросом: без «верно?» берётся шаблон.

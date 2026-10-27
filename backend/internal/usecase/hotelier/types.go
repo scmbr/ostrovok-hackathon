@@ -103,6 +103,60 @@ type Store interface {
 	// Reopen возвращает вопрос в open с уточняющим вопросом: ответ не задал значения.
 	Reopen(ctx context.Context, id int64, text, previousAnswer string) error
 	AppendTrace(ctx context.Context, s agent.TraceStep) error
+	// FactAt — активный факт по адресу «сущность + характеристика» со свидетельствами и открытым конфликтом. Адрес не
+	// ломается при пересборке (id факта меняется). Нет факта — Found=false, не ошибка.
+	FactAt(ctx context.Context, entityType, entityID, key string) (FactSnap, error)
+	// HotelList — демо-отели с персоной, по названию.
+	HotelList(ctx context.Context) ([]HotelSummary, error)
+	// WishRequests — брони с пожеланием, ждущие подтверждения отеля, по вопросам wish_guarantee.
+	WishRequests(ctx context.Context, hotelID int64) ([]WishRequest, error)
+}
+
+// HotelSummary — строка списка отелей для переключателя роли.
+type HotelSummary struct {
+	ID       int64
+	Name     string
+	District string
+	Persona  string
+}
+
+// WishRequest — бронь с пожеланием, на которую ждёт ответа отельер (вопрос wish_guarantee).
+type WishRequest struct {
+	QuestionID int64
+	BookingID  int64
+	Category   string
+	Wishes     map[string]any
+	CreatedAt  time.Time
+}
+
+// EvidenceSnap — свидетельство в составе факта: кто, что утверждает и сколько весит.
+type EvidenceSnap struct {
+	ID           int64
+	Source       string
+	AuthorType   string
+	AuthorTrust  float64
+	Claimed      map[string]any
+	Reliability  float64
+	Contribution float64
+	ObservedAt   time.Time
+}
+
+// FactSnap — срез факта в момент времени: значение, уверенность, конфликт и свидетельства.
+type FactSnap struct {
+	Found            bool
+	FactID           int64
+	Value            map[string]any
+	Confidence       float64
+	Conflict         string
+	WeakDisagreement bool
+	Stale            bool
+	Evidence         []EvidenceSnap
+}
+
+// Change — как ответ или правка отельера изменили факт: срезы до записи и после записи и пересчёта репутации.
+type Change struct {
+	EntityType, EntityID, Key string
+	Before, After             FactSnap
 }
 
 // Impact — влияние ответа на категории номеров (rooms.Service).

@@ -137,10 +137,94 @@ func (s *HotelierStore) Question(ctx context.Context, id int64) (hotelier.Questi
 	return q, err
 }
 
+// SentSince считает вопросы недельного бюджета: подтверждения пожеланий из броней (wish_guarantee) в него не входят.
 func (s *HotelierStore) SentSince(ctx context.Context, hotelID int64, since time.Time) (int, error) {
 	var n int
-	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM hotelier_questions WHERE hotel_id = $1 AND sent_at >= $2`, hotelID, since).Scan(&n)
+	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM hotelier_questions WHERE hotel_id = $1 AND sent_at >= $2 AND characteristic_key <> $3`,
+		hotelID, since, domain.WishGuaranteeKey).Scan(&n)
 	return n, err
+}
+
+// HotelList — демо-отели для переключателя ролей.
+func (s *HotelierStore) HotelList(ctx context.Context) ([]hotelier.HotelSummary, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, name, COALESCE(district, ''), COALESCE(hotelier_persona, '') FROM hotels WHERE demo ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []hotelier.HotelSummary
+	for rows.Next() {
+		var h hotelier.HotelSummary
+		if err := rows.Scan(&h.ID, &h.Name, &h.District, &h.Persona); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}
+
+// WishRequests — брони с пожеланием, на которые ждёт ответа отельер: вопрос wish_guarantee ещё открыт.
+func (s *HotelierStore) WishRequests(ctx context.Context, hotelID int64) ([]hotelier.WishRequest, error) {
+	rows, err := s.pool.Query(ctx, `
+SELECT b.wish_question_id, b.id, COALESCE(rc.name, ''), b.wishes, b.created_at
+FROM bookings b
+JOIN hotelier_questions q ON q.id = b.wish_question_id AND q.status IN ('open', 'needs_clarification')
+LEFT JOIN room_categories rc ON rc.id = b.room_category_id
+WHERE b.hotel_id = $1 ORDER BY b.id`, hotelID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []hotelier.WishRequest
+	for rows.Next() {
+		var w hotelier.WishRequest
+		var wishes []byte
+		if err := rows.Scan(&w.QuestionID, &w.BookingID, &w.Category, &wishes, &w.CreatedAt); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(wishes, &w.Wishes); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
+// FactAt читает активный факт по адресу «сущность + характеристика» со свидетельствами и открытым конфликтом.
+func (s *HotelierStore) FactAt(ctx context.Context, entityType, entityID, key string) (hotelier.FactSnap, error) {
+	var snap hotelier.FactSnap
+	var value []byte
+	var conflict *string
+	var evIDs []int64
+	err := s.pool.QueryRow(ctx, `
+SELECT f.id, f.value, f.confidence, f.weak_disagreement, f.stale, f.evidence_ids,
+       (SELECT c.description FROM conflicts c WHERE f.id = ANY(c.fact_ids) AND c.status = $5 LIMIT 1)
+FROM facts f
+WHERE f.entity_type = $1 AND f.entity_id = $2 AND f.characteristic_key = $3 AND f.status = $4
+ORDER BY f.id DESC LIMIT 1`, entityType, entityID, key, domain.FactActive, domain.ConflictOpen).
+		Scan(&snap.FactID, &value, &snap.Confidence, &snap.WeakDisagreement, &snap.Stale, &evIDs, &conflict)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return snap, nil
+	}
+	if err != nil {
+		return snap, err
+	}
+	snap.Found = true
+	if err := json.Unmarshal(value, &snap.Value); err != nil {
+		return snap, err
+	}
+	if conflict != nil {
+		snap.Conflict = *conflict
+	}
+	views, err := loadEvidenceViews(ctx, s.pool, evIDs)
+	if err != nil {
+		return snap, err
+	}
+	for _, e := range views {
+		snap.Evidence = append(snap.Evidence, hotelier.EvidenceSnap{ID: e.ID, Source: e.Source, AuthorType: e.AuthorType, AuthorTrust: e.AuthorTrust,
+			Claimed: e.Claimed, Reliability: e.Reliability, Contribution: e.Contribution, ObservedAt: e.ObservedAt})
+	}
+	return snap, nil
 }
 
 // UpsertCandidate пишет кандидата: с q.ID — обновляет копящийся вопрос (ценность, формат, причина), без — вставляет новый.
