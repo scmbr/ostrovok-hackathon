@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import type { Evidence } from '@/shared/api'
+import type { Evidence, ExplainedFact } from '@/shared/api'
 import { Badge } from '@/shared/ui'
+import { ExplainChain } from './ExplainChain'
 import { authorLabel, formatDate, mainValue, pct, sourceLabel, zeroWeightNote } from '@/shared/lib'
 
 export interface FactLike {
@@ -38,7 +39,20 @@ export function EvidenceList({ evidence, field, charKey }: { evidence: Evidence[
 }
 
 // Факт с «откуда известно»: значение, уверенность, источники со вкладом и датой, срок годности, состояние.
-export function FactCard({ fact, valueField, charKey, extra }: { fact: FactLike; valueField?: string; charKey?: string; extra?: ReactNode }) {
+export function FactCard({
+  fact,
+  valueField,
+  charKey,
+  extra,
+  explain,
+}: {
+  fact: FactLike
+  valueField?: string
+  charKey?: string
+  extra?: ReactNode
+  // «Под капотом»: разбор факта по свидетельствам (цепочка надёжности и вклады) вместо короткого списка источников.
+  explain?: ExplainedFact
+}) {
   const v = mainValue(fact.value, valueField, charKey)
   return (
     <div className="rounded-md border border-slate-200 p-3">
@@ -58,7 +72,7 @@ export function FactCard({ fact, valueField, charKey, extra }: { fact: FactLike;
       </div>
       {fact.conflict && <p className="mt-1 text-xs text-rose-800">{fact.conflict}</p>}
       {fact.trust_note && <p className="mt-1 text-xs text-amber-800">{fact.trust_note}</p>}
-      <EvidenceList evidence={fact.evidence} field={valueField} charKey={charKey} />
+      {explain ? <ExplainChain explain={explain} /> : <EvidenceList evidence={fact.evidence} field={valueField} charKey={charKey} />}
     </div>
   )
 }

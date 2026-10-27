@@ -29,6 +29,8 @@ type characteristicDTO struct {
 	AskGuest        string        `json:"ask_guest,omitempty"`
 	Origin          string        `json:"origin,omitempty"`
 	OriginText      string        `json:"origin_text,omitempty"`
+	Synonyms        []string      `json:"synonyms,omitempty"`
+	SynonymsOrigin  string        `json:"synonyms_origin,omitempty"`
 	AddedAt         string        `json:"added_at,omitempty"`
 }
 
@@ -57,7 +59,7 @@ func newCharacteristicsDTO(reg domain.Registry) characteristicsDTO {
 			FavorableValues: c.FavorableValues, SignificantDiff: c.SignificantDiff,
 			Conflict:   conflictDTO{Steps: max(rules.ConflictSteps, 1), Theta: rules.ConflictMinSide, Entities: c.ConflictEntities},
 			Strategies: []strategyDTO{}, AskHotelier: c.AskHotelier, AskGuest: c.AskGuest,
-			Origin: c.Origin, OriginText: c.OriginText, AddedAt: c.AddedAt,
+			Origin: c.Origin, OriginText: c.OriginText, AddedAt: c.AddedAt, Synonyms: c.Synonyms, SynonymsOrigin: c.SynonymsOrigin,
 		}
 		if d.Conflict.Theta <= 0 {
 			d.Conflict.Theta = domain.DefaultConflictMinSide

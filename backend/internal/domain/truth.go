@@ -95,19 +95,41 @@ const (
 
 // effectiveReliability считает r = база × репутация × асимметрия × свежесть в границах [MinReliability, MaxReliability].
 func effectiveReliability(e Evidence, p TruthParams, c TruthContext) float64 {
+	return reliabilityChain(e, p, c).R
+}
+
+// ReliabilityChain — как получилась надёжность свидетельства: база × (0,5 + репутация) × асимметрия × свежесть, затем
+// ограничение [MinReliability; MaxReliability]. Те же множители, которыми считает движок (effectiveReliability).
+type ReliabilityChain struct {
+	Base      float64 // база источника из реестра
+	Trust     float64 // репутация автора; у инструмента 0
+	TrustMult float64 // 0,5 + репутация (у инструмента 1)
+	Asymmetry float64 // HotelierAsymmetry для утверждения отельера в пользу отеля, иначе 1
+	Freshness float64 // от 1 до StaleReliabilityFactor
+	Product   float64 // произведение множителей до ограничения
+	R         float64 // надёжность после ограничения
+}
+
+func reliabilityChain(e Evidence, p TruthParams, c TruthContext) ReliabilityChain {
+	ch := ReliabilityChain{Base: e.Reliability, TrustMult: 1, Asymmetry: 1}
 	r := e.Reliability
 	if e.AuthorType != AuthorTool {
 		trust, ok := c.Trust[Author{e.AuthorType, e.AuthorID}]
 		if !ok {
 			trust = DefaultTrust
 		}
-		r *= 0.5 + trust
+		ch.Trust, ch.TrustMult = trust, 0.5+trust
+		r *= ch.TrustMult
 	}
 	if e.AuthorType == AuthorHotelier && favorable(e, p) {
-		r *= HotelierAsymmetry
+		ch.Asymmetry = HotelierAsymmetry
+		r *= ch.Asymmetry
 	}
-	r *= freshness(e, c.Now)
-	return math.Min(math.Max(r, MinReliability), MaxReliability)
+	ch.Freshness = freshness(e, c.Now)
+	r *= ch.Freshness
+	ch.Product = r
+	ch.R = math.Min(math.Max(r, MinReliability), MaxReliability)
+	return ch
 }
 
 func favorable(e Evidence, p TruthParams) bool {
@@ -229,8 +251,15 @@ type verdict struct {
 // AssembleFact собирает факт сущности из её активных свидетельств. Без свидетельств факта нет (false).
 // Порядок свидетельств — порядок записи: при равенстве побеждает более раннее.
 func AssembleFact(es []Evidence, c TruthContext) (Fact, bool) {
+	f, _, _, ok := assembleDetailed(es, c)
+	return f, ok
+}
+
+// assembleDetailed — AssembleFact вместе со взвешенными свидетельствами и правилами характеристики: тот же расчёт
+// использует ExplainFact, второй реализации нет.
+func assembleDetailed(es []Evidence, c TruthContext) (Fact, []weighed, TruthParams, bool) {
 	if len(es) == 0 {
-		return Fact{}, false
+		return Fact{}, nil, TruthParams{}, false
 	}
 	p := c.params(es[0].Key, es[0].EntityType)
 	ws := make([]weighed, len(es))
@@ -276,7 +305,7 @@ func AssembleFact(es []Evidence, c TruthContext) (Fact, bool) {
 			f.WeakDisagreement = true
 		}
 	}
-	return f, true
+	return f, ws, p, true
 }
 
 // minSideFor — порог θ спора: пониженный, если в нём участвует свидетельство отельера, иначе обычный.

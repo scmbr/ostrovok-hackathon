@@ -26,12 +26,15 @@ type SearchService interface {
 type Option func(*routerDeps)
 
 type routerDeps struct {
-	search   SearchService
-	chat     ChatService
-	guest    GuestFlow
-	examples []dialog.Example
-	llmMode  string
-	llmModel string
+	registryAdmin RegistryAdmin
+	admin         AdminSource
+	explain       ExplainSource
+	search        SearchService
+	chat          ChatService
+	guest         GuestFlow
+	examples      []dialog.Example
+	llmMode       string
+	llmModel      string
 }
 
 // WithSearch подключает поиск.

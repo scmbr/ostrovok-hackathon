@@ -22,3 +22,34 @@ func LoadRegistry() (domain.Registry, error) {
 	}
 	return reg, nil
 }
+
+// LoadRegistryWith — встроенный реестр плюс характеристики, добавленные текстом (custom_characteristics). Общая проверка та
+// же. Ключ, совпавший со встроенным или добавленным раньше, — ошибка: тихой перезаписи нет.
+func LoadRegistryWith(rows []usecaseregistry.CustomRow) (domain.Registry, error) {
+	base, err := LoadRegistry()
+	if err != nil {
+		return domain.Registry{}, err
+	}
+	if len(rows) == 0 {
+		return base, nil
+	}
+	cs := base.All()
+	for _, r := range rows {
+		c, err := adapterregistry.Parse([]byte(r.YAML))
+		if err != nil {
+			return domain.Registry{}, fmt.Errorf("добавленная характеристика %s: %w", r.Key, err)
+		}
+		if c.Key != r.Key {
+			return domain.Registry{}, fmt.Errorf("добавленная характеристика: ключ в таблице %q, в YAML %q", r.Key, c.Key)
+		}
+		cs = append(cs, c)
+	}
+	reg, err := domain.NewRegistry(cs)
+	if err != nil {
+		return domain.Registry{}, fmt.Errorf("реестр характеристик: %w", err)
+	}
+	if err := usecaseregistry.Validate(reg, compute.Specs); err != nil {
+		return domain.Registry{}, fmt.Errorf("реестр характеристик: %w", err)
+	}
+	return reg, nil
+}

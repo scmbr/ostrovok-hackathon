@@ -305,6 +305,35 @@ export interface Characteristic {
   favorable_values?: string[]
   // Для характеристик, добавленных текстом.
   origin?: string
+  origin_text?: string
+  added_at?: string
+  synonyms?: string[]
+  synonyms_origin?: 'derived' | 'edited'
+  ttl_days?: number
+  ask_hotelier?: string
+  strategies?: { tool: string; strategy?: string; params?: Record<string, unknown>; base_reliability: number; independence_group: string }[]
+  conflict?: { steps: number; theta: number }
+}
+
+export interface CharacteristicDraft {
+  yaml: string
+  key: string
+  title: string
+  synonyms: string[]
+  notes: string[]
+  errors: string[]
+  attempts: number
+  mode: string
+}
+
+export interface Job {
+  id: string
+  title: string
+  status: 'running' | 'done' | 'failed'
+  done: number
+  total: number
+  message?: string
+  errors: string[]
 }
 
 // Шортлист, сравнение, контракт, бронь.
@@ -564,4 +593,119 @@ export interface MissedDemand {
   demand: number
   text: string
   question_id?: number
+}
+
+// «Под капотом» (роль админа).
+
+export interface AgentRun {
+  agent: string
+  session_id: string
+  hotel_id?: number
+  mode: string
+  steps: number
+  refusals: number
+  started_at: string
+  ended_at: string
+  title: string
+}
+
+export interface AgentRunStep {
+  step: number
+  mode: string
+  decision: string
+  tool?: string
+  input: Record<string, unknown>
+  output: Record<string, unknown>
+  refusal: boolean
+  created_at: string
+}
+
+export interface ReliabilityChain {
+  base: number
+  trust?: number
+  trust_mult: number
+  asymmetry: number
+  freshness: number
+  product: number
+  r: number
+  clamped: boolean
+}
+
+export interface ExplainedEvidence {
+  id: number
+  source: string
+  author_type: string
+  author_id: string
+  claimed: Record<string, unknown>
+  comment?: string
+  observed_at: string
+  chain: ReliabilityChain
+  logit: number
+  role: 'for' | 'against' | 'dependent'
+  contribution: number
+  group?: string
+  zero_weight: boolean
+}
+
+export interface ExplainedFact {
+  entity_type: string
+  entity_id: string
+  key: string
+  title: string
+  value_field: string
+  value: Record<string, unknown>
+  confidence: number
+  s: number
+  sigma: number
+  summary: string
+  stale?: boolean
+  weak_disagreement?: boolean
+  conflict?: string
+  theta: number
+  theta_lowered?: boolean
+  evidence: ExplainedEvidence[]
+}
+
+export interface ConflictSide {
+  value: string
+  weight: number
+  evidence: { author_type: string; author_id: string; source: string; contribution: number; comment?: string; zero_weight?: boolean }[]
+}
+
+export interface AdminConflict {
+  id: number
+  entity_type: string
+  entity_id: string
+  key: string
+  title: string
+  hotel_id?: number
+  status: string
+  description: string
+  resolution?: string
+  resolution_kind?: string
+  detected_at: string
+  sides: ConflictSide[]
+  theta?: number
+  theta_lowered?: boolean
+  theta_reason?: string
+  question?: { id: number; status: string; format: string }
+}
+
+export interface RecomputeTask {
+  id: number
+  hotel_id: number
+  key: string
+  reason: string
+  status: string
+  outcome?: string
+  created_at: string
+  done_at?: string
+}
+
+export interface StaleFactRow {
+  entity_type: string
+  entity_id: string
+  key: string
+  hotel_id?: number
+  valid_until?: string
 }

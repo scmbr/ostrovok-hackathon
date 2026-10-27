@@ -2,6 +2,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    // Список замечаний, если сервер вернул `errors` (например, проверка YAML характеристики).
+    public details: string[] = [],
   ) {
     super(message)
   }
@@ -23,7 +25,19 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
-  if (!res.ok) throw new ApiError(res.status, await errorText(res, path))
+  if (!res.ok) {
+    const raw = await res.text()
+    let message = `API ${path}: ${res.status}`
+    let details: string[] = []
+    try {
+      const j = JSON.parse(raw) as { error?: string; errors?: string[] }
+      if (j.error) message = j.error
+      if (Array.isArray(j.errors)) details = j.errors
+    } catch {
+      // тело не JSON
+    }
+    throw new ApiError(res.status, message, details)
+  }
   return res.json() as Promise<T>
 }
 
