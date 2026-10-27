@@ -27,6 +27,7 @@ type fakeStore struct {
 	stale     []int64
 	// afterSnap — срез факта после записи свидетельства; wishRequests — брони с пожеланием.
 	afterSnap    *FactSnap
+	resolution   domain.ConflictResolution
 	wishRequests []WishRequest
 }
 
@@ -497,6 +498,9 @@ func (f *fakeStore) FactAt(_ context.Context, entityType, entityID, key string) 
 		}
 	}
 	return FactSnap{}, nil
+}
+func (f *fakeStore) LastResolution(context.Context, string, string, string) (domain.ConflictResolution, bool, error) {
+	return f.resolution, f.resolution.Kind != "", nil
 }
 func (f *fakeStore) HotelList(context.Context) ([]HotelSummary, error) { return nil, nil }
 func (f *fakeStore) WishRequests(context.Context, int64) ([]WishRequest, error) {

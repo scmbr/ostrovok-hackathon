@@ -231,6 +231,29 @@ type FactOutcome struct {
 	Change *Change
 }
 
+// closedResolution объясняет, почему закрылся конфликт: берёт причину, сохранённую движком правды (conflicts.resolution).
+// Если вес упал из-за репутации отельера, в текст добавляется её изменение «было → стало».
+func (i *Interviewer) closedResolution(ctx context.Context, c *Change, trust *reputation.Update) error {
+	if c.Before.Conflict == "" || c.After.Conflict != "" {
+		return nil
+	}
+	res, ok, err := i.Store.LastResolution(ctx, c.EntityType, c.EntityID, c.Key)
+	if err != nil || !ok {
+		return err
+	}
+	info := &ResolutionInfo{Kind: res.Kind, Text: res.Text}
+	if res.Kind == domain.ResolutionWeightDropped && trust != nil && trust.After < trust.Before && res.Author.Type == domain.AuthorHotelier {
+		info.Text = fmt.Sprintf("Спор снят в пользу расчёта: доверие к утверждениям отеля снизилось (%s → %s), их вес в пользу отеля теперь ≈ 0",
+			ru2(trust.Before), ru2(trust.After))
+	} else {
+		info.Text = strings.ToUpper(info.Text[:1]) + info.Text[1:]
+	}
+	c.Resolution = info
+	return nil
+}
+
+func ru2(x float64) string { return strings.Replace(fmt.Sprintf("%.2f", x), ".", ",", 1) }
+
 // FactAddress — адрес факта, не зависящий от его id: сущность и характеристика.
 type FactAddress struct {
 	EntityType, EntityID, Key string
@@ -389,6 +412,9 @@ func (i *Interviewer) writeFactEvidence(ctx context.Context, ref FactRef, c doma
 		return nil, fmt.Errorf("факт после записи: %w", err)
 	}
 	out.Change = &Change{EntityType: ref.Fact.EntityType, EntityID: ref.Fact.EntityID, Key: c.Key, Before: before, After: after}
+	if err := i.closedResolution(ctx, out.Change, out.Trust); err != nil {
+		return nil, fmt.Errorf("причина закрытия конфликта: %w", err)
+	}
 	return out, nil
 }
 

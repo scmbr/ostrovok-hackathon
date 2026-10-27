@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/reputation"
 )
 
 func TestInboxSortedByValueWithCounters(t *testing.T) {
@@ -161,5 +162,29 @@ func TestReasonKind(t *testing.T) {
 		if got := reasonKind(c.q, facts, issues, 5); got != c.want {
 			t.Errorf("%s/%s: %s, ожидалось %s", c.q.Key, c.q.EntityID, got, c.want)
 		}
+	}
+}
+
+func TestAnswerExplainsClosedConflictByLostWeight(t *testing.T) {
+	st := baseStore()
+	st.refs = map[int64]FactRef{1: {HotelID: 5, Fact: domain.Fact{ID: 1, EntityType: domain.EntityHotel, EntityID: "5", Key: "pets_allowed",
+		Value: map[string]any{"available": false}, Confidence: 0.5}}}
+	st.afterSnap = &FactSnap{Found: true, FactID: 9, Value: map[string]any{"available": false}, Confidence: 0.85}
+	st.resolution = domain.ConflictResolution{Kind: domain.ResolutionWeightDropped, Text: "спор снят в пользу расчёта", Author: domain.Author{Type: domain.AuthorHotelier}}
+	iv := newInterviewer(t, st, nil)
+	c := &Change{EntityType: domain.EntityHotel, EntityID: "5", Key: "pets_allowed",
+		Before: FactSnap{Found: true, Conflict: "спор"}, After: FactSnap{Found: true}}
+	trust := &reputation.Update{Before: 0.5, After: 1.0 / 3}
+	if err := iv.closedResolution(context.Background(), c, trust); err != nil {
+		t.Fatal(err)
+	}
+	want := "Спор снят в пользу расчёта: доверие к утверждениям отеля снизилось (0,50 → 0,33), их вес в пользу отеля теперь ≈ 0"
+	if c.Resolution == nil || c.Resolution.Kind != domain.ResolutionWeightDropped || c.Resolution.Text != want {
+		t.Errorf("причина: %+v", c.Resolution)
+	}
+	// Конфликт не закрывался — причины нет.
+	open := &Change{Before: FactSnap{Conflict: "спор"}, After: FactSnap{Conflict: "спор"}}
+	if err := iv.closedResolution(context.Background(), open, trust); err != nil || open.Resolution != nil {
+		t.Errorf("открытый конфликт: %+v %v", open.Resolution, err)
 	}
 }

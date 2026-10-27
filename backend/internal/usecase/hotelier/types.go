@@ -106,6 +106,8 @@ type Store interface {
 	// FactAt — активный факт по адресу «сущность + характеристика» со свидетельствами и открытым конфликтом. Адрес не
 	// ломается при пересборке (id факта меняется). Нет факта — Found=false, не ошибка.
 	FactAt(ctx context.Context, entityType, entityID, key string) (FactSnap, error)
+	// LastResolution — причина, по которой последний конфликт сущности и характеристики закрылся; нет — ok=false.
+	LastResolution(ctx context.Context, entityType, entityID, key string) (domain.ConflictResolution, bool, error)
 	// HotelList — демо-отели с персоной, по названию.
 	HotelList(ctx context.Context) ([]HotelSummary, error)
 	// WishRequests — брони с пожеланием, ждущие подтверждения отеля, по вопросам wish_guarantee.
@@ -157,6 +159,13 @@ type FactSnap struct {
 type Change struct {
 	EntityType, EntityID, Key string
 	Before, After             FactSnap
+	// Resolution — почему закрылся конфликт, который был до записи; nil, если он не закрывался.
+	Resolution *ResolutionInfo
+}
+
+// ResolutionInfo — причина закрытия конфликта для интерфейса: вид (domain.Resolution*) и готовый текст.
+type ResolutionInfo struct {
+	Kind, Text string
 }
 
 // Impact — влияние ответа на категории номеров (rooms.Service).

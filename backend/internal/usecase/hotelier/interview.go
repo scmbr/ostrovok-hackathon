@@ -505,6 +505,9 @@ func (i *Interviewer) processAnswer(ctx context.Context, s *session, h Hotel, q 
 			return nil, fmt.Errorf("факт после ответа: %w", err)
 		}
 		change = &Change{EntityType: entityType, EntityID: entityID, Key: c.Key, Before: before, After: after}
+		if err := i.closedResolution(ctx, change, trustUpdate); err != nil {
+			return nil, fmt.Errorf("причина закрытия конфликта: %w", err)
+		}
 		if err := i.Store.RecordAnswer(ctx, q.ID, status, text, parsedJSON, now); err != nil {
 			return nil, err
 		}

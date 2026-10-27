@@ -75,6 +75,10 @@ WHERE status = $4 AND `+scope.clause+`
 	if err != nil {
 		return err
 	}
+	prevConflicts, err := openConflicts(ctx, tx, scope, key)
+	if err != nil {
+		return err
+	}
 	for _, q := range []struct{ table, to, from string }{
 		{"facts", domain.FactSuperseded, domain.FactActive},
 		{"conflicts", domain.ConflictSuperseded, domain.ConflictOpen},
@@ -88,11 +92,70 @@ WHERE status = $4 AND `+scope.clause+`
 	if err != nil {
 		return err
 	}
-	for _, f := range domain.AssembleFacts(active, domain.TruthContext{Now: time.Now(), Trust: trust, Rules: rules}) {
+	tc := domain.TruthContext{Now: time.Now(), Trust: trust, Rules: rules}
+	facts := domain.AssembleFacts(active, tc)
+	for _, f := range facts {
 		if err := insertFact(ctx, tx, f); err != nil {
 			return err
 		}
 		if err := updateContributions(ctx, tx, f.Contributions); err != nil {
+			return err
+		}
+	}
+	return recordResolutions(ctx, tx, prevConflicts, facts, active, tc)
+}
+
+// openConflict — открытый конфликт сущности до пересборки фактов.
+type openConflict struct {
+	id                        int64
+	entityType, entityID, key string
+}
+
+func openConflicts(ctx context.Context, tx pgx.Tx, scope evidenceScope, key string) ([]openConflict, error) {
+	rows, err := tx.Query(ctx, `SELECT id, entity_type, entity_id, characteristic_key FROM conflicts WHERE status = $3 AND `+scope.clause,
+		scope.arg, key, domain.ConflictOpen)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []openConflict
+	for rows.Next() {
+		var c openConflict
+		if err := rows.Scan(&c.id, &c.entityType, &c.entityID, &c.key); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// recordResolutions пишет причину в прежние конфликты, которые после пересборки не открылись снова: стороны сошлись,
+// вес одной стороны упал до нуля, расхождение стало слабее порога или свидетельства сняты (domain.ExplainClosedConflict).
+// Снятые из-за пересборки и тут же открытые заново конфликты причины не получают.
+func recordResolutions(ctx context.Context, tx pgx.Tx, prev []openConflict, facts []domain.Fact, active []domain.Evidence, tc domain.TruthContext) error {
+	for _, c := range prev {
+		var f *domain.Fact
+		for i := range facts {
+			if facts[i].EntityType == c.entityType && facts[i].EntityID == c.entityID && facts[i].Key == c.key {
+				f = &facts[i]
+			}
+		}
+		var res domain.ConflictResolution
+		switch {
+		case f == nil:
+			res = domain.ConflictResolution{Kind: domain.ResolutionEvidenceRemoved, Text: "свидетельства сняты: факта больше нет"}
+		case f.Conflict != nil:
+			continue // конфликт открылся заново, это тот же спор
+		default:
+			var es []domain.Evidence
+			for _, e := range active {
+				if e.EntityType == c.entityType && e.EntityID == c.entityID {
+					es = append(es, e)
+				}
+			}
+			res = domain.ExplainClosedConflict(*f, es, tc)
+		}
+		if _, err := tx.Exec(ctx, `UPDATE conflicts SET resolution = $2, resolution_kind = $3 WHERE id = $1`, c.id, res.Text, res.Kind); err != nil {
 			return err
 		}
 	}

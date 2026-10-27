@@ -50,6 +50,13 @@ type changeDTO struct {
 	Before         snapDTO `json:"before"`
 	After          snapDTO `json:"after"`
 	ConflictChange string  `json:"conflict_change"`
+	// Resolution — почему закрылся конфликт (agreed — стороны сошлись; weight_dropped — вес одной стороны упал до нуля).
+	Resolution *resolutionDTO `json:"resolution,omitempty"`
+}
+
+type resolutionDTO struct {
+	Kind string `json:"kind"`
+	Text string `json:"text"`
 }
 
 func newSnapDTO(s hotelier.FactSnap) snapDTO {
@@ -80,6 +87,9 @@ func newChangeDTO(reg domain.Registry, c *hotelier.Change) *changeDTO {
 	}
 	d := &changeDTO{EntityType: c.EntityType, EntityID: c.EntityID, Key: c.Key, Title: titleOf(reg, c.Key),
 		Before: newSnapDTO(c.Before), After: newSnapDTO(c.After), ConflictChange: conflictChange(c.Before.Conflict, c.After.Conflict)}
+	if c.Resolution != nil {
+		d.Resolution = &resolutionDTO{Kind: c.Resolution.Kind, Text: c.Resolution.Text}
+	}
 	if ch, ok := reg.Get(c.Key); ok {
 		d.ValueField = ch.FieldName()
 		if c.EntityType == domain.EntityRoomCategory && ch.Category != nil {

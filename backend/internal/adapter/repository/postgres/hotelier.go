@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -188,6 +189,31 @@ WHERE b.hotel_id = $1 ORDER BY b.id`, hotelID)
 		out = append(out, w)
 	}
 	return out, rows.Err()
+}
+
+// LastResolution — причина, записанная движком правды при последнем закрытии конфликта сущности и характеристики.
+func (s *HotelierStore) LastResolution(ctx context.Context, entityType, entityID, key string) (domain.ConflictResolution, bool, error) {
+	var res domain.ConflictResolution
+	var kind, text *string
+	err := s.pool.QueryRow(ctx, `
+SELECT resolution_kind, resolution FROM conflicts
+WHERE entity_type = $1 AND entity_id = $2 AND characteristic_key = $3 AND status = $4 AND resolution_kind IS NOT NULL
+ORDER BY id DESC LIMIT 1`, entityType, entityID, key, domain.ConflictSuperseded).Scan(&kind, &text)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return res, false, nil
+	}
+	if err != nil {
+		return res, false, err
+	}
+	res.Kind, res.Text = *kind, ""
+	if text != nil {
+		res.Text = *text
+	}
+	// Автор, чей вес упал, отдельно не хранится: он назван в тексте причины (domain.ExplainClosedConflict).
+	if res.Kind == domain.ResolutionWeightDropped && strings.Contains(res.Text, "(отель)") {
+		res.Author = domain.Author{Type: domain.AuthorHotelier}
+	}
+	return res, true, nil
 }
 
 // FactAt читает активный факт по адресу «сущность + характеристика» со свидетельствами и открытым конфликтом.
