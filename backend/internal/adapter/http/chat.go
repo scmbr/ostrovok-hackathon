@@ -50,6 +50,8 @@ type chatResultsDTO struct {
 	Considered   int               `json:"considered,omitempty"`
 	Dropped      int               `json:"dropped,omitempty"`
 	Hotels       []searchHotelDTO  `json:"hotels,omitempty"`
+	GroupsLead   string            `json:"groups_lead,omitempty"`
+	Groups       []groupDTO        `json:"groups,omitempty"`
 	Explanations []explanationDTO  `json:"explanations,omitempty"`
 	Base         *shownDTO         `json:"base,omitempty"`
 	Similar      []similarHotelDTO `json:"similar,omitempty"`
@@ -86,7 +88,8 @@ func newChatResultsDTO(reg domain.Registry, e dialog.ResultsEvent) chatResultsDT
 		}
 		return out
 	}
-	out.Hotels = newSearchResponse(reg, search.Result{Query: e.Query, Hotels: e.Hotels}).Hotels
+	sr := newSearchResponse(reg, search.Result{Query: e.Query, Hotels: e.Hotels, Groups: e.Groups})
+	out.Hotels, out.GroupsLead, out.Groups = sr.Hotels, sr.GroupsLead, sr.Groups
 	out.Explanations = []explanationDTO{}
 	for _, x := range e.Explanations {
 		out.Explanations = append(out.Explanations, explanationDTO{HotelID: x.HotelID, Headline: x.Headline, Lines: nonNil(x.Lines), Notes: nonNil(x.Notes)})

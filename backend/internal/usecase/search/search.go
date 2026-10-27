@@ -70,6 +70,8 @@ type Result struct {
 	Hotels []domain.HotelResult
 	// Considered — сколько отелей рассмотрено; Dropped — отброшено фильтрами карточки (звёзды, цена).
 	Considered, Dropped int
+	// Groups — выдача по группам: «всё сразу» и блоки компромиссов (domain.BuildGroups). Плоский Hotels сохранён.
+	Groups []domain.Group
 }
 
 // Search возвращает отели с лучшим вариантом номера, упорядоченные по оценке; отели с нарушенными must — в конце.
@@ -115,6 +117,7 @@ func (s *Service) Search(ctx context.Context, q domain.Query) (Result, error) {
 	}
 	out.Dropped = out.Considered - len(out.Hotels)
 	domain.RankHotels(out.Hotels)
+	out.Groups = domain.BuildGroups(out.Hotels, q.Limit)
 	if len(out.Hotels) > q.Limit {
 		out.Hotels = out.Hotels[:q.Limit]
 	}

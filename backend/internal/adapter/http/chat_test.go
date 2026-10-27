@@ -108,3 +108,20 @@ func TestChatErrors(t *testing.T) {
 		t.Errorf("после начала потока ждали событие error: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestSearchAndChatReturnGroups(t *testing.T) {
+	h := domain.HotelResult{HotelID: 3, Name: "Arts", Best: domain.Variant{Name: "Стандарт", Score: 0.7, Evals: []domain.WishEval{
+		{Key: "a", Status: domain.StatusMatch}, {Key: "b", Status: domain.StatusMismatch}}}}
+	groups := domain.BuildGroups([]domain.HotelResult{h}, 5)
+	f := &fakeSearch{res: search.Result{Hotels: []domain.HotelResult{h}, Groups: groups}}
+	body := doReq(searchRouter(f), "POST", "/api/search", `{"wishes":[{"key":"a"}]}`).Body.String()
+	for _, want := range []string{`"groups":[`, `"kind":"compromise"`, `"failed_key":"b"`, `"hotels":[{"hotel_id":3`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("в ответе поиска нет %s:\n%s", want, body)
+		}
+	}
+	c := &fakeChat{events: []dialog.Event{{Type: dialog.EventResults, Data: dialog.ResultsEvent{Kind: "search", Hotels: f.res.Hotels, Groups: groups}}}}
+	if b := doReq(chatRouter(c), "POST", "/api/chat", `{"session_id":"s","message":"x"}`).Body.String(); !strings.Contains(b, `"failed_key":"b"`) {
+		t.Errorf("в событии results нет групп: %s", b)
+	}
+}
