@@ -103,7 +103,32 @@ type Accuracy struct {
 	StrictScored, StrictCorrect int
 	// Матрица по Scored: положительный класс — «да» (вид есть, тихо, шумно).
 	TP, FP, FN, TN int
-	ByGroup        map[string][2]int // группа → {оценено, совпало}
+	ByGroup        map[string]Counts // coastal / urban
+	ByConf         map[string]Counts // sure / likely
+}
+
+// Counts — оценённые метки с матрицей ошибок «система × метка» (положительный класс — «да»).
+type Counts struct {
+	Scored, Correct int
+	TP, FP, FN, TN  int
+}
+
+func (c Counts) add(pred, label bool) Counts {
+	c.Scored++
+	if pred == label {
+		c.Correct++
+	}
+	switch {
+	case pred && label:
+		c.TP++
+	case pred && !label:
+		c.FP++
+	case !pred && label:
+		c.FN++
+	default:
+		c.TN++
+	}
+	return c
 }
 
 // Bucket — корзина калибровки: точность по фактам с уверенностью из диапазона.
@@ -208,7 +233,7 @@ func Compute(in Input) Report {
 		r.Calibration[i] = Bucket{From: bucketEdges[i], To: bucketEdges[i+1]}
 	}
 	for _, t := range Targets {
-		a := Accuracy{Target: t, ByGroup: map[string][2]int{}}
+		a := Accuracy{Target: t, ByGroup: map[string]Counts{}, ByConf: map[string]Counts{}}
 		for _, l := range in.Labels {
 			m, ok := l.Marks[t]
 			if !ok {
@@ -228,13 +253,11 @@ func Compute(in Input) Report {
 			conf := math.Round(f.Confidence*100) / 100 // 0,6 из float32 не должно съезжать в соседнюю корзину
 			ok = pred == *m.Value
 			a.Scored++
-			g := a.ByGroup[l.Group]
-			g[0]++
+			a.ByGroup[l.Group] = a.ByGroup[l.Group].add(pred, *m.Value)
+			a.ByConf[m.Confidence] = a.ByConf[m.Confidence].add(pred, *m.Value)
 			if ok {
 				a.Correct++
-				g[1]++
 			}
-			a.ByGroup[l.Group] = g
 			if !ok {
 				r.Misses = append(r.Misses, Miss{HotelID: l.HotelID, Name: l.Name, Target: t, Label: *m.Value, Predicted: pred,
 					LabelConf: m.Confidence, FactConf: conf, Source: m.Source})
@@ -433,10 +456,25 @@ func Render(r Report) string {
 		w("| `%s` | %d | %d | %d | %d | %s | %s (%d из %d) | %d / %d / %d / %d |\n", a.Target, a.Labeled, a.Unknown, a.Scored, a.Correct,
 			pct(a.Correct, a.Scored), pct(a.StrictCorrect, a.StrictScored), a.StrictCorrect, a.StrictScored, a.TP, a.FP, a.FN, a.TN)
 	}
-	w("\nПо группам отелей (оценено / совпало):\n\n| Цель | Береговые | Городские |\n|---|---|---|\n")
+	w("\nПо группам отелей и по уверенности метки. Матрица «система × метка»: TP — система «да» и метка «да», FP — система «да», метка «нет», FN — система «нет», метка «да», TN — оба «нет».\n\n")
+	w("| Цель | Срез | Оценено | Совпало | Точность | TP / FP / FN / TN |\n|---|---|---|---|---|---|\n")
 	for _, a := range r.Accuracy {
-		c, u := a.ByGroup["coastal"], a.ByGroup["urban"]
-		w("| `%s` | %d / %d | %d / %d |\n", a.Target, c[0], c[1], u[0], u[1])
+		all := Counts{Scored: a.Scored, Correct: a.Correct, TP: a.TP, FP: a.FP, FN: a.FN, TN: a.TN}
+		for _, row := range []struct {
+			name string
+			c    Counts
+		}{
+			{"береговые", a.ByGroup["coastal"]}, {"городские", a.ByGroup["urban"]}, {"все", all},
+			{"метка «уверен»", a.ByConf[Sure]}, {"метка «скорее»", a.ByConf[Likely]},
+		} {
+			w("| `%s` | %s | %d | %d | %s | %d / %d / %d / %d |\n", a.Target, row.name, row.c.Scored, row.c.Correct, pct(row.c.Correct, row.c.Scored),
+				row.c.TP, row.c.FP, row.c.FN, row.c.TN)
+		}
+	}
+	if len(r.Accuracy) > 0 {
+		a := r.Accuracy[0]
+		w("\nМатрица ошибок по виду на море (все оценённые метки; строки — расчёт системы, столбцы — метка):\n\n")
+		w("| | метка: вид есть | метка: вида нет |\n|---|---|---|\n| **система: вид есть** | %d | %d |\n| **система: вида нет** | %d | %d |\n", a.TP, a.FP, a.FN, a.TN)
 	}
 
 	w("\n### Калибровка уверенности\n\n")

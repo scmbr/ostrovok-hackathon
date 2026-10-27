@@ -72,7 +72,7 @@ func TestAccuracyCountsOnlySureAndLikely(t *testing.T) {
 	if s.Labeled != 2 || s.Unknown != 1 || s.Scored != 1 || s.Correct != 1 {
 		t.Errorf("street_noisy: %+v", s)
 	}
-	if g := sv.ByGroup["coastal"]; g != [2]int{1, 1} {
+	if g := sv.ByGroup["coastal"]; g.Scored != 1 || g.Correct != 1 || g.TP != 1 {
 		t.Errorf("группа береговых: %v", g)
 	}
 }
@@ -150,5 +150,25 @@ func TestMissesListWrongLabels(t *testing.T) {
 	r := Compute(input())
 	if len(r.Misses) != 1 || r.Misses[0].HotelID != 2 || r.Misses[0].Target != TargetQuietRooms || r.Misses[0].FactConf != 0.95 {
 		t.Errorf("промахи: %+v", r.Misses)
+	}
+}
+
+func TestAccuracySplitByGroupAndLabelConfidence(t *testing.T) {
+	r := Compute(input())
+	sv := r.Accuracy[0]
+	if c := sv.ByGroup["urban"]; c.Scored != 1 || c.TN != 1 {
+		t.Errorf("городские: %+v", c)
+	}
+	if c := sv.ByConf[Sure]; c.Scored != 1 || c.TP != 1 {
+		t.Errorf("метка «уверен»: %+v", c)
+	}
+	if c := sv.ByConf[Likely]; c.Scored != 1 || c.TN != 1 {
+		t.Errorf("метка «скорее»: %+v", c)
+	}
+	out := Render(r)
+	for _, want := range []string{"береговые", "городские", "метка «уверен»", "метка «скорее»", "Матрица ошибок по виду на море"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("в отчёте нет %q", want)
+		}
 	}
 }

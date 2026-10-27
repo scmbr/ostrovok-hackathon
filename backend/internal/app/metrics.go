@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -49,7 +50,12 @@ func runMetrics(args []string, reg domain.Registry) error {
 	for _, c := range reg.All() {
 		chars = append(chars, metrics.CharInfo{Key: c.Key, Title: c.Title, Level: c.Level, AskHotelier: c.AskHotelier != ""})
 	}
-	in, err := metrics.Load(ctx, postgres.NewMetricsStore(pool), ls, chars)
+	st, err := postgres.BeginMetrics(ctx, pool)
+	if err != nil {
+		return fmt.Errorf("транзакция только на чтение: %w", err)
+	}
+	defer st.Close(context.Background())
+	in, err := metrics.Load(ctx, st, ls, chars)
 	if err != nil {
 		return err
 	}
@@ -61,7 +67,13 @@ func runMetrics(args []string, reg domain.Registry) error {
 	return replaceBlock(*write, out)
 }
 
+// metricsDoc — единственный файл, который команда вправе изменить.
+const metricsDoc = "metrics.md"
+
 func replaceBlock(path, body string) error {
+	if filepath.Base(path) != metricsDoc {
+		return fmt.Errorf("-write пишет только в %s, получено %q", metricsDoc, path)
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return err
