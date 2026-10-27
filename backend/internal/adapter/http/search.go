@@ -26,6 +26,7 @@ type Option func(*routerDeps)
 
 type routerDeps struct {
 	search SearchService
+	chat   ChatService
 }
 
 // WithSearch подключает поиск.
@@ -353,17 +354,21 @@ func handleSimilar(svc SearchService, reg domain.Registry) http.HandlerFunc {
 			Similar []similarHotelDTO `json:"similar"`
 		}{HotelID: id, Similar: []similarHotelDTO{}}
 		for _, s := range sims {
-			d := similarHotelDTO{ID: s.ID, Name: s.Name, District: s.District, Card: newCardDTO(s.Card), Distance: round2(s.Distance),
-				Differences: []differenceDTO{}}
-			for _, dim := range s.Dims {
-				if dim.Distance == 0 || len(d.Differences) == maxDifferences {
-					continue
-				}
-				d.Differences = append(d.Differences, differenceDTO{Key: dim.Key, Title: titleOf(reg, dim.Key), Distance: round2(dim.Distance),
-					Weight: dim.Weight, Unknown: dim.Unknown})
-			}
-			out.Similar = append(out.Similar, d)
+			out.Similar = append(out.Similar, newSimilarDTO(reg, s))
 		}
 		writeJSON(w, http.StatusOK, out)
 	}
+}
+
+func newSimilarDTO(reg domain.Registry, s search.SimilarHotel) similarHotelDTO {
+	d := similarHotelDTO{ID: s.ID, Name: s.Name, District: s.District, Card: newCardDTO(s.Card), Distance: round2(s.Distance),
+		Differences: []differenceDTO{}}
+	for _, dim := range s.Dims {
+		if dim.Distance == 0 || len(d.Differences) == maxDifferences {
+			continue
+		}
+		d.Differences = append(d.Differences, differenceDTO{Key: dim.Key, Title: titleOf(reg, dim.Key), Distance: round2(dim.Distance),
+			Weight: dim.Weight, Unknown: dim.Unknown})
+	}
+	return d
 }

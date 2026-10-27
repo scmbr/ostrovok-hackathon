@@ -58,10 +58,15 @@ func Run() error {
 	roomSvc := &rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, reg.Rules())}
 	searchStore := postgres.NewSearchStore(pool)
 	searchSvc := &search.Service{Registry: reg, Store: searchStore, Rooms: roomSvc, Demand: searchStore, RegionID: region.ID}
+	chat, _, mode, err := newDialogEngineFrom(cfg, reg, pool, region, searchSvc, dialogAuto, false)
+	if err != nil {
+		return fmt.Errorf("агент диалога: %w", err)
+	}
+	log.Println("диалог: " + mode)
 	srv := &http.Server{
 		Addr: ":" + cfg.Port,
 		Handler: apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules()),
-			roomSvc, cabinet, apphttp.WithSearch(searchSvc)),
+			roomSvc, cabinet, apphttp.WithSearch(searchSvc), apphttp.WithChat(chat)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
