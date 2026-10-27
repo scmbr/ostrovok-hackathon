@@ -88,6 +88,8 @@ type Query struct {
 	// SessionID — сессия поиска: спрос по ключу желания растёт один раз за сессию.
 	SessionID string `json:"session_id,omitempty"`
 	Limit     int    `json:"limit,omitempty"`
+	// NoDemand — пробный поиск (например, при выборе уточнения): спрос не пишется. Из JSON поле не читается.
+	NoDemand bool `json:"-"`
 }
 
 // CategoryLevel сообщает, читается ли желание по категориям номеров (характеристика фасада с блоком category).

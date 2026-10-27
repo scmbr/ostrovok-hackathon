@@ -118,7 +118,7 @@ func (s *Service) Search(ctx context.Context, q domain.Query) (Result, error) {
 	if len(out.Hotels) > q.Limit {
 		out.Hotels = out.Hotels[:q.Limit]
 	}
-	if s.Demand != nil && len(q.Wishes) > 0 {
+	if s.Demand != nil && len(q.Wishes) > 0 && !q.NoDemand {
 		keys := make([]string, len(q.Wishes))
 		for i, w := range q.Wishes {
 			keys[i] = w.Key
@@ -275,6 +275,11 @@ type HotelCard struct {
 	Candidate
 	Facts []FactView
 	Rooms *rooms.HotelRooms // nil — у отеля нет категорий
+}
+
+// Hotels — отели, в которых можно искать (для разбора ссылок «похожий на …» и проверки названий в тексте).
+func (s *Service) Hotels(ctx context.Context) ([]Candidate, error) {
+	return s.Store.Candidates(ctx, s.RegionID)
 }
 
 // Hotel собирает карточку отеля.
