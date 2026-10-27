@@ -1,0 +1,212 @@
+package dialog
+
+import (
+	"context"
+	"errors"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/agent"
+)
+
+// scriptChat отвечает заранее заданными репликами по порядку.
+type scriptChat struct {
+	replies []agent.Message
+	err     error
+	calls   int
+}
+
+func (s *scriptChat) Chat(_ context.Context, _ []agent.Message, _ []agent.ToolDef) (agent.Message, error) {
+	if s.err != nil {
+		return agent.Message{}, s.err
+	}
+	if s.calls >= len(s.replies) {
+		return agent.Message{Role: "assistant", Content: ""}, nil
+	}
+	m := s.replies[s.calls]
+	s.calls++
+	return m, nil
+}
+
+func call(name, args string) agent.Message {
+	return agent.Message{Role: "assistant", ToolCalls: []agent.ToolCall{{ID: "c-" + name, Name: name, Arguments: args}}}
+}
+func say(text string) agent.Message { return agent.Message{Role: "assistant", Content: text} }
+
+type notCached struct{}
+
+func (notCached) Error() string   { return "нет в кеше" }
+func (notCached) NotCached() bool { return true }
+
+func llmRig(t *testing.T, rank func(q domain.Query) []int64, replies ...agent.Message) (*rig, *scriptChat) {
+	t.Helper()
+	r := newRig(t, rank)
+	c := &scriptChat{replies: replies}
+	r.e.Chat, r.e.ChatMode = c, ModeLLM
+	return r, c
+}
+
+func rejection(r *rig) (string, bool) {
+	for _, s := range *r.trace {
+		if s.Tool == "verify_text" && s.Output["reason"] != nil {
+			return s.Output["reason"].(string), true
+		}
+	}
+	return "", false
+}
+
+func same(domain.Query) []int64 { return []int64{1, 2, 3} }
+
+// Пересказ модели с выдуманным числом или отелем не из выдачи отклоняется кодом; допустимый проходит.
+func TestAgentTextCheck(t *testing.T) {
+	cases := []struct {
+		name, text string
+		reject     bool
+		reason     string
+	}{
+		{"выдуманное число", "Hotel Arts в 47 минутах от пляжа.", true, "47"},
+		{"отель не из выдачи", "Лучше всего Hotel Santa Marta.", true, "hotel santa marta"},
+		{"чужой отель из базы", "Hotel Arts рядом с Hotel Catedral.", true, "hotel catedral"},
+		{"допустимый", "Нашла Hotel Arts, Hotel Omm и Casa Fuster.", false, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r, _ := llmRig(t, same, call("parse_baseline", `{"text":"тихий номер"}`), call("search", `{}`), say(c.text))
+			ev := turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
+			msg, _ := find[MessageEvent](ev, EventMessage)
+			reason, rejected := rejection(r)
+			if rejected != c.reject || (c.reject && !strings.Contains(strings.ToLower(reason), c.reason)) {
+				t.Fatalf("отклонение=%v (%s), ждали %v: %s", rejected, reason, c.reject, msg.Text)
+			}
+			if c.reject && msg.Source != "template" {
+				t.Errorf("при отклонении ответ — шаблон: %+v", msg)
+			}
+			if !c.reject && (msg.Source != "llm" || msg.Text != c.text) {
+				t.Errorf("проверенный пересказ идёт гостю: %+v", msg)
+			}
+		})
+	}
+}
+
+// Модель просит search сразу, минуя ask_clarification, — правило уточнения всё равно срабатывает.
+func TestAgentCannotBypassClarificationRule(t *testing.T) {
+	r, _ := llmRig(t, seaOrBeach, call("search", `{}`), say("Готово."))
+	ev := turn(t, r, Request{SessionID: "s", Message: "хочу у моря"})
+	if _, ok := find[Clarification](ev, EventClarification); !ok {
+		t.Fatalf("ждали уточнение, события: %v", ev)
+	}
+	if _, ok := find[ResultsEvent](ev, EventResults); ok {
+		t.Error("пока гость не ответил, выдачи быть не должно")
+	}
+	for _, sq := range r.search.queries {
+		if !sq.NoDemand {
+			t.Errorf("итоговый поиск не должен идти до ответа: %+v", sq)
+		}
+	}
+}
+
+// Через ask_clarification модель получает вопрос только по тому же правилу; вопрос ставит точку в её ходе.
+func TestAgentAskClarificationTool(t *testing.T) {
+	r, c := llmRig(t, seaOrBeach, call("parse_baseline", `{"text":"у моря"}`), call("ask_clarification", `{"phrase":"у моря"}`), say("не должно быть вызвано"))
+	ev := turn(t, r, Request{SessionID: "s", Message: "у моря"})
+	q, ok := find[Clarification](ev, EventClarification)
+	if !ok || !strings.Contains(q.Question, "пляж") {
+		t.Fatalf("ждали вопрос: %v", ev)
+	}
+	if c.calls != 2 {
+		t.Errorf("после вопроса модель больше не вызывается: %d вызовов", c.calls)
+	}
+	if st := state(t, r, "s"); st.Asked != 1 || st.Pending == nil {
+		t.Errorf("состояние: %+v", st)
+	}
+}
+
+// Модель завершила ход без поиска — результат всё равно считает код.
+func TestAgentFallbackSearchWhenModelSkips(t *testing.T) {
+	r, _ := llmRig(t, same, say("Добрый день!"))
+	ev := turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
+	if _, ok := find[ResultsEvent](ev, EventResults); !ok {
+		t.Fatal("поиск должен выполнить код")
+	}
+}
+
+// log_unmet_wish: нормализация и предложение модели записываются; уже понятое по реестру в журнал не идёт.
+func TestAgentLogUnmetWish(t *testing.T) {
+	r, _ := llmRig(t, same,
+		call("parse_baseline", `{"text":"морской воздух"}`),
+		call("log_unmet_wish", `{"text":"морской воздух","normalized":"Морской воздух","proposal":{"key":"sea_air"}}`),
+		call("log_unmet_wish", `{"text":"тихий номер"}`),
+		say("Записала."))
+	turn(t, r, Request{SessionID: "s", Message: "морской воздух"})
+	if r.unmet["морской воздух"] != 1 || len(r.unmet) != 1 {
+		t.Errorf("журнал: %v", r.unmet)
+	}
+	var refused bool
+	for _, s := range *r.trace {
+		if s.Tool == "log_unmet_wish" && s.Output["ok"] == false {
+			refused = true
+		}
+	}
+	if !refused {
+		t.Error("уже понятое желание должно быть отклонено")
+	}
+}
+
+// Недоступная модель и промах кеша: ход повторяется по правилам, журнал честно пишет mode=rule.
+func TestAgentFallsBackToRules(t *testing.T) {
+	for name, err := range map[string]error{"сеть": errors.New("timeout"), "кеш": notCached{}} {
+		t.Run(name, func(t *testing.T) {
+			r, c := llmRig(t, same)
+			c.err = err
+			ev := turn(t, r, Request{SessionID: "s", Message: "тихий номер и пляж рядом"})
+			res, ok := find[ResultsEvent](ev, EventResults)
+			if !ok || len(res.Query.Wishes) != 2 {
+				t.Fatalf("правила должны довести ход до выдачи: %v", ev)
+			}
+			msg, _ := find[MessageEvent](ev, EventMessage)
+			if msg.Source != "template" {
+				t.Errorf("текст шаблонный: %+v", msg)
+			}
+			modes := map[string]bool{}
+			for _, s := range *r.trace {
+				modes[s.Mode] = true
+			}
+			if !modes[ModeLLM] || !modes[ModeRule] {
+				t.Errorf("в журнале и попытка модели, и правила: %v", modes)
+			}
+		})
+	}
+}
+
+// Пять отказов подряд останавливают модель; ход всё равно завершается поиском.
+func TestAgentStopsAfterConsecutiveRejections(t *testing.T) {
+	var bad []agent.Message
+	for i := 0; i < agent.MaxConsecutiveRejections+3; i++ {
+		bad = append(bad, call("nope", `{}`))
+	}
+	r, c := llmRig(t, same, bad...)
+	ev := turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
+	if c.calls != agent.MaxConsecutiveRejections {
+		t.Errorf("вызовов модели %d, ждали %d", c.calls, agent.MaxConsecutiveRejections)
+	}
+	if _, ok := find[ResultsEvent](ev, EventResults); !ok {
+		t.Error("поиск выполняется кодом")
+	}
+}
+
+// Ответ кнопкой идёт без модели.
+func TestAgentChoiceTurnSkipsModel(t *testing.T) {
+	r, c := llmRig(t, seaOrBeach, call("parse_baseline", `{"text":"у моря"}`), call("ask_clarification", `{"phrase":"у моря"}`))
+	turn(t, r, Request{SessionID: "s", Message: "у моря"})
+	before := c.calls
+	ev := turn(t, r, Request{SessionID: "s", Choice: "sea_view"})
+	if c.calls != before {
+		t.Error("ответ кнопкой не требует модели")
+	}
+	res, ok := find[ResultsEvent](ev, EventResults)
+	if !ok || !slices.ContainsFunc(res.Query.Wishes, func(w domain.Desire) bool { return w.Key == "sea_view" }) {
+		t.Errorf("выбранная трактовка должна войти в запрос: %v", ev)
+	}
+}

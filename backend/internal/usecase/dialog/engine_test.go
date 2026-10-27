@@ -3,7 +3,6 @@ package dialog
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -42,6 +41,10 @@ func (f *fakeSearch) Similar(_ context.Context, id int64, limit int, _ map[strin
 	return []search.SimilarHotel{{Candidate: search.Candidate{ID: 9, Name: hotelNames[9]}}}, nil
 }
 
+func (f *fakeSearch) Hotel(_ context.Context, id int64) (search.HotelCard, error) {
+	return search.HotelCard{Candidate: search.Candidate{ID: id, Name: hotelNames[id]}}, nil
+}
+
 func (f *fakeSearch) Hotels(context.Context) ([]search.Candidate, error) {
 	var out []search.Candidate
 	for id := int64(1); id <= 9; id++ {
@@ -71,10 +74,6 @@ func (m *memTrace) AppendTrace(_ context.Context, s agent.TraceStep) error {
 	*m = append(*m, s)
 	return nil
 }
-
-type fakeRephraser struct{ text string }
-
-func (f fakeRephraser) Rephrase(context.Context, string) (string, error) { return f.text, nil }
 
 type rig struct {
 	e      *Engine
@@ -331,36 +330,6 @@ func TestUnmetWishLoggedAndCounted(t *testing.T) {
 	}
 }
 
-// Текст модели с выдуманным числом или чужим отелем отклоняется кодом, в ответ идёт шаблон, причина — в журнале.
-func TestRephraseRejectedFallsBackToTemplate(t *testing.T) {
-	cases := map[string]string{
-		"число":        "Отличный выбор! Hotel Arts в 47 минутах от пляжа.",
-		"чужой отель":  "Лучше всего подойдёт Hotel Santa Marta.",
-		"допустимый":   "Нашла для вас варианты: Hotel Arts, Hotel Omm и Casa Fuster.",
-		"число гостя":  "Ищу тихий отель.",
-		"чужое в базе": "Hotel Arts рядом с Hotel Catedral.",
-	}
-	for name, text := range cases {
-		t.Run(name, func(t *testing.T) {
-			r := newRig(t, func(domain.Query) []int64 { return []int64{1, 2, 3} })
-			r.e.Rephraser = fakeRephraser{text}
-			ev := turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
-			msg, _ := find[MessageEvent](ev, EventMessage)
-			rejected := slices.ContainsFunc(*r.trace, func(s agent.TraceStep) bool { return s.Tool == "verify_text" && s.Output["reason"] != nil })
-			wantReject := name == "число" || name == "чужой отель" || name == "чужое в базе"
-			if rejected != wantReject {
-				t.Fatalf("отклонение=%v, ждали %v (%s)", rejected, wantReject, msg.Text)
-			}
-			if wantReject && msg.Source != "template" {
-				t.Errorf("при отклонении ответ — шаблон: %+v", msg)
-			}
-			if !wantReject && msg.Source != "llm" {
-				t.Errorf("проверенный пересказ идёт гостю: %+v", msg)
-			}
-		})
-	}
-}
-
 func TestVerifyRephrase(t *testing.T) {
 	source := "Hotel Arts — Стандарт, 120 € за ночь. Пляж: 7 мин, уверенность 85 %. Альтернатива — Hotel Omm."
 	shown := []string{"Hotel Arts", "Hotel Omm"}
@@ -396,5 +365,3 @@ func TestMergeResetAndFilters(t *testing.T) {
 		t.Errorf("«заново» сбрасывает запрос: %+v", st)
 	}
 }
-
-var _ = errors.New

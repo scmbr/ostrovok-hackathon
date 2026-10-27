@@ -90,98 +90,123 @@ func defaultOption(a domain.Ambiguity) domain.Interpretation {
 	return a.Options[0]
 }
 
-// clarifyOutcome — итог правила уточнения для одного сообщения.
-type clarifyOutcome struct {
-	Ask *Clarification
-	// Notes — допущения, которые стоит назвать гостю: спросить было нельзя (лимит), а выдача зависела бы от ответа.
-	Notes []string
+// clarifier считает вопросы, заданные в одном сообщении.
+type clarifier struct{ asked int }
+
+func (c *clarifier) canAsk(st *State) bool {
+	return c.asked < MaxClarificationsPerMessage && st.Asked < MaxClarificationsPerSession
 }
 
-// resolveAmbiguities применяет правило уточнения к неоднозначным фразам и мягкой важности.
+// clarifyAmbiguity применяет правило уточнения к одной неоднозначной фразе.
 //
 // В запрос идёт трактовка по умолчанию, пока гость не ответил. Спрашиваем, только если выдача по трактовкам
 // различается в топ-3, не больше одного вопроса на сообщение и двух на сессию; иначе продолжаем с допущением,
-// которое называем гостю (если оно повлияло бы на выдачу). Первый различающийся вопрос задаётся, остальные
-// фразы берутся по умолчанию.
-func (e *Engine) resolveAmbiguities(ctx context.Context, st *State, p domain.ParseResult, tr *tracer) (clarifyOutcome, error) {
-	var out clarifyOutcome
-	asked := 0
-	canAsk := func() bool { return asked < MaxClarificationsPerMessage && st.Asked < MaxClarificationsPerSession }
-
-	for _, amb := range p.Ambiguities {
-		def := defaultOption(amb)
-		desires := make([]domain.Desire, len(amb.Options))
-		for i, o := range amb.Options {
-			desires[i] = o.Desire
-		}
-		diff, tops, err := e.differ(ctx, st, st.Wishes, desires)
-		if err != nil {
-			return out, err
-		}
-		tr.step("сравниваю выдачу по трактовкам «"+amb.Phrase+"»", "compare_interpretations",
-			map[string]any{"phrase": amb.Phrase, "options": optionKeys(amb)}, map[string]any{"differs": diff, "top3": tops})
-		switch {
-		case diff && canAsk():
-			q := ambiguityQuestion(amb)
-			out.Ask = &q
-			st.Pending = &Pending{Kind: KindAmbiguity, Phrase: amb.Phrase, Options: amb.Options}
-			st.Asked++
-			asked++
-			tr.step("задаю уточнение: выдача по трактовкам различается", "ask_clarification",
-				map[string]any{"phrase": amb.Phrase}, map[string]any{"question": q.Question})
-			continue
-		case diff:
-			out.Notes = append(out.Notes, fmt.Sprintf("«%s» я поняла как «%s»; если нужно иначе — скажите.", amb.Phrase, def.Label))
-			tr.step("уточнение не задаю: лимит исчерпан, продолжаю с допущением", "assume",
-				map[string]any{"phrase": amb.Phrase}, map[string]any{"assumed": def.Label, "asked_in_session": st.Asked})
-		default:
-			tr.step("уточнение не нужно: топ-3 не меняется", "assume",
-				map[string]any{"phrase": amb.Phrase}, map[string]any{"assumed": def.Label})
-		}
-		st.Wishes = upsert(st.Wishes, st.withFloor(e.Registry, def.Desire))
+// которое называем гостю (если оно повлияло бы на выдачу). Вопрос возвращается, когда задан; note — допущение.
+func (e *Engine) clarifyAmbiguity(ctx context.Context, st *State, amb domain.Ambiguity, c *clarifier, tr *tracer) (ask *Clarification, note string, err error) {
+	def := defaultOption(amb)
+	desires := make([]domain.Desire, len(amb.Options))
+	for i, o := range amb.Options {
+		desires[i] = o.Desire
 	}
-
-	for _, key := range p.WeakKeys {
-		w, ok := st.wish(key)
-		if !ok || slices.Contains(st.Settled, key) {
-			continue
-		}
-		st.settle(key)
-		other := withImportance(w, domain.Must)
-		if w.Importance == domain.Must {
-			other = withImportance(w, domain.Prefer)
-		}
-		diff, tops, err := e.differ(ctx, st, st.Wishes, []domain.Desire{w, other})
-		if err != nil {
-			return out, err
-		}
-		tr.step("сравниваю выдачу при разной важности «"+key+"»", "compare_interpretations",
-			map[string]any{"key": key}, map[string]any{"differs": diff, "top3": tops})
-		if !diff {
-			continue
-		}
-		title := key
-		if c, ok := e.Registry.Get(key); ok {
-			title = c.Title
-		}
-		if out.Ask == nil && canAsk() {
-			q := importanceQuestion(title, key)
-			out.Ask = &q
-			st.Pending = &Pending{Kind: KindImportance, Phrase: key, Options: []domain.Interpretation{
-				{Key: string(domain.Must), Label: "Обязательно", Desire: withImportance(w, domain.Must)},
-				{Key: string(domain.Prefer), Label: "Желательно", Desire: withImportance(w, domain.Prefer), Default: true},
-			}}
-			st.Asked++
-			asked++
-			// Пока гость не ответил, желание остаётся мягким.
-			st.Wishes = upsert(st.Wishes, withImportance(w, domain.Prefer))
-			tr.step("задаю уточнение о важности: выдача различается", "ask_clarification",
-				map[string]any{"key": key}, map[string]any{"question": q.Question})
-			continue
-		}
-		out.Notes = append(out.Notes, fmt.Sprintf("«%s» я считаю пожеланием, а не обязательным условием; если нужно жёстко — скажите.", title))
+	diff, tops, err := e.differ(ctx, st, st.Wishes, desires)
+	if err != nil {
+		return nil, "", err
 	}
-	return out, nil
+	tr.step("сравниваю выдачу по трактовкам «"+amb.Phrase+"»", "compare_interpretations",
+		map[string]any{"phrase": amb.Phrase, "options": optionKeys(amb)}, map[string]any{"differs": diff, "top3": tops})
+	switch {
+	case diff && c.canAsk(st):
+		q := ambiguityQuestion(amb)
+		st.Pending = &Pending{Kind: KindAmbiguity, Phrase: amb.Phrase, Options: amb.Options}
+		st.Asked++
+		c.asked++
+		tr.step("задаю уточнение: выдача по трактовкам различается", "ask_clarification",
+			map[string]any{"phrase": amb.Phrase}, map[string]any{"question": q.Question})
+		return &q, "", nil
+	case diff:
+		note = fmt.Sprintf("«%s» я поняла как «%s»; если нужно иначе — скажите.", amb.Phrase, def.Label)
+		tr.step("уточнение не задаю: лимит исчерпан, продолжаю с допущением", "assume",
+			map[string]any{"phrase": amb.Phrase}, map[string]any{"assumed": def.Label, "asked_in_session": st.Asked})
+	default:
+		tr.step("уточнение не нужно: топ-3 не меняется", "assume",
+			map[string]any{"phrase": amb.Phrase}, map[string]any{"assumed": def.Label})
+	}
+	st.Wishes = upsert(st.Wishes, st.withFloor(e.Registry, def.Desire))
+	return nil, note, nil
+}
+
+// clarifyImportance — то же для мягкого маркера важности («нужна тишина»: обязательно или желательно).
+func (e *Engine) clarifyImportance(ctx context.Context, st *State, key string, c *clarifier, tr *tracer) (ask *Clarification, note string, err error) {
+	w, ok := st.wish(key)
+	if !ok || slices.Contains(st.Settled, key) {
+		return nil, "", nil
+	}
+	st.settle(key)
+	other := withImportance(w, domain.Must)
+	if w.Importance == domain.Must {
+		other = withImportance(w, domain.Prefer)
+	}
+	diff, tops, err := e.differ(ctx, st, st.Wishes, []domain.Desire{w, other})
+	if err != nil {
+		return nil, "", err
+	}
+	tr.step("сравниваю выдачу при разной важности «"+key+"»", "compare_interpretations",
+		map[string]any{"key": key}, map[string]any{"differs": diff, "top3": tops})
+	if !diff {
+		return nil, "", nil
+	}
+	title := key
+	if ch, ok := e.Registry.Get(key); ok {
+		title = ch.Title
+	}
+	if !c.canAsk(st) {
+		return nil, fmt.Sprintf("«%s» я считаю пожеланием, а не обязательным условием; если нужно жёстко — скажите.", title), nil
+	}
+	q := importanceQuestion(title, key)
+	st.Pending = &Pending{Kind: KindImportance, Phrase: key, Options: []domain.Interpretation{
+		{Key: string(domain.Must), Label: "Обязательно", Desire: withImportance(w, domain.Must)},
+		{Key: string(domain.Prefer), Label: "Желательно", Desire: withImportance(w, domain.Prefer), Default: true},
+	}}
+	st.Asked++
+	c.asked++
+	// Пока гость не ответил, желание остаётся мягким.
+	st.Wishes = upsert(st.Wishes, withImportance(w, domain.Prefer))
+	tr.step("задаю уточнение о важности: выдача различается", "ask_clarification",
+		map[string]any{"key": key}, map[string]any{"question": q.Question})
+	return &q, "", nil
+}
+
+// resolveAmbiguities прогоняет через правило все неоднозначные фразы и мягкую важность сообщения: первый
+// различающийся вопрос задаётся, остальные фразы берутся по умолчанию.
+func (e *Engine) resolveAmbiguities(ctx context.Context, st *State, amb []domain.Ambiguity, weak []string, tr *tracer) (*Clarification, []string, error) {
+	var ask *Clarification
+	var notes []string
+	c := &clarifier{}
+	for _, a := range amb {
+		q, note, err := e.clarifyAmbiguity(ctx, st, a, c, tr)
+		if err != nil {
+			return nil, nil, err
+		}
+		if q != nil {
+			ask = q
+		}
+		if note != "" {
+			notes = append(notes, note)
+		}
+	}
+	for _, key := range weak {
+		q, note, err := e.clarifyImportance(ctx, st, key, c, tr)
+		if err != nil {
+			return nil, nil, err
+		}
+		if q != nil {
+			ask = q
+		}
+		if note != "" {
+			notes = append(notes, note)
+		}
+	}
+	return ask, notes, nil
 }
 
 func withImportance(d domain.Desire, imp domain.Importance) domain.Desire {

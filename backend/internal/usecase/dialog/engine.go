@@ -3,6 +3,7 @@ package dialog
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -87,17 +88,19 @@ type Request struct {
 	HotelID int64
 }
 
-// Engine — детерминированное ядро диалога. LLM-агент (agent.go) использует те же функции как инструменты.
+// Engine — ядро диалога. Без Chat работает по правилам (парсер, правило уточнения, шаблоны); с Chat выбор шагов
+// делает модель, но уточнение, поиск и проверка текста остаются в коде (agent.go).
 type Engine struct {
-	Registry  domain.Registry
-	Lexicon   domain.Lexicon
-	Search    Searcher
-	Sessions  SessionStore
-	Unmet     UnmetStore
-	Trace     TraceWriter
-	RegionID  int64
-	Mode      string
-	Rephraser Rephraser
+	Registry domain.Registry
+	Lexicon  domain.Lexicon
+	Search   Searcher
+	Sessions SessionStore
+	Unmet    UnmetStore
+	Trace    TraceWriter
+	RegionID int64
+	// Chat — LLM с tool calling (живая, с записью или из кеша); nil — только правила. ChatMode — llm | cache.
+	Chat     agent.Chat
+	ChatMode string
 	// ResultLimit — сколько отелей отдаёт выдача диалога.
 	ResultLimit int
 }
@@ -107,6 +110,7 @@ type tracer struct {
 	ctx       context.Context
 	e         *Engine
 	sessionID string
+	mode      string
 	emit      func(Event)
 	n         int
 	err       error
@@ -115,7 +119,7 @@ type tracer struct {
 func (t *tracer) step(decision, tool string, in, out map[string]any) {
 	t.n++
 	ts := agent.TraceStep{
-		Agent: AgentName, SessionID: t.sessionID, Mode: t.e.mode(), Step: t.n,
+		Agent: AgentName, SessionID: t.sessionID, Mode: t.mode, Step: t.n,
 		Decision: decision, Tool: tool, Input: in, Output: out,
 	}
 	if t.e.Trace != nil {
@@ -124,13 +128,6 @@ func (t *tracer) step(decision, tool string, in, out map[string]any) {
 		}
 	}
 	t.emit(Event{EventStep, StepEvent{N: t.n, Mode: ts.Mode, Decision: decision, Tool: tool, Input: in, Output: out}})
-}
-
-func (e *Engine) mode() string {
-	if e.Mode == "" {
-		return ModeRule
-	}
-	return e.Mode
 }
 
 func (e *Engine) limit() int {
@@ -162,54 +159,295 @@ func (e *Engine) save(ctx context.Context, id string, st State) error {
 	return e.Sessions.SaveState(ctx, id, raw)
 }
 
-// Turn обрабатывает сообщение гостя целиком в режиме правил: разбор → уточнение или поиск → объяснение.
-func (e *Engine) Turn(ctx context.Context, req Request, emit func(Event)) error {
+// searchOutcome — итог поиска для ответа.
+type searchOutcome struct {
+	res  search.Result
+	exps []domain.HotelExplanation
+}
+
+type similarOutcome struct {
+	base Shown
+	list []search.SimilarHotel
+}
+
+// run — один ход диалога: состояние сессии, накопленный разбор, итоги поиска. Правила и LLM-агент
+// действуют через одни и те же методы.
+type run struct {
+	e   *Engine
+	ctx context.Context
+	req Request
+	st  State
+	tr  *tracer
+
+	// Разбор сообщения, ещё не доведённый до запроса.
+	amb     []domain.Ambiguity
+	weak    []string
+	simRef  *domain.SimilarRef
+	notes   []string
+	parsed  bool
+	removed []string
+
+	// Непонятое: тексты в порядке появления; нормализация и предложение модели, если она их дала.
+	unmet     []string
+	unmetNorm map[string]string
+	proposals map[string][]byte
+
+	clar clarifier
+	ask  *Clarification
+	srch *searchOutcome
+	sim  *similarOutcome
+}
+
+func (e *Engine) newRun(ctx context.Context, req Request, mode string, emit func(Event)) (*run, error) {
 	if req.SessionID == "" {
-		return &search.ValidationError{Msg: "нужен session_id"}
+		return nil, &search.ValidationError{Msg: "нужен session_id"}
 	}
 	st, err := e.load(ctx, req.SessionID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	tr := &tracer{ctx: ctx, e: e, sessionID: req.SessionID, emit: emit}
 	if req.HotelID != 0 {
 		st.Current = req.HotelID
 	}
+	return &run{e: e, ctx: ctx, req: req, st: st, tr: &tracer{ctx: ctx, e: e, sessionID: req.SessionID, mode: mode, emit: emit},
+		unmetNorm: map[string]string{}, proposals: map[string][]byte{}}, nil
+}
 
-	var notes []string
-	if st.Pending != nil {
-		if what := e.answerPending(&st, req.Choice); what != "" {
-			tr.step("применяю ответ на уточнение", "apply_choice", map[string]any{"choice": req.Choice}, map[string]any{"applied": what})
+// applyPending применяет ответ гостя на висящее уточнение (кнопка или трактовка по умолчанию).
+func (r *run) applyPending() {
+	if r.st.Pending == nil {
+		return
+	}
+	if what := r.e.answerPending(&r.st, r.req.Choice); what != "" {
+		r.tr.step("применяю ответ на уточнение", "apply_choice", map[string]any{"choice": r.req.Choice}, map[string]any{"applied": what})
+	}
+}
+
+// parse разбирает текст детерминированным парсером и вносит понятое в состояние сессии.
+func (r *run) parse(text string) domain.ParseResult {
+	p := r.e.Lexicon.Parse(text)
+	r.parsed = true
+	r.tr.step("разбираю фразу детерминированным парсером", "parse_baseline", map[string]any{"text": text}, parseSummary(p))
+	r.st.Merge(r.e.Registry, p)
+	r.amb = append(r.amb, p.Ambiguities...)
+	for _, k := range p.WeakKeys {
+		if !slices.Contains(r.weak, k) {
+			r.weak = append(r.weak, k)
 		}
 	}
+	if p.Similar != nil {
+		r.simRef = p.Similar
+	}
+	r.notes = append(r.notes, p.Notes...)
+	r.removed = append(r.removed, p.Remove...)
+	for _, u := range p.Unmet {
+		r.queueUnmet(u, "", nil)
+	}
+	return p
+}
 
-	p := e.Lexicon.Parse(req.Message)
-	tr.step("разбираю фразу детерминированным парсером", "parse_baseline",
-		map[string]any{"text": req.Message}, parseSummary(p))
-	notes = append(notes, p.Notes...)
+// queueUnmet ставит непонятое в очередь журнала; запись — в конце хода, чтобы сбой LLM не дублировал счётчик.
+func (r *run) queueUnmet(text, normalized string, proposal []byte) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	key := domain.NormalizeUnmet(text)
+	if normalized != "" {
+		key = normalized
+	}
+	if key == "" {
+		return
+	}
+	for _, t := range r.unmet {
+		if strings.EqualFold(t, text) || r.unmetNorm[t] == key {
+			// То же желание, уже поставленное разбором: нормализация и предложение модели уточняют запись.
+			if normalized != "" {
+				r.unmetNorm[t] = key
+			}
+			if proposal != nil {
+				r.proposals[t] = proposal
+			}
+			return
+		}
+	}
+	r.unmet = append(r.unmet, text)
+	r.unmetNorm[text] = key
+	if proposal != nil {
+		r.proposals[text] = proposal
+	}
+}
 
-	unmet := e.logUnmet(ctx, tr, p.Unmet, req.Message)
-
-	st.Merge(e.Registry, p)
-	out, err := e.resolveAmbiguities(ctx, &st, p, tr)
+// clarifyAll прогоняет неразобранные неоднозначности через правило уточнения (один вопрос на сообщение).
+func (r *run) clarifyAll() error {
+	if r.ask != nil || (len(r.amb) == 0 && len(r.weak) == 0) {
+		return nil
+	}
+	ask, notes, err := r.e.resolveAmbiguities(r.ctx, &r.st, r.amb, r.weak, r.tr)
 	if err != nil {
 		return err
 	}
-	notes = append(notes, out.Notes...)
+	r.amb, r.weak = nil, nil
+	r.ask = ask
+	r.notes = append(r.notes, notes...)
+	return nil
+}
 
-	if out.Ask != nil {
-		if err := e.save(ctx, req.SessionID, st); err != nil {
+// runSearch ищет по накопленным желаниям и строит объяснение.
+func (r *run) runSearch() error {
+	res, err := r.e.Search.Search(r.ctx, domain.Query{
+		Wishes: r.st.Wishes, Filters: r.st.Filters, SessionID: r.req.SessionID, Limit: r.e.limit(),
+	})
+	if err != nil {
+		return err
+	}
+	r.tr.step("ищу отели по накопленным желаниям", "search",
+		map[string]any{"wishes": wishKeys(r.st.Wishes), "filters": r.st.Filters},
+		map[string]any{"found": len(res.Hotels), "considered": res.Considered})
+	out := &searchOutcome{res: res}
+	r.st.Last = r.st.Last[:0]
+	for i, h := range res.Hotels {
+		out.exps = append(out.exps, domain.ExplainHotel(r.e.Registry, i+1, h))
+		r.st.Last = append(r.st.Last, Shown{ID: h.HotelID, Name: h.Name})
+	}
+	if len(r.st.Last) > 0 {
+		r.st.Current = r.st.Last[0].ID
+	}
+	r.srch, r.sim = out, nil
+	return nil
+}
+
+var errNoSimilarBase = errors.New("не понятно, на какой отель опереться")
+
+// runSimilar ищет отели с профилем, близким к названному; веса — из накопленных желаний.
+func (r *run) runSimilar(ref domain.SimilarRef) error {
+	cands, _, err := r.e.hotelNames(r.ctx)
+	if err != nil {
+		return err
+	}
+	base, ok := resolveSimilar(ref, r.st, cands)
+	if !ok {
+		return errNoSimilarBase
+	}
+	list, err := r.e.Search.Similar(r.ctx, base.ID, r.e.limit(), domain.QueryWeights(r.st.Wishes))
+	if err != nil {
+		return err
+	}
+	r.tr.step("ищу отели с похожим профилем фактов", "similar",
+		map[string]any{"hotel_id": base.ID}, map[string]any{"found": len(list)})
+	r.st.Current = base.ID
+	r.st.Last = r.st.Last[:0]
+	for _, s := range list {
+		r.st.Last = append(r.st.Last, Shown{ID: s.ID, Name: s.Name})
+	}
+	r.sim, r.srch = &similarOutcome{base: base, list: list}, nil
+	return nil
+}
+
+// flushUnmet записывает очередь непонятого в unmet_wishes.
+func (r *run) flushUnmet() []string {
+	var logged []string
+	for _, ph := range r.unmet {
+		if r.e.Unmet == nil {
+			break
+		}
+		norm := r.unmetNorm[ph]
+		count, err := r.e.Unmet.LogUnmet(r.ctx, r.e.RegionID, ph, norm, r.proposals[ph])
+		if err != nil {
+			if r.tr.err == nil {
+				r.tr.err = fmt.Errorf("unmet_wishes: %w", err)
+			}
+			continue
+		}
+		logged = append(logged, ph)
+		r.tr.step("желания нет в реестре — записываю в журнал спроса", "log_unmet_wish",
+			map[string]any{"text": ph}, map[string]any{"normalized": norm, "count": count})
+	}
+	return logged
+}
+
+// finish завершает ход: записывает непонятое, собирает ответ, сохраняет сессию, отправляет события.
+// candidate — текст модели для проверки; пустой — шаблон.
+func (r *run) finish(candidate string, emit func(Event)) error {
+	unmet := r.flushUnmet()
+	done := func() error {
+		if err := r.e.save(r.ctx, r.req.SessionID, r.st); err != nil {
 			return err
 		}
-		emit(Event{EventClarification, *out.Ask})
-		emit(Event{EventDone, DoneEvent{SessionID: req.SessionID, Mode: e.mode(), Asked: st.Asked}})
-		return tr.err
+		emit(Event{EventDone, DoneEvent{SessionID: r.req.SessionID, Mode: r.tr.mode, Asked: r.st.Asked}})
+		return r.tr.err
 	}
+	if r.ask != nil {
+		emit(Event{EventClarification, *r.ask})
+		return done()
+	}
+	msg := func(text, src string) { emit(Event{EventMessage, MessageEvent{Text: text, Source: src}}) }
+	switch {
+	case r.sim != nil:
+		emit(Event{EventResults, ResultsEvent{Kind: "similar", Query: domain.Query{Wishes: r.st.Wishes, Filters: r.st.Filters},
+			Similar: &SimilarView{Base: r.sim.base, Hotels: r.sim.list}}})
+		template := r.e.similarText(r.sim.base, r.sim.list, r.notes, unmet)
+		shown := []string{r.sim.base.Name}
+		for _, s := range r.sim.list {
+			shown = append(shown, s.Name)
+		}
+		text, src := r.e.finalText(r.ctx, r.tr, candidate, template, r.req.Message+" "+strings.Join(r.notes, " "), shown)
+		msg(text, src)
+	case r.srch != nil:
+		o := r.srch
+		emit(Event{EventResults, ResultsEvent{Kind: "search", Query: o.res.Query, Hotels: o.res.Hotels, Explanations: o.exps,
+			Considered: o.res.Considered, Dropped: o.res.Dropped}})
+		template := r.e.resultsText(o.res, o.exps, r.notes, unmet)
+		var shown []string
+		for _, h := range o.res.Hotels {
+			shown = append(shown, h.Name)
+		}
+		text, src := r.e.finalText(r.ctx, r.tr, candidate, template, r.req.Message+" "+strings.Join(r.notes, " "), shown)
+		msg(text, src)
+	case r.simRef != nil:
+		msg("Не поняла, на какой отель опереться. Назовите отель из выдачи по номеру или названию.", "template")
+	default:
+		msg(emptyMessage(r.removed, unmet), "template")
+	}
+	return done()
+}
 
-	if p.Similar != nil {
-		return e.similar(ctx, req, &st, p, tr, notes, unmet, emit)
+// Turn обрабатывает сообщение гостя. С Chat выбор шагов делает модель; при её недоступности или промахе кеша
+// ход повторяется по правилам (детерминированный разбор и шаблонные тексты).
+func (e *Engine) Turn(ctx context.Context, req Request, emit func(Event)) error {
+	if e.Chat != nil {
+		handled, err := e.turnLLM(ctx, req, emit)
+		if handled || err != nil {
+			return err
+		}
 	}
-	return e.searchAndExplain(ctx, req, &st, p, tr, notes, unmet, emit)
+	return e.turnRules(ctx, req, emit)
+}
+
+// turnRules — ход без модели: разбор → уточнение или поиск → объяснение шаблоном.
+func (e *Engine) turnRules(ctx context.Context, req Request, emit func(Event)) error {
+	r, err := e.newRun(ctx, req, ModeRule, emit)
+	if err != nil {
+		return err
+	}
+	r.applyPending()
+	r.parse(req.Message)
+	if err := r.clarifyAll(); err != nil {
+		return err
+	}
+	if r.ask == nil {
+		switch {
+		case r.simRef != nil:
+			if err := r.runSimilar(*r.simRef); err != nil && !errors.Is(err, errNoSimilarBase) {
+				return err
+			}
+		case len(r.st.Wishes) > 0 || r.st.Filters != (domain.Filters{}):
+			if err := r.runSearch(); err != nil {
+				return err
+			}
+		}
+	}
+	return r.finish("", emit)
 }
 
 func parseSummary(p domain.ParseResult) map[string]any {
@@ -221,28 +459,6 @@ func parseSummary(p domain.ParseResult) map[string]any {
 		"wishes": keys, "remove": p.Remove, "ambiguities": len(p.Ambiguities), "weak": p.WeakKeys,
 		"unmet": p.Unmet, "filters": p.Filters, "min_floor": p.MinFloor, "reset": p.Reset,
 	}
-}
-
-// logUnmet записывает непонятые куски в unmet_wishes; возвращает их для ответа гостю.
-func (e *Engine) logUnmet(ctx context.Context, tr *tracer, phrases []string, message string) []string {
-	var logged []string
-	for _, ph := range phrases {
-		norm := domain.NormalizeUnmet(ph)
-		if norm == "" || e.Unmet == nil {
-			continue
-		}
-		count, err := e.Unmet.LogUnmet(ctx, e.RegionID, ph, norm, nil)
-		if err != nil {
-			if tr.err == nil {
-				tr.err = fmt.Errorf("unmet_wishes: %w", err)
-			}
-			continue
-		}
-		logged = append(logged, ph)
-		tr.step("желания нет в реестре — записываю в журнал спроса", "log_unmet_wish",
-			map[string]any{"text": ph}, map[string]any{"normalized": norm, "count": count})
-	}
-	return logged
 }
 
 func (e *Engine) hotelNames(ctx context.Context) ([]search.Candidate, []string, error) {
@@ -257,53 +473,6 @@ func (e *Engine) hotelNames(ctx context.Context) ([]search.Candidate, []string, 
 	return cands, names, nil
 }
 
-func (e *Engine) searchAndExplain(ctx context.Context, req Request, st *State, p domain.ParseResult, tr *tracer,
-	notes, unmet []string, emit func(Event)) error {
-	if len(st.Wishes) == 0 && st.Filters == (domain.Filters{}) {
-		text := emptyMessage(p, unmet)
-		emit(Event{EventMessage, MessageEvent{Text: text, Source: "template"}})
-		if err := e.save(ctx, req.SessionID, *st); err != nil {
-			return err
-		}
-		emit(Event{EventDone, DoneEvent{SessionID: req.SessionID, Mode: e.mode(), Asked: st.Asked}})
-		return tr.err
-	}
-	res, err := e.Search.Search(ctx, domain.Query{
-		Wishes: st.Wishes, Filters: st.Filters, SessionID: req.SessionID, Limit: e.limit(),
-	})
-	if err != nil {
-		return err
-	}
-	tr.step("ищу отели по накопленным желаниям", "search",
-		map[string]any{"wishes": wishKeys(st.Wishes), "filters": st.Filters},
-		map[string]any{"found": len(res.Hotels), "considered": res.Considered})
-
-	exps := make([]domain.HotelExplanation, 0, len(res.Hotels))
-	st.Last = st.Last[:0]
-	for i, h := range res.Hotels {
-		exps = append(exps, domain.ExplainHotel(e.Registry, i+1, h))
-		st.Last = append(st.Last, Shown{ID: h.HotelID, Name: h.Name})
-	}
-	if len(st.Last) > 0 {
-		st.Current = st.Last[0].ID
-	}
-	emit(Event{EventResults, ResultsEvent{Kind: "search", Query: res.Query, Hotels: res.Hotels, Explanations: exps,
-		Considered: res.Considered, Dropped: res.Dropped}})
-
-	template := e.resultsText(res, exps, notes, unmet)
-	var shown []string
-	for _, h := range res.Hotels {
-		shown = append(shown, h.Name)
-	}
-	text, src := e.finalText(ctx, tr, template, req.Message+" "+strings.Join(notes, " "), shown)
-	emit(Event{EventMessage, MessageEvent{Text: text, Source: src}})
-	if err := e.save(ctx, req.SessionID, *st); err != nil {
-		return err
-	}
-	emit(Event{EventDone, DoneEvent{SessionID: req.SessionID, Mode: e.mode(), Asked: st.Asked}})
-	return tr.err
-}
-
 func wishKeys(ws []domain.Desire) []string {
 	keys := make([]string, len(ws))
 	for i, w := range ws {
@@ -312,36 +481,31 @@ func wishKeys(ws []domain.Desire) []string {
 	return keys
 }
 
-// finalText отдаёт пересказ модели, если он прошёл проверку чисел и названий; иначе шаблон, а причина отказа
-// пишется в журнал.
-func (e *Engine) finalText(ctx context.Context, tr *tracer, template, extraSource string, shown []string) (string, string) {
-	if e.Rephraser == nil {
+// finalText отдаёт пересказ модели (candidate), если он прошёл проверку чисел и названий; иначе шаблон,
+// а причина отказа пишется в журнал.
+func (e *Engine) finalText(ctx context.Context, tr *tracer, candidate, template, extraSource string, shown []string) (string, string) {
+	if strings.TrimSpace(candidate) == "" {
 		return template, "template"
 	}
 	_, all, err := e.hotelNames(ctx)
 	if err != nil {
 		return template, "template"
 	}
-	text, err := e.Rephraser.Rephrase(ctx, template)
-	if err != nil {
-		tr.step("пересказ моделью недоступен — отдаю шаблон", "rephrase", nil, map[string]any{"error": err.Error()})
-		return template, "template"
-	}
-	if err := VerifyRephrase(text, template+" "+extraSource, shown, all); err != nil {
+	if err := VerifyRephrase(candidate, template+" "+extraSource, shown, all); err != nil {
 		tr.step("текст модели отклонён проверкой — отдаю шаблон", "verify_text",
-			map[string]any{"text": text}, map[string]any{"reason": err.Error()})
+			map[string]any{"text": candidate}, map[string]any{"reason": err.Error()})
 		return template, "template"
 	}
 	tr.step("пересказ модели прошёл проверку чисел и названий", "verify_text", nil, map[string]any{"ok": true})
-	return text, "llm"
+	return candidate, "llm"
 }
 
-func emptyMessage(p domain.ParseResult, unmet []string) string {
+func emptyMessage(removed, unmet []string) string {
 	if len(unmet) > 0 {
 		return fmt.Sprintf("Пока не умею учитывать: %s. Записала это в журнал пожеланий — такие запросы подскажут, какие характеристики добавить. "+
 			"Расскажите, что ещё важно: тишина, вид на море, пляж, метро, питомцы, бюджет.", quoted(unmet))
 	}
-	if len(p.Remove) > 0 {
+	if len(removed) > 0 {
 		return "Убрала это из условий. Что ещё важно в отеле?"
 	}
 	return "Расскажите, какой отель нужен: тишина, вид на море, пляж, метро, питомцы, бюджет."
@@ -393,7 +557,7 @@ func (e *Engine) resultsText(res search.Result, exps []domain.HotelExplanation, 
 		b.WriteString("\nПодходящих отелей не нашлось: попробуйте смягчить условия.")
 		return b.String()
 	}
-	fmt.Fprintf(&b, "\nЛучшие варианты:")
+	b.WriteString("\nЛучшие варианты:")
 	for i, x := range exps {
 		if i >= topN {
 			break
@@ -401,51 +565,6 @@ func (e *Engine) resultsText(res search.Result, exps []domain.HotelExplanation, 
 		b.WriteString("\n" + x.Text())
 	}
 	return b.String()
-}
-
-// similar отвечает на «похожий на …»: профиль фактов отеля, веса — из накопленных желаний.
-func (e *Engine) similar(ctx context.Context, req Request, st *State, p domain.ParseResult, tr *tracer,
-	notes, unmet []string, emit func(Event)) error {
-	cands, _, err := e.hotelNames(ctx)
-	if err != nil {
-		return err
-	}
-	base, ok := resolveSimilar(*p.Similar, *st, cands)
-	if !ok {
-		emit(Event{EventMessage, MessageEvent{Source: "template",
-			Text: "Не поняла, на какой отель опереться. Назовите отель из выдачи по номеру или названию."}})
-		if err := e.save(ctx, req.SessionID, *st); err != nil {
-			return err
-		}
-		emit(Event{EventDone, DoneEvent{SessionID: req.SessionID, Mode: e.mode(), Asked: st.Asked}})
-		return tr.err
-	}
-	list, err := e.Search.Similar(ctx, base.ID, e.limit(), domain.QueryWeights(st.Wishes))
-	if err != nil {
-		return err
-	}
-	tr.step("ищу отели с похожим профилем фактов", "similar",
-		map[string]any{"hotel_id": base.ID}, map[string]any{"found": len(list)})
-	st.Current = base.ID
-	st.Last = st.Last[:0]
-	for _, s := range list {
-		st.Last = append(st.Last, Shown{ID: s.ID, Name: s.Name})
-	}
-	emit(Event{EventResults, ResultsEvent{Kind: "similar", Query: domain.Query{Wishes: st.Wishes, Filters: st.Filters},
-		Similar: &SimilarView{Base: base, Hotels: list}}})
-
-	template := e.similarText(base, list, notes, unmet)
-	shown := []string{base.Name}
-	for _, s := range list {
-		shown = append(shown, s.Name)
-	}
-	text, src := e.finalText(ctx, tr, template, req.Message+" "+strings.Join(notes, " "), shown)
-	emit(Event{EventMessage, MessageEvent{Text: text, Source: src}})
-	if err := e.save(ctx, req.SessionID, *st); err != nil {
-		return err
-	}
-	emit(Event{EventDone, DoneEvent{SessionID: req.SessionID, Mode: e.mode(), Asked: st.Asked}})
-	return tr.err
 }
 
 // resolveSimilar находит отель, на который сослался гость: номер в выдаче, «этот» или название.

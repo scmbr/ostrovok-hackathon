@@ -13,6 +13,7 @@ type Searcher interface {
 	Search(ctx context.Context, q domain.Query) (search.Result, error)
 	Similar(ctx context.Context, id int64, limit int, weights map[string]float64) ([]search.SimilarHotel, error)
 	Hotels(ctx context.Context) ([]search.Candidate, error)
+	Hotel(ctx context.Context, id int64) (search.HotelCard, error)
 }
 
 // SessionStore — состояние сессий в Postgres; устаревшие строки хранилище удаляет при чтении.
@@ -29,9 +30,4 @@ type UnmetStore interface {
 // TraceWriter — журнал решений агента (agent_trace).
 type TraceWriter interface {
 	AppendTrace(ctx context.Context, s agent.TraceStep) error
-}
-
-// Rephraser — необязательный пересказ шаблонного текста моделью. Текст проходит проверку кодом (VerifyRephrase).
-type Rephraser interface {
-	Rephrase(ctx context.Context, template string) (string, error)
 }
