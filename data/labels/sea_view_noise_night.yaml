@@ -1,0 +1,146 @@
+# Разметка 18 демо-отелей для метрик качества (collect metrics, docs/metrics.md).
+#
+# Что размечено (уровень отеля, ответ «да / нет»):
+#   sea_view.has_view         — есть номера с видом на море (вода порта и марины считается морем, как в расчёте)
+#   noise_night.quiet_rooms   — есть номера, где ночью тихо (двор, верхние этажи, звукоизоляция по описаниям гостей)
+#   noise_night.street_noisy  — со стороны улицы ночью шумно
+#
+# Уверенность разметчика: sure («уверен» — источник говорит прямо), likely («скорее» — косвенные признаки или один
+# источник), unknown («не знаю» — в публичных источниках ответа нет, value не задаётся). В точность идут sure и likely;
+# unknown считаются отдельно.
+#
+# Источники — страницы агрегаторов и отелей из веб-поиска 28.10.2026 (сводки поиска; страницы целиком не открывались,
+# как в задаче 2.4). Это не эталон из натурных измерений: ни одна метка не проверена на месте. Сводки поиска собраны до
+# просмотра фактов системы; факты по этим отелям разработчик видел до записи файла, метки по ним не менялись. Метки «нет вида на море» у городских отелей — «скорее»: ни один источник не называет вид на
+# море, а расстояние до берега больше 600 м (отсутствие упоминания слабее прямого утверждения).
+#
+# group: coastal — отель не дальше 400 м от берега (как в проекте), urban — дальше.
+labeled_at: "2026-10-28"
+labeler: разработчик; сводки веб-поиска собирал Claude Code
+hotels:
+  - id: 322
+    name: Hotel Arts
+    group: coastal
+    marks:
+      sea_view.has_view: { value: true, confidence: sure, source: "https://www.travelocity.com/Parc-De-Collserola-Hotels-Hotel-Arts-Barcelona.h3780.Hotel-Information", note: "категория Panorama Sea View; высокие этажи с видом на море" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.roomertravel.com/el/featured/hotel-arts-barcelona.h11568", note: "описан дневной шум стройки и басы пляжных клубов на нижних этажах, ночная тишина не названа" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.roomertravel.com/el/featured/hotel-arts-barcelona.h11568" }
+  - id: 235
+    name: H10 Hotel Port Vell
+    group: coastal
+    marks:
+      sea_view.has_view: { value: true, confidence: likely, source: "https://barcelona.com/hotels/ciutat-vella/h10-port-vell-4-sup", note: "в тегах «Sea view», терраса с видом на Port Vell; категории номеров с видом не названы" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.tripadvisor.com/Hotel_Review-d4702800", note: "теги «Quiet street view» и «Soundproof rooms» — маркетинг агрегатора" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.tripadvisor.com/Hotel_Review-d4702800", note: "один отзыв о вечернем шуме ресторанов на втором этаже" }
+  - id: 188
+    name: Barceló Antenea Mar (сейчас Occidental Atenea Mar)
+    group: coastal
+    marks:
+      sea_view.has_view: { value: true, confidence: sure, source: "https://www.barcelo.com/en-us/occidental-hotels/hotels/spain/barcelona/occidental-atenea-mar/", note: "официальный сайт: Superior, Deluxe и Deluxe Premium with Sea View" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.expedia.com/Barcelona-Hotels-Occidental-Atenea-Mar-Adults-Only.h993336.Hotel-Reviews", note: "тег Soundproofed у номеров с видом — маркетинг, отзывов о шуме нет" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.expedia.com/Barcelona-Hotels-Occidental-Atenea-Mar-Adults-Only.h993336.Hotel-Reviews" }
+  - id: 331
+    name: Hilton Diagonal Mar Barcelona
+    group: coastal
+    marks:
+      sea_view.has_view: { value: true, confidence: likely, source: "https://www.tripadvisor.com/Hotel_Review-d559387", note: "отзыв: deluxe sea view на высоком этаже; другой гость — прямого вида нет, с нижнего этажа вид частично закрыт" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.tripadvisor.com/Hotel_Review-d559387", note: "отзывы противоречат: район тихий, но звукоизоляция оценена по-разному" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.tripadvisor.com/Hotel_Review-d559387" }
+  - id: 161
+    name: Hotel Best Western Hotel 54 Barceloneta (на витринах Hotel 54 Barceloneta)
+    group: coastal
+    marks:
+      sea_view.has_view: { value: true, confidence: likely, source: "https://booking.com/hotel/es/54-barceloneta.html", note: "описания: виды на Port Vell у части номеров, superior выходят на порт; номер 404 с видом на порт" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://booking.com/hotel/es/54-barceloneta.html", note: "отзывы смешанные" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://booking.com/hotel/es/54-barceloneta.html" }
+  - id: 326
+    name: Hotel Oasis
+    group: coastal
+    marks:
+      sea_view.has_view: { value: false, confidence: likely, source: "https://barcelona.com/hotels/ciutat-vella/hotel-oasis", note: "листинги называют виды на улицу и во двор, номеров с видом на море нет; пляж в нескольких минутах пешком" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://barcelona.com/hotels/ciutat-vella/hotel-oasis", note: "теги «Soundproof rooms» и «Quiet street view» — маркетинг агрегатора" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://barcelona.com/hotels/ciutat-vella/hotel-oasis" }
+  - id: 156
+    name: Serras Hotel Barcelona (на витринах The Serras)
+    group: coastal
+    marks:
+      sea_view.has_view: { value: true, confidence: sure, source: "https://www.hiphotels.com/hotels/europe/spain/the-serras", note: "номера и балконы выходят на Port Vell (другие — на улицу Мерсе)" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.timeout.com/barcelona/hotels/serras-barcelona", note: "звукоизоляция заявлена отелем, в отзывах жалобы на шум от соседних номеров" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.malaymail.com/news/travel/2016/12/31/spacious-luxury-on-the-beaten-path/1283221", note: "статья 2016 года: у входа на Passeig de Colom идёт транспорт; про ночь не сказано" }
+  - id: 57
+    name: Gothic Cathedral Apartments
+    group: coastal
+    marks:
+      sea_view.has_view: { confidence: unknown, source: "https://www.roomertravel.com/featured/colon.h8729", note: "объект под таким названием на витринах не найден; соседние апартаменты Готического квартала не подходят" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.roomertravel.com/featured/colon.h8729" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.roomertravel.com/featured/colon.h8729" }
+  - id: 189
+    name: Front Maritim (на витринах Hotel Best Front Maritim)
+    group: coastal
+    marks:
+      sea_view.has_view: { value: true, confidence: likely, source: "https://www.expedia.com.my/Barcelona-Hotels-Hotel-Front-Maritim.h889927.Hotel-Information", note: "описания: виды на море из номеров, часть с балконами и видом вдали; у части номеров прямого вида нет" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.expedia.com.my/Barcelona-Hotels-Hotel-Front-Maritim.h889927.Hotel-Information", note: "тег Soundproofed, отзывов о шуме мало" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.expedia.com.my/Barcelona-Hotels-Hotel-Front-Maritim.h889927.Hotel-Information" }
+  - id: 329
+    name: Meliá Barcelona Sky
+    group: urban
+    marks:
+      sea_view.has_view: { value: true, confidence: sure, source: "https://hotels.com/ho263968/melia-barcelona-sky-barcelona-spain", note: "категории Premium Sea View Room, Family Room with sea view, The Level с видом на море; башня 29 этажей" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://hotels.com/ho263968/melia-barcelona-sky-barcelona-spain", note: "Soundproofed в описании — маркетинг" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://hotels.com/ho263968/melia-barcelona-sky-barcelona-spain" }
+  - id: 344
+    name: Hotel ILUNION Barcelona
+    group: urban
+    marks:
+      sea_view.has_view: { value: true, confidence: likely, source: "https://www.expedia.co.uk/Barcelona-Hotels-Hotel-ILUNION-Barcelona.h1874136.Hotel-Information", note: "один листинг: терраса у superior с видом на море или город; остальные называют только виды на город" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.travelocity.com/Barcelona-Hotels-Hotel-ILUNION-Barcelona.h1874136.Hotel-Reviews", note: "один отзыв «тихая часть города», по этажам ничего" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.travelocity.com/Barcelona-Hotels-Hotel-ILUNION-Barcelona.h1874136.Hotel-Reviews" }
+  - id: 12
+    name: Le Méridien Barcelona
+    group: urban
+    marks:
+      sea_view.has_view: { value: false, confidence: likely, source: "https://www.tripadvisor.com/Hotel_Review-d229679", note: "описания говорят о видах на Рамблу; о виде на море нигде не сказано" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://onemileatatime.com/baarcelonaa-le-meridien-barcelona/", note: "отзывы расходятся: от «ни разу не слышали шума» (2010) до шума Рамблы" }
+      noise_night.street_noisy: { value: true, confidence: likely, source: "https://onemileatatime.com/baarcelonaa-le-meridien-barcelona/", note: "обзор: двойные стёкла не глушат шум Рамблы; сводка отзывов на wanderlog — ночные разговоры на улице (https://wanderlog.com/place/details/82274/le-méridien-barcelona)" }
+  - id: 6
+    name: H10 Catalunya Plaza
+    group: urban
+    marks:
+      sea_view.has_view: { value: false, confidence: likely, source: "https://www.tripadvisor.com/Hotel_Review-d234397", note: "виды на площадь Каталунья; о виде на море не сказано" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.tripadvisor.com/Hotel_Review-d234397", note: "отзывы смешанные: тихий номер и жалобы на шум стройки и вентиляции" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.tripadvisor.com/Hotel_Review-d234397" }
+  - id: 3
+    name: Hotel Sir Victor
+    group: urban
+    marks:
+      sea_view.has_view: { value: false, confidence: likely, source: "https://booking.com/hotel/es/sir-victor.en-gb.html", note: "номера выходят на Passeig de Gràcia или во внутренний сад" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.traveller.com.au/hotel-review-sir-victor-barcelona-spain-h1hjkd", note: "дворовые номера вероятнее тихие, но отзыв тишину не подтверждает" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.traveller.com.au/hotel-review-sir-victor-barcelona-spain-h1hjkd" }
+  - id: 14
+    name: Olivia Plaza Hotel
+    group: urban
+    marks:
+      sea_view.has_view: { value: false, confidence: likely, source: "https://www.tripadvisor.com/Hotel_Review-d589352", note: "виды на площадь и церковь Санта-Ана; о море не сказано" }
+      noise_night.quiet_rooms: { value: true, confidence: likely, source: "https://www.tripadvisor.com/Hotel_Review-d589352", note: "два гостя: номера и отель тихие, шум площади почти не доходит; звукоизоляция заявлена во всех номерах" }
+      noise_night.street_noisy: { value: false, confidence: likely, source: "https://www.tripadvisor.com/Hotel_Review-d589352", note: "тот же источник: номер на площадь, шум площади почти не слышен" }
+  - id: 9
+    name: Leonardo Hotel Barcelona Las Ramblas
+    group: urban
+    marks:
+      sea_view.has_view: { value: false, confidence: likely, source: "https://www.tripadvisor.com/Hotel_Review-d239591", note: "терраса с видом на город; вид на море не упоминается" }
+      noise_night.quiet_rooms: { value: true, confidence: likely, source: "https://www.tripadvisor.com/Hotel_Review-d239591", note: "гость в номере в глубине здания: очень тихо" }
+      noise_night.street_noisy: { value: true, confidence: likely, source: "https://www.timetomomo.com/en/visit/barcelona/accommodation/leonardo-hotel-las-ramblas", note: "путеводитель: отель за Рамблой в шумной части Раваля; гость жаловался на приглушённую музыку" }
+  - id: 13
+    name: Barcelona City Hotel (Hotel Universal)
+    group: urban
+    marks:
+      sea_view.has_view: { value: false, confidence: likely, source: "https://www.oyster.com/barcelona/hotels/barcelona-universal-hotel/", note: "виды на город, люксы Skyline на девятом этаже с террасой на город" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.oyster.com/barcelona/hotels/barcelona-universal-hotel/", note: "советуют высокий этаж не на улицу — это совет, а не подтверждение" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.oyster.com/barcelona/hotels/barcelona-universal-hotel/", note: "отзывы расходятся: сильный шум на втором этаже и «шума нет»" }
+  - id: 4
+    name: Hotel Suites Avenue
+    group: urban
+    marks:
+      sea_view.has_view: { value: false, confidence: likely, source: "https://www.myboutiquehotel.com/en/boutique-hotels-barcelona/suites-avenue.html", note: "виды на город и Ла Педреру; море не упоминается" }
+      noise_night.quiet_rooms: { confidence: unknown, source: "https://www.oyster.com/barcelona/hotels/suites-avenue/", note: "Soundproofed у одной категории — маркетинг" }
+      noise_night.street_noisy: { confidence: unknown, source: "https://www.oyster.com/barcelona/hotels/suites-avenue/", note: "один обзор: шум улицы при открытых окнах" }
