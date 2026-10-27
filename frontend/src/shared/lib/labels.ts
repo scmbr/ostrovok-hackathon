@@ -45,3 +45,8 @@ export const reasonKindLabel = (k: string) => group('reason_kind', k)
 export const questionStatusLabel = (s: string) => group('question_status', s)
 export const parsedByLabel = (m: string) => group('parsed_by', m)
 export const conflictChangeLabel = (c: string) => group('conflict_change', c)
+export const resolutionKindLabel = (k: string) => group('resolution_kind', k)
+export const evidenceRoleLabel = (r: string) => group('evidence_role', r)
+
+// Есть ли подписи значений у характеристики: у добавленных текстом их нет, значение показывается как есть.
+export const hasLabels = (key: string) => key in chars
