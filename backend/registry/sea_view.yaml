@@ -43,3 +43,5 @@ ambiguous_synonyms: # «у моря» по-русски обычно про ра
   - { phrase: возле моря, label: вид из окна }
   - { phrase: близко к морю, label: вид из окна }
   - { phrase: недалеко от моря, label: вид из окна }
+
+day_part: morning

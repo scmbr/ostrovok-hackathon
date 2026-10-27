@@ -44,6 +44,7 @@ type file struct {
 	ValueSynonyms     map[string][]string    `yaml:"value_synonyms,omitempty"`
 	AmbiguousSynonyms []fileAmbiguousSynonym `yaml:"ambiguous_synonyms,omitempty"`
 	DefaultNumber     float64                `yaml:"default_number,omitempty"`
+	DayPart           string                 `yaml:"day_part,omitempty"`
 }
 
 // fileAmbiguousSynonym — фраза с несколькими трактовками (domain.AmbiguousSynonym).
@@ -97,7 +98,7 @@ func Parse(data []byte) (domain.Characteristic, error) {
 		FavorableValues: f.FavorableValues, SignificantDiff: f.SignificantDiff, ConflictSteps: f.ConflictSteps,
 		ConflictTheta: f.ConflictTheta, ConflictEntities: f.ConflictEntities,
 		AskHotelier: f.AskHotelier, AskGuest: f.AskGuest, Origin: f.Origin, OriginText: f.OriginText, AddedAt: f.AddedAt,
-		Synonyms: f.Synonyms, ValueSynonyms: f.ValueSynonyms, DefaultNumber: f.DefaultNumber,
+		Synonyms: f.Synonyms, ValueSynonyms: f.ValueSynonyms, DefaultNumber: f.DefaultNumber, DayPart: f.DayPart,
 	}
 	for _, a := range f.AmbiguousSynonyms {
 		c.AmbiguousSynonyms = append(c.AmbiguousSynonyms, domain.AmbiguousSynonym{Phrase: a.Phrase, Label: a.Label, Value: a.Value, Default: a.Default})

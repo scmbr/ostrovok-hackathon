@@ -115,6 +115,9 @@ func validateSynonyms(c domain.Characteristic) []string {
 	if c.ValueType == domain.ValueNumber && len(c.Synonyms) > 0 && c.DefaultNumber <= 0 {
 		out = append(out, "у number с synonyms нужен default_number: порог, если гость не назвал число")
 	}
+	if !slices.Contains([]string{"", domain.DayMorning, domain.DayDay, domain.DayNight}, c.DayPart) {
+		out = append(out, fmt.Sprintf("day_part %q: допустимо morning, day, night", c.DayPart))
+	}
 	if c.DefaultNumber < 0 {
 		out = append(out, "default_number не может быть отрицательным")
 	}

@@ -182,7 +182,7 @@ func (s *Service) evalHotel(ctx context.Context, c Candidate, q domain.Query, ch
 	for _, f := range hr.Facades {
 		azimuth[f.ID] = f.AzimuthDeg
 	}
-	wishGuaranteed := wishGuarantee(byKey)
+	wishGuaranteed, wishRefused := wishGuarantee(byKey)
 
 	hotelEvals := map[string]domain.WishEval{}
 	categoryKeys := map[string]bool{}
@@ -221,7 +221,7 @@ func (s *Service) evalHotel(ctx context.Context, c Candidate, q domain.Query, ch
 					Caveat: "категория не оценена — спросим отель"})
 				continue
 			}
-			in := domain.CategoryWishInput{Assessment: a, WishGuaranteed: wishGuaranteed,
+			in := domain.CategoryWishInput{Assessment: a, WishGuaranteed: wishGuaranteed, WishRefused: wishRefused,
 				AzimuthOf: func(id int64) float64 { return azimuth[id] }}
 			var src []rooms.EvidenceView
 			for _, chv := range cv.Characteristics {
@@ -254,14 +254,14 @@ func hotelFacts(fs []FactView) map[string]FactView {
 	return out
 }
 
-// wishGuarantee — отельер сообщил, что гарантирует пожелания к номеру.
-func wishGuarantee(byKey map[string]FactView) bool {
+// wishGuarantee — ответ отельера о пожеланиях к номеру: гарантирует (yes) или нет (refused); нет факта — оба false.
+func wishGuarantee(byKey map[string]FactView) (yes, refused bool) {
 	fv, ok := byKey[domain.WishGuaranteeKey]
 	if !ok {
-		return false
+		return false, false
 	}
-	v, _ := fv.Fact.Value["available"].(bool)
-	return v
+	v, ok := fv.Fact.Value["available"].(bool)
+	return ok && v, ok && !v
 }
 
 func sources(evs []rooms.EvidenceView) []domain.EvidenceSource {

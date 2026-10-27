@@ -341,3 +341,26 @@ func TestEvalHotelWishDiscreteScoreIsProbability(t *testing.T) {
 		t.Errorf("enum: оценка %v, ждали 0,2", e.Score)
 	}
 }
+
+// Ответ отельера «нет» значим: p_wish падает с 0,7 до 0,4, ответ «да» поднимает до 0,95.
+func TestEvalCategoryWishHotelRefusesWishes(t *testing.T) {
+	c, w := seaViewWish(t, Prefer)
+	fact := &Fact{Value: map[string]any{"view": "none"}, Confidence: 0.85}
+	unknown := EvalCategoryWish(c, w, seaViewInput(fact, false))
+	refusedIn := seaViewInput(fact, false)
+	refusedIn.WishRefused = true
+	refused := EvalCategoryWish(c, w, refusedIn)
+	if refused.Wish == nil || !refused.Wish.HotelRefused || refused.Wish.HotelConfirmed {
+		t.Fatalf("пожелание при отказе: %+v", refused.Wish)
+	}
+	// охват 1 (пожелание закрепляет все подходящие номера): p_wish равен вероятности выполнения.
+	if math.Abs(refused.PWish-WishRefusedProbability) > 1e-9 || !(refused.PWish < unknown.PWish) {
+		t.Errorf("отказ: p_wish %v, без ответа %v", refused.PWish, unknown.PWish)
+	}
+	// «да» важнее старого «нет», если оба признака пришли вместе.
+	both := seaViewInput(fact, true)
+	both.WishRefused = true
+	if e := EvalCategoryWish(c, w, both); e.PWish != WishGuaranteedProbability || e.Wish.HotelRefused {
+		t.Errorf("да и нет: p_wish %v, пожелание %+v", e.PWish, e.Wish)
+	}
+}
