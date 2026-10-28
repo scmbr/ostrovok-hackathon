@@ -1,5 +1,8 @@
 import { apiGet } from '@/shared/api'
-import type { HotelCardData, LookupResult, SimilarHotel } from '@/shared/api'
+import type { HotelCardData, LookupResult, ShowcaseHotel, SimilarHotel } from '@/shared/api'
+
+// Демо-отели для главной: сначала с видом на море, затем с пляжем поблизости.
+export const listDemoHotels = () => apiGet<{ hotels: ShowcaseHotel[] }>('/hotels?demo=1').then((r) => r.hotels)
 
 const cards = new Map<number, Promise<HotelCardData>>()
 

@@ -23,6 +23,7 @@ import (
 	usecaseregistry "github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/registry"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/rooms"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/search"
+	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/showcase"
 )
 
 // runtime — работающее приложение: подключение к БД, действующий реестр и обработчик запросов. Реестр характеристик
@@ -114,7 +115,7 @@ func (rt *runtime) buildHandler(reg domain.Registry) (http.Handler, error) {
 	explainSvc := &explain.Service{Registry: reg, Store: postgres.NewExplainStore(pool)}
 	adminSvc := &admin.Service{Registry: reg, Store: postgres.NewAdminStore(pool), Explain: explainSvc, RegionID: region.ID}
 	return apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules()), roomSvc, cabinet,
-		apphttp.WithSearch(searchSvc), apphttp.WithHotelLookup(&lookup.Service{Store: searchStore, RegionID: region.ID}), apphttp.WithChat(chat), apphttp.WithGuestFlow(guest), apphttp.WithDialogExamples(examples),
+		apphttp.WithSearch(searchSvc), apphttp.WithHotelLookup(&lookup.Service{Store: searchStore, RegionID: region.ID}), apphttp.WithHotelShowcase(&showcase.Service{Store: searchStore, RegionID: region.ID}), apphttp.WithChat(chat), apphttp.WithGuestFlow(guest), apphttp.WithDialogExamples(examples),
 		apphttp.WithLLMMode(llmMode(cfg), cfg.LLMModel), apphttp.WithAdmin(adminSvc, explainSvc),
 		apphttp.WithRegistryAdmin(registryAdmin{rt: rt})), nil
 }

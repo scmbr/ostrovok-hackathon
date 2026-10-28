@@ -21,6 +21,7 @@ export default {
         'bad-bg': '#fdecec',
       },
       fontFamily: {
+        display: ['Unbounded', '"PT Root UI"', 'system-ui', 'sans-serif'],
         sans: ['"PT Root UI"', '"Helvetica Neue"', 'Helvetica', 'Arial', 'system-ui', 'sans-serif'],
       },
       borderRadius: {

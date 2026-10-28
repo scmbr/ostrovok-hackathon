@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import type { CompareSide } from '@/shared/api'
 import { ChatPanel } from '@/widgets/chat-panel'
 import { CompareView } from '@/widgets/compare-view'
@@ -7,7 +8,8 @@ import { HotelResults } from '@/widgets/hotel-results'
 import { ResultsMap } from '@/widgets/hotel-map'
 import type { MapHotel } from '@/widgets/hotel-map'
 import { ShortlistBar } from '@/widgets/shortlist-bar'
-import { lastSearch, useChat } from '@/features/chat-search'
+import { beginSearch, lastSearch, useChat } from '@/features/chat-search'
+import type { SearchEntryState } from '@/features/chat-search'
 import type { ContractTarget } from '@/features/book-with-wish'
 
 export function SearchPage() {
@@ -15,6 +17,19 @@ export function SearchPage() {
   const [highlight, setHighlight] = useState<number | null>(null)
   const [target, setTarget] = useState<ContractTarget | null>(null)
   const last = lastSearch(chat)
+
+  // Первое сообщение с главной уходит ровно один раз: ref переживает двойной эффект StrictMode,
+  // а state навигации очищается, чтобы обновление страницы или возврат не повторили поиск.
+  const { state, pathname, search } = useLocation()
+  const navigate = useNavigate()
+  const started = useRef(false)
+  const intent = (state as SearchEntryState | null)?.intent
+  useEffect(() => {
+    if (!intent || started.current) return
+    started.current = true
+    navigate({ pathname, search }, { replace: true, state: null })
+    void beginSearch(intent)
+  }, [intent, navigate, pathname, search])
 
   // Отели последней выдачи для общей карты: имена берём из выдачи.
   const mapHotels = ((): MapHotel[] => {

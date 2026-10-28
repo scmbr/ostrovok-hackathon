@@ -3,8 +3,15 @@ import type { FormEvent, ReactNode } from 'react'
 import { Button } from '@/shared/ui'
 import { submit as submitMessage, useChat } from '../model/store'
 
-// footer — нижняя строка контейнера поиска (даты проживания); фича не знает, что в ней: слайсы друг друга не импортируют.
-export function ChatInput({ footer }: { footer?: ReactNode }) {
+interface Props {
+  // нижняя строка контейнера поиска (даты проживания); фича не знает, что в ней: слайсы друг друга не импортируют
+  footer?: ReactNode
+  // на главной фраза не уходит в чат, а передаётся наверх (переход на /search); в чате не задаётся
+  onSubmit?: (message: string) => void
+  submitLabel?: string
+}
+
+export function ChatInput({ footer, onSubmit, submitLabel = 'Отправить' }: Props) {
   const { busy } = useChat()
   const [text, setText] = useState('')
   const submit = (e: FormEvent) => {
@@ -12,7 +19,8 @@ export function ChatInput({ footer }: { footer?: ReactNode }) {
     const message = text.trim()
     if (!message || busy) return
     setText('')
-    void submitMessage(message)
+    if (onSubmit) onSubmit(message)
+    else void submitMessage(message)
   }
   return (
     <form onSubmit={submit} className="rounded-card bg-surface p-1.5 ring-1 ring-line focus-within:ring-brand">
@@ -29,7 +37,7 @@ export function ChatInput({ footer }: { footer?: ReactNode }) {
           aria-label="Сообщение"
         />
         <Button variant="primary" type="submit" disabled={busy || !text.trim()}>
-          Отправить
+          {submitLabel}
         </Button>
       </div>
       {footer && <div className="mt-1.5 border-t border-line px-1.5 pt-1.5">{footer}</div>}

@@ -1,6 +1,8 @@
 import {
   Building2,
   Check,
+  ChevronLeft,
+  ChevronRight,
   CircleHelp,
   Columns3,
   Heart,
@@ -32,6 +34,9 @@ export const FALLBACK = {
   compare: Columns3,
   chat: MessageCircle,
   search: Search,
+  hotel: Building2,
+  'chevron-left': ChevronLeft,
+  'chevron-right': ChevronRight,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof FALLBACK

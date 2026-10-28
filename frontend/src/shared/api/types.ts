@@ -294,6 +294,19 @@ export interface HotelCardData {
   rooms: Rooms | null
 }
 
+// Демо-отель для карусели на главной: факты приходят только те, что стоит показать (вид есть, пляж не дальше 15 минут).
+export interface ShowcaseHotel {
+  id: number
+  name: string
+  district: string
+  stars: number
+  price_eur: number
+  sea_view: boolean
+  // 0 — не показывать
+  walk_to_beach_min: number
+  mock: boolean
+}
+
 export interface Characteristic {
   key: string
   title: string
