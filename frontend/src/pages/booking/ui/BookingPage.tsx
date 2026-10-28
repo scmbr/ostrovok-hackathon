@@ -5,6 +5,8 @@ import { Button, Card, ErrorNote, Spinner } from '@/shared/ui'
 import { ContractLineRow, WishStatusBadge } from '@/entities/booking'
 import { getHotel } from '@/entities/hotel'
 import { getBooking } from '@/features/book-with-wish'
+import { loadBookingStay } from '@/features/stay-dates'
+import { formatRange, nightsWord } from '@/shared/lib'
 
 // Заявка на бронь: оплаты нет. Статус пожелания читается из текущего ответа отеля.
 export function BookingPage() {
@@ -48,6 +50,7 @@ export function BookingPage() {
   }
 
   const category = hotel?.rooms?.categories.find((c) => c.id === booking.category_id)?.name ?? booking.category
+  const stay = loadBookingStay(booking.id)
   return (
     <div className="mx-auto max-w-3xl space-y-4 px-4 py-4">
       <Link to="/" className="text-xs text-brand-link hover:underline">
@@ -57,6 +60,12 @@ export function BookingPage() {
       <Card>
         <p className="text-lg font-semibold">{hotel?.name ?? booking.hotel_name ?? `Отель ${booking.hotel_id}`}</p>
         <p className="text-sm text-ink">{category ?? `категория ${booking.category_id}`}</p>
+        {stay && (
+          <p className="mt-1 text-sm">
+            Даты: <b>{formatRange(stay)}</b> · {stay.nights} {nightsWord(stay.nights)}
+            <span className="ml-1 text-xs text-ink-muted">(наличие мест не проверялось — прототип)</span>
+          </p>
+        )}
         {booking.price_eur ? (
           <p className="mt-1 text-sm">
             {booking.price_eur} € за ночь

@@ -8,11 +8,13 @@ import { categoryOffer, getHotel } from '@/entities/hotel'
 import { AskHotelButton } from '@/features/ask-hotelier'
 import { book, getContract } from '@/features/book-with-wish'
 import type { ContractTarget } from '@/features/book-with-wish'
+import { saveBookingStay, useStayDates } from '@/features/stay-dates'
 
 // Контракт ожиданий перед бронью: что важно этому гостю, с уверенностью по каждому пункту.
 // Неуверенное можно уточнить у отеля — бронь это не блокирует. Пожелание к номеру — только из предложенного системой.
 export function ContractPanel({ target: given, onClose }: { target: ContractTarget; onClose: () => void }) {
   const navigate = useNavigate()
+  const { stay } = useStayDates()
   const [withWish, setWithWish] = useState(false)
   const [contract, setContract] = useState<Contract | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -48,7 +50,11 @@ export function ContractPanel({ target: given, onClose }: { target: ContractTarg
   const submit = () => {
     setBooking(true)
     book(target, withWish)
-      .then((b) => navigate(`/booking/${b.id}`))
+      .then((b) => {
+        // API брони дат не принимает: запоминаем выбранные для показа в подтверждении.
+        saveBookingStay(b.id, stay)
+        navigate(`/booking/${b.id}`)
+      })
       .catch((e: Error) => {
         setError(e.message)
         setBooking(false)

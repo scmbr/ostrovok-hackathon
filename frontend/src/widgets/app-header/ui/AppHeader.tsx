@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom'
 import { LlmModeBadge, LlmModeBanner } from '@/features/llm-mode'
-import { RoleSwitch } from '@/features/switch-role'
+import { RoleSwitch, useRole } from '@/features/switch-role'
+import { StayDatesPicker } from '@/features/stay-dates'
 import { Logo } from '@/shared/ui'
 
 export function AppHeader() {
+  const { role } = useRole()
   return (
     <header className="sticky top-0 z-[1000] border-b border-surface-muted bg-surface">
       <div className="mx-auto flex h-12 max-w-7xl items-center gap-3 px-4">
@@ -12,6 +14,7 @@ export function AppHeader() {
         </Link>
         <span className="hidden text-caption text-ink-muted md:inline">Барселона · хакатон Островка</span>
         <div className="ml-auto flex items-center gap-3">
+          {role === 'guest' && <StayDatesPicker />}
           <LlmModeBadge />
           <RoleSwitch />
         </div>
