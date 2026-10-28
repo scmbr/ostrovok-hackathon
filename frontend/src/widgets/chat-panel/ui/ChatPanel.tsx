@@ -53,7 +53,7 @@ function MessageText({ text }: { text: string }) {
   if (text.length <= LONG_MESSAGE || open) {
     return (
       <>
-        <p>{text}</p>
+        <p className="whitespace-pre-line">{text}</p>
         {open && (
           <button type="button" className="mt-1 text-xs text-brand-link hover:underline" onClick={() => setOpen(false)}>
             свернуть
@@ -65,7 +65,7 @@ function MessageText({ text }: { text: string }) {
   const cut = text.lastIndexOf(' ', LONG_MESSAGE)
   return (
     <>
-      <p>{text.slice(0, cut > 0 ? cut : LONG_MESSAGE)}…</p>
+      <p className="whitespace-pre-line">{text.slice(0, cut > 0 ? cut : LONG_MESSAGE)}…</p>
       <button type="button" className="mt-1 text-xs text-brand-link hover:underline" onClick={() => setOpen(true)}>
         показать полностью
       </button>
