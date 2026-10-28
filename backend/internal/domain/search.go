@@ -181,9 +181,19 @@ func NormalizeWish(reg Registry, w Desire) (Desire, Characteristic, error) {
 			return fail("сравнение %q неизвестно", w.Op)
 		}
 	case ValueNumber:
+		if w.Value == nil && IsNearPoiKey(w.Key) {
+			w.Value = c.DefaultNumber // радиус не назван — весь радиус данных
+		}
 		v, ok := toFloat(w.Value)
 		if !ok {
 			return fail("значение должно быть числом")
+		}
+		if IsNearPoiKey(w.Key) {
+			// Данные о заведениях есть только в радиусе PoiRadiusM; сравнение только «не дальше».
+			if v <= 0 || (w.Op != "" && w.Op != OpLe) {
+				return fail("радиус должен быть положительным, сравнение — только le")
+			}
+			v = math.Min(v, PoiRadiusM)
 		}
 		w.Value = v
 		if w.Op == "" {
@@ -287,6 +297,8 @@ type WishEval struct {
 	Conflict   string
 	Caveat     string
 	Wish       *VariantWish
+	// Nearby — ближайшее заведение для желания «рядом с …» (near_poi.*); nil у остальных желаний и если ничего не найдено.
+	Nearby *NearbyPoi
 	// Guarantee — у категории подходят все номера.
 	Guarantee  bool
 	FactID     int64
@@ -433,8 +445,11 @@ func formatNum(v float64) string {
 }
 
 func unitSuffix(c Characteristic) string {
-	if c.FieldName() == "minutes" {
+	switch c.FieldName() {
+	case "minutes":
 		return " мин"
+	case PoiFieldName:
+		return " м"
 	}
 	return ""
 }

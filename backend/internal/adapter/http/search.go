@@ -7,6 +7,7 @@ import (
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/usecase/dialog"
 	"log"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ type SearchService interface {
 	Search(ctx context.Context, q domain.Query) (search.Result, error)
 	Hotel(ctx context.Context, id int64) (search.HotelCard, error)
 	Similar(ctx context.Context, id int64, limit int, weights map[string]float64) ([]search.SimilarHotel, error)
+	Nearby(ctx context.Context, id int64, kinds []string) ([]search.NearbyType, error)
 }
 
 // Option дополняет роутер необязательными обработчиками.
@@ -96,6 +98,22 @@ type wishEvalDTO struct {
 	ObservedAt  *time.Time      `json:"observed_at,omitempty"`
 	ValidUntil  *time.Time      `json:"valid_until,omitempty"`
 	Sources     []sourceDTO     `json:"sources"`
+	// Nearby — ближайшее заведение для желаний «рядом с …»; поле есть только у них.
+	Nearby *nearbyDTO `json:"nearby,omitempty"`
+}
+
+// nearbyDTO — ближайшее заведение: подпись, название из OSM (может быть пустым), точка и расстояние по прямой.
+type nearbyDTO struct {
+	Kind      string  `json:"kind"`
+	Label     string  `json:"label"`
+	Name      string  `json:"name,omitempty"`
+	Lat       float64 `json:"lat"`
+	Lon       float64 `json:"lon"`
+	DistanceM int     `json:"distance_m"`
+}
+
+func newNearbyDTO(n domain.NearbyPoi) nearbyDTO {
+	return nearbyDTO{Kind: n.Kind, Label: n.Label, Name: n.Name, Lat: n.Lat, Lon: n.Lon, DistanceM: int(n.DistM + 0.5)}
 }
 
 type variantDTO struct {
@@ -164,6 +182,10 @@ func newWishEvalDTO(reg domain.Registry, e domain.WishEval) wishEvalDTO {
 		Guarantee: e.Guarantee, Conflict: e.Conflict, Caveat: e.Caveat, FactID: e.FactID, ValidUntil: e.ValidUntil, Sources: []sourceDTO{}}
 	if !e.ObservedAt.IsZero() {
 		d.ObservedAt = &e.ObservedAt
+	}
+	if e.Nearby != nil {
+		n := newNearbyDTO(*e.Nearby)
+		d.Nearby = &n
 	}
 	if w := e.Wish; w != nil {
 		side := sideRU(w.AzimuthDeg)
@@ -415,4 +437,53 @@ func newSimilarDTO(reg domain.Registry, s search.SimilarHotel) similarHotelDTO {
 			Weight: dim.Weight, Unknown: dim.Unknown})
 	}
 	return d
+}
+
+// handleNearby — ближайшее заведение каждого запрошенного типа (kinds=nightclub,pharmacy): точка, название, расстояние по прямой.
+// Типы — из словаря registry/poi_kinds.yaml; заведения известны только в радиусе PoiRadiusM.
+func handleNearby(svc SearchService) http.HandlerFunc {
+	type itemDTO struct {
+		ID     string     `json:"id"`
+		Title  string     `json:"title"`
+		Label  string     `json:"label"`
+		Icon   string     `json:"icon"`
+		Color  string     `json:"color"`
+		Found  bool       `json:"found"`
+		Nearby *nearbyDTO `json:"nearby,omitempty"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, ok := hotelID(w, r)
+		if !ok {
+			return
+		}
+		var kinds []string
+		for _, k := range strings.Split(r.URL.Query().Get("kinds"), ",") {
+			if k = strings.TrimSpace(k); k != "" && !slices.Contains(kinds, k) {
+				kinds = append(kinds, k)
+			}
+		}
+		if len(kinds) == 0 || len(kinds) > 10 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "kinds: от 1 до 10 типов заведений через запятую"})
+			return
+		}
+		res, err := svc.Nearby(r.Context(), id, kinds)
+		if err != nil {
+			writeSearchError(w, err, "заведения рядом")
+			return
+		}
+		out := struct {
+			HotelID int64     `json:"hotel_id"`
+			RadiusM int       `json:"radius_m"`
+			Items   []itemDTO `json:"items"`
+		}{HotelID: id, RadiusM: int(domain.PoiRadiusM), Items: []itemDTO{}}
+		for _, n := range res {
+			it := itemDTO{ID: n.Kind.ID, Title: n.Kind.Title, Label: n.Kind.Label, Icon: n.Kind.Icon, Color: n.Kind.Color, Found: n.Found}
+			if n.Found {
+				d := newNearbyDTO(n.Poi)
+				it.Nearby = &d
+			}
+			out.Items = append(out.Items, it)
+		}
+		writeJSON(w, http.StatusOK, out)
+	}
 }

@@ -55,12 +55,19 @@ type DemandRecorder interface {
 	Record(ctx context.Context, regionID int64, sessionID string, keys []string) error
 }
 
-// Service — поиск. Demand == nil — спрос не пишется (демо-прогоны и тесты).
+// PoiSource — ближайшие заведения для желаний «рядом с …». Реализация — adapter/repository/postgres.
+type PoiSource interface {
+	// NearestPoi — для каждого значения pois.kind из kinds ближайшее заведение не дальше radiusM по прямой от отеля.
+	NearestPoi(ctx context.Context, hotelID int64, kinds []string, radiusM float64) (map[string]domain.NearbyPoi, error)
+}
+
+// Service — поиск. Demand == nil — спрос не пишется (демо-прогоны и тесты). Poi == nil — желания near_poi.* без данных.
 type Service struct {
 	Registry domain.Registry
 	Store    Store
 	Rooms    RoomsSource
 	Demand   DemandRecorder
+	Poi      PoiSource
 	RegionID int64
 }
 
@@ -184,10 +191,18 @@ func (s *Service) evalHotel(ctx context.Context, c Candidate, q domain.Query, ch
 	}
 	wishGuaranteed, wishRefused := wishGuarantee(byKey)
 
+	near, err := s.nearbyFor(ctx, c.ID, q.Wishes)
+	if err != nil {
+		return domain.HotelResult{}, nil, false, err
+	}
 	hotelEvals := map[string]domain.WishEval{}
 	categoryKeys := map[string]bool{}
 	for _, w := range q.Wishes {
 		ch := chars[w.Key]
+		if domain.IsNearPoiKey(w.Key) {
+			hotelEvals[w.Key] = s.evalNearPoi(ch, w, near)
+			continue
+		}
 		if domain.CategoryLevel(ch) {
 			categoryKeys[w.Key] = true
 			continue
@@ -241,6 +256,42 @@ func (s *Service) evalHotel(ctx context.Context, c Candidate, q domain.Query, ch
 	}
 	return domain.HotelResult{HotelID: c.ID, Name: c.Name, District: c.District, Card: c.Card, Best: best, Alt: alt,
 		OtherConflicts: domain.ConflictsOutside(variants, best.CategoryID)}, variants, true, nil
+}
+
+// nearbyFor запрашивает ближайшие заведения для желаний near_poi.*; без таких желаний (и без источника) запроса нет.
+func (s *Service) nearbyFor(ctx context.Context, hotelID int64, ws []domain.Desire) (map[string]domain.NearbyPoi, error) {
+	var kinds []string
+	for _, w := range ws {
+		if k, ok := s.Registry.Poi().ByKey(w.Key); ok {
+			kinds = append(kinds, k.Kinds...)
+		}
+	}
+	if len(kinds) == 0 || s.Poi == nil {
+		return nil, nil
+	}
+	m, err := s.Poi.NearestPoi(ctx, hotelID, kinds, domain.PoiRadiusM)
+	if err != nil {
+		return nil, fmt.Errorf("заведения рядом с отелем %d: %w", hotelID, err)
+	}
+	return m, nil
+}
+
+// evalNearPoi оценивает желание «рядом с …»: ближайшее заведение среди значений kind типа (у группы — любого из них).
+// Источника заведений нет — данных нет (спросим отель), а не «не нашли».
+func (s *Service) evalNearPoi(ch domain.Characteristic, w domain.Desire, near map[string]domain.NearbyPoi) domain.WishEval {
+	k, ok := s.Registry.Poi().ByKey(w.Key)
+	if !ok || s.Poi == nil {
+		return domain.WishEval{Key: w.Key, Importance: w.Importance, Status: domain.StatusUnknown, Score: domain.UnknownScore,
+			Caveat: "заведения рядом не проверены"}
+	}
+	var best *domain.NearbyPoi
+	for _, kind := range k.Kinds {
+		if n, found := near[kind]; found && (best == nil || n.DistM < best.DistM) {
+			n.Label = k.LabelOf(kind)
+			best = &n
+		}
+	}
+	return domain.EvalNearPoi(ch, w, best)
 }
 
 // hotelFacts — факты уровня отеля по ключу.
@@ -414,4 +465,47 @@ func (s *Service) EvalHotel(ctx context.Context, hotelID int64, q domain.Query) 
 		return HotelVariants{}, q, ErrNotFound
 	}
 	return HotelVariants{Result: res, Variants: variants}, q, nil
+}
+
+// NearbyType — ближайшее заведение типа словаря для карты и карточки отеля.
+type NearbyType struct {
+	Kind domain.PoiKind
+	// Found == false — в радиусе PoiRadiusM заведений этого типа в OSM нет.
+	Found bool
+	Poi   domain.NearbyPoi
+}
+
+// Nearby возвращает для каждого запрошенного типа (id словаря, в том числе аптека и группы) ближайшее заведение отеля.
+func (s *Service) Nearby(ctx context.Context, hotelID int64, ids []string) ([]NearbyType, error) {
+	if s.Poi == nil {
+		return nil, &ValidationError{"источник заведений не подключён"}
+	}
+	var kinds []domain.PoiKind
+	var raw []string
+	for _, id := range ids {
+		k, ok := s.Registry.Poi().Get(id)
+		if !ok {
+			return nil, &ValidationError{fmt.Sprintf("тип заведения %q неизвестен", id)}
+		}
+		kinds = append(kinds, k)
+		raw = append(raw, k.Kinds...)
+	}
+	if _, err := s.Store.Candidate(ctx, hotelID); err != nil {
+		return nil, err
+	}
+	near, err := s.Poi.NearestPoi(ctx, hotelID, raw, domain.PoiRadiusM)
+	if err != nil {
+		return nil, fmt.Errorf("заведения рядом с отелем %d: %w", hotelID, err)
+	}
+	out := make([]NearbyType, len(kinds))
+	for i, k := range kinds {
+		out[i].Kind = k
+		for _, kind := range k.Kinds {
+			if n, ok := near[kind]; ok && (!out[i].Found || n.DistM < out[i].Poi.DistM) {
+				n.Label = k.LabelOf(kind)
+				out[i].Poi, out[i].Found = n, true
+			}
+		}
+	}
+	return out, nil
 }

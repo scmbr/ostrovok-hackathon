@@ -40,6 +40,7 @@ func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms Room
 		mux.Handle("POST /api/search", handleSearch(deps.search, reg))
 		mux.Handle("GET /api/hotels/{id}", handleHotelCard(deps.search, reg))
 		mux.Handle("GET /api/hotels/{id}/similar", handleSimilar(deps.search, reg))
+		mux.Handle("GET /api/hotels/{id}/nearby", handleNearby(deps.search))
 	}
 	if deps.lookup != nil {
 		mux.Handle("GET /api/hotels/lookup", handleHotelLookup(deps.lookup))

@@ -179,6 +179,9 @@ func Load(fsys fs.FS) (domain.Registry, error) {
 	sort.Strings(names)
 	var cs []domain.Characteristic
 	for _, name := range names {
+		if path.Base(name) == PoiFile {
+			continue
+		}
 		data, err := fs.ReadFile(fsys, name)
 		if err != nil {
 			return domain.Registry{}, err

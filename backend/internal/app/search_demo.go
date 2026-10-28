@@ -17,7 +17,7 @@ import (
 // ценность вопросов отельерам.
 func runSearchDemo(ctx context.Context, reg domain.Registry, pool *pgxpool.Pool, region domain.Region, hotelID int64) error {
 	roomSvc := &rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, reg.Rules())}
-	svc := &search.Service{Registry: reg, Store: postgres.NewSearchStore(pool), Rooms: roomSvc, RegionID: region.ID}
+	svc := &search.Service{Registry: reg, Store: postgres.NewSearchStore(pool), Poi: postgres.NewSearchStore(pool), Rooms: roomSvc, RegionID: region.ID}
 	if hotelID != 0 {
 		return printHotelSeaView(ctx, svc, hotelID)
 	}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"log"
 
 	adapterregistry "github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/adapter/registry"
 	"github.com/ostrovok-hackathon-2026/tima-mechty/backend/internal/domain"
@@ -17,6 +18,11 @@ func LoadRegistry() (domain.Registry, error) {
 	if err != nil {
 		return domain.Registry{}, fmt.Errorf("реестр характеристик: %w", err)
 	}
+	poi, err := adapterregistry.LoadPoi(registry.FS)
+	if err != nil {
+		return domain.Registry{}, fmt.Errorf("словарь заведений: %w", err)
+	}
+	reg = reg.WithPoi(poi)
 	if err := usecaseregistry.Validate(reg, compute.Specs); err != nil {
 		return domain.Registry{}, fmt.Errorf("реестр характеристик: %w", err)
 	}
@@ -48,6 +54,12 @@ func LoadRegistryWith(rows []usecaseregistry.CustomRow) (domain.Registry, error)
 	if err != nil {
 		return domain.Registry{}, fmt.Errorf("реестр характеристик: %w", err)
 	}
+	// Фразы типов заведений, которые забрала добавленная текстом характеристика, из словаря убираются: это не повод падать.
+	poi, dropped := base.Poi().WithoutOverlaps(reg)
+	for _, o := range dropped {
+		log.Printf("словарь заведений: фраза «%s» (%s) уступает характеристике %s («%s»)", o.PhraseA, o.KeyA, o.KeyB, o.PhraseB)
+	}
+	reg = reg.WithPoi(poi)
 	if err := usecaseregistry.Validate(reg, compute.Specs); err != nil {
 		return domain.Registry{}, fmt.Errorf("реестр характеристик: %w", err)
 	}

@@ -8,6 +8,7 @@ import { HotelResults } from '@/widgets/hotel-results'
 import { ResultsMap } from '@/widgets/hotel-map'
 import type { MapHotel } from '@/widgets/hotel-map'
 import { ShortlistBar } from '@/widgets/shortlist-bar'
+import { nearbyTypes } from '@/entities/hotel'
 import { beginSearch, lastSearch, useChat } from '@/features/chat-search'
 import type { SearchEntryState } from '@/features/chat-search'
 import type { ContractTarget } from '@/features/book-with-wish'
@@ -59,7 +60,7 @@ export function SearchPage() {
       </div>
       <aside className="hidden lg:block">
         <div className="sticky top-16 h-[calc(100vh-6rem)]">
-          <ResultsMap hotels={mapHotels} highlightId={highlight} onSelect={setHighlight} />
+          <ResultsMap hotels={mapHotels} highlightId={highlight} onSelect={setHighlight} poiKinds={nearbyTypes(last?.query.wishes)} />
         </div>
       </aside>
       {target && <ContractPanel target={target} onClose={() => setTarget(null)} />}

@@ -33,7 +33,7 @@ const (
 func newDialogEngine(cfg Config, reg domain.Registry, pool *pgxpool.Pool, region domain.Region, mode dialogMode, record bool) (*dialog.Engine, *adapterllm.Recorder, string, error) {
 	roomSvc := &rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, reg.Rules())}
 	searchStore := postgres.NewSearchStore(pool)
-	searchSvc := &search.Service{Registry: reg, Store: searchStore, Rooms: roomSvc, Demand: searchStore, RegionID: region.ID}
+	searchSvc := &search.Service{Registry: reg, Store: searchStore, Rooms: roomSvc, Demand: searchStore, Poi: searchStore, RegionID: region.ID}
 	return newDialogEngineFrom(cfg, reg, pool, region, searchSvc, mode, record)
 }
 

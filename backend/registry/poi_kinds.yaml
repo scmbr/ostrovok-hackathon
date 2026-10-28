@@ -1,0 +1,72 @@
+# Словарь типов заведений для желаний «рядом с клубом / баром / кафе» (формат и правила — docs/search.md).
+# Это не характеристики реестра: расстояние считается по запросу из таблицы pois (OSM, радиус 300 м) и в facts не пишется.
+# Разбор идёт после реестра: фразы реестра («ночная аптека», «открыто ночью», «тусовки») сильнее, фразы с часами работы
+# («круглосуточное кафе») словарь не перехватывает. Правило слов — как в реестре: до 5 букв целиком, длиннее — по первым пяти.
+fillers: # прилагательные, которые входят во фразу типа: «ночных клубов»
+  - ночной
+  - ночные
+kinds:
+  - id: nightclub
+    kinds: [nightclub]
+    label: клуб
+    title: Клуб рядом
+    title_met: клуб рядом
+    title_unmet: клуба рядом нет
+    icon: music
+    color: "#9333ea"
+    synonyms: [клуб, клубе, клубу, клубы, клубом, клубами, ночной клуб, ночные клубы]
+  - id: nightlife
+    kinds: [nightclub, bar, pub]
+    label: заведение
+    labels: { nightclub: клуб, bar: бар, pub: паб }
+    title: Бары и клубы рядом
+    title_met: бары и клубы рядом
+    title_unmet: баров и клубов рядом нет
+    icon: martini
+    color: "#db2777"
+    synonyms: [тусить, потусить, бары и клубы, клубы и бары, бар или клуб, клуб или бар]
+  - id: bar
+    kinds: [bar]
+    label: бар
+    title: Бар рядом
+    title_met: бар рядом
+    title_unmet: бара рядом нет
+    icon: martini
+    color: "#ea580c"
+    synonyms: [бар, бара, баре, бару, бары, баров, барах, баром, барами]
+  - id: pub
+    kinds: [pub]
+    label: паб
+    title: Паб рядом
+    title_met: паб рядом
+    title_unmet: паба рядом нет
+    icon: beer
+    color: "#b45309"
+    synonyms: [паб, паба, пабе, пабу, пабы, пабов, пабах, пабом, пабами]
+  - id: cafe
+    kinds: [cafe]
+    label: кафе
+    title: Кафе рядом
+    title_met: кафе рядом
+    title_unmet: кафе рядом нет
+    icon: coffee
+    color: "#0d9488"
+    synonyms: [кафе]
+  - id: restaurant
+    kinds: [restaurant]
+    label: ресторан
+    title: Ресторан рядом
+    title_met: ресторан рядом
+    title_unmet: ресторана рядом нет
+    icon: utensils
+    color: "#dc2626"
+    synonyms: [ресторан]
+  # Аптека: фразы у night_pharmacy (ночная аптека); здесь только подписи и значок для линии на карте.
+  - id: pharmacy
+    kinds: [pharmacy]
+    label: аптека
+    title: Аптека рядом
+    title_met: аптека рядом
+    title_unmet: аптеки рядом нет
+    icon: pill
+    color: "#16a34a"

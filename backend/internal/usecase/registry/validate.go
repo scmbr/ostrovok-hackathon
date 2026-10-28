@@ -34,6 +34,7 @@ func Validate(reg domain.Registry, tools []compute.Spec) error {
 	errs = append(errs, checkAmbiguous(reg)...)
 	errs = append(errs, checkSynonymOverlaps(reg)...)
 	errs = append(errs, checkTitleForms(reg)...)
+	errs = append(errs, checkPoi(reg)...)
 	return errors.Join(errs...)
 }
 
