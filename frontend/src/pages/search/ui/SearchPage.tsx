@@ -38,7 +38,7 @@ export function SearchPage() {
           <ShortlistBar />
         </div>
         <ChatPanel
-          renderResults={(r) => <HotelResults results={r} highlightId={highlight} onHover={setHighlight} onBook={setTarget} />}
+          renderResults={(r, unmet) => <HotelResults results={r} unmet={unmet} highlightId={highlight} onHover={setHighlight} onBook={setTarget} />}
           renderCompare={(c) => <CompareView data={c} onBook={bookSide} />}
         />
       </div>
