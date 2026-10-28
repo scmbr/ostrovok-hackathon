@@ -83,4 +83,4 @@ Frontend — Feature-Sliced Design:
 - Фронтенд: `cd frontend && npm run dev`
 - Тесты: `cd backend && go test ./...`
 - Полный запуск (из корня): `docker compose up --build`
-- Постоянный стенд на данных жюри (БД из демо-сида) для разработки интерфейса: `docker compose -p demo -f docker-compose.yml -f docker-compose.demo.yml up --build -d` — приложение на `localhost:8081`, БД на `localhost:5433`. Рабочая БД на 5432 — только для `collect`; интерфейс разрабатываем на `demo`, а не на ней (в ней нет ответов отельеров и части данных сида)
+- Постоянный стенд на данных жюри (БД из демо-сида) для разработки интерфейса: `docker compose -p demo -f docker-compose.yml -f docker-compose.demo.yml up --build -d` — приложение на `localhost:8081`, БД на `localhost:5433`. Рабочая БД на 5432 (поднимается с `docker-compose.dev.yml`, `make up`) — только для `collect`; интерфейс разрабатываем на `demo`, а не на ней (в ней нет ответов отельеров и части данных сида)
