@@ -1,17 +1,16 @@
 import type { ShowcaseHotel } from '@/shared/api'
 import { districtLabel } from '@/shared/lib'
-import { Badge, Icon } from '@/shared/ui'
+import { Badge } from '@/shared/ui'
+import { HotelCover } from './HotelPhoto'
 
-// Короткая карточка для карусели на главной: без фото (плашка с иконкой), только район, цена и проверенные факты.
+// Короткая карточка для карусели на главной: фото (или запасной блок), только район, цена и проверенные факты.
 export function HotelTeaser({ hotel }: { hotel: ShowcaseHotel }) {
   return (
     <div className="flex h-full flex-col rounded-card bg-surface p-1 ring-1 ring-line transition-colors hover:ring-brand">
-      <div className="flex h-24 items-center justify-center rounded-inner bg-brand-soft text-brand-link">
-        <Icon name="hotel" size={32} />
-      </div>
+      <HotelCover hotelId={hotel.id} name={hotel.name} />
       <div className="flex flex-1 flex-col gap-1 p-2">
-        <h3 className="line-clamp-2 text-title text-ink">{hotel.name}</h3>
-        <p className="text-caption text-ink">
+        <h3 className="line-clamp-2 min-h-[2.75rem] text-left text-title text-ink">{hotel.name}</h3>
+        <p className="text-left text-caption text-ink">
           {districtLabel(hotel.district)}
           {hotel.stars > 0 && <span className="ml-1 text-ink-muted">{'★'.repeat(hotel.stars)}</span>}
         </p>

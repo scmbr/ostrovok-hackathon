@@ -50,7 +50,7 @@ export function SearchPage() {
   return (
     <div className="mx-auto grid max-w-7xl gap-4 px-4 py-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       <div className="space-y-3">
-        <div className="sticky top-14 z-20">
+        <div className="sticky top-[72px] z-20">
           <ShortlistBar />
         </div>
         <ChatPanel
@@ -59,7 +59,7 @@ export function SearchPage() {
         />
       </div>
       <aside className="hidden lg:block">
-        <div className="sticky top-16 h-[calc(100vh-6rem)]">
+        <div className="sticky top-20 h-[calc(100vh-7rem)]">
           <ResultsMap hotels={mapHotels} highlightId={highlight} onSelect={setHighlight} poiKinds={nearbyTypes(last?.query.wishes)} />
         </div>
       </aside>

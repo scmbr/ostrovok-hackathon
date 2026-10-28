@@ -13,6 +13,7 @@ export default {
         'brand-soft': '#dfe7ff',
         surface: '#ffffff',
         'surface-muted': '#f4f4f4',
+        hero: '#acef81',
         line: '#e5e5e5',
         ok: '#008900',
         warn: '#b25e00',

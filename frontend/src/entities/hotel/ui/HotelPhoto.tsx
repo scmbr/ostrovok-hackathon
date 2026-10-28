@@ -35,6 +35,15 @@ export function HotelThumb({ hotelId, name }: { hotelId: number; name: string })
   )
 }
 
+// Обложка карточки на главной: во всю ширину карточки.
+export function HotelCover({ hotelId, name }: { hotelId: number; name: string }) {
+  const photo = hotelPhotos(hotelId)[0]
+  const [broken, setBroken] = useState(false)
+  const box = 'h-44 w-full rounded-inner'
+  if (!photo || broken) return <Placeholder name={name} className={box} />
+  return <img src={photo.src} alt={name} loading="lazy" onError={() => setBroken(true)} className={`${box} object-cover`} title={photo.credit} />
+}
+
 // Галерея на карточке отеля: до двух фото, под каждым подпись об авторе и лицензии.
 export function HotelGallery({ hotelId, name }: { hotelId: number; name: string }) {
   const photos = hotelPhotos(hotelId)

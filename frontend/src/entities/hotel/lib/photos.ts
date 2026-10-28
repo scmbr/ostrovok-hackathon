@@ -33,6 +33,10 @@ export function hotelPhotos(hotelId: number): HotelPhotoData[] {
   }))
 }
 
+export function hasHotelPhoto(hotelId: number): boolean {
+  return (MANIFEST.hotels[String(hotelId)]?.length ?? 0) > 0
+}
+
 // Нейтральная иллюстрация типа номера (без вида из окна); неизвестный тип — запасной.
 const ROOM_ALIAS: Record<string, string> = {
   'sea view': 'superior',

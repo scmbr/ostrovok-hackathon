@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppHeader } from '@/widgets/app-header'
+import { AppFooter } from '@/widgets/app-footer'
 import { AdminPage } from '@/pages/admin'
 import { BookingPage } from '@/pages/booking'
 import { ComparePage } from '@/pages/compare'
@@ -29,6 +30,7 @@ export function App() {
           <Route path="*" element={<HomePage />} />
         </Routes>
       </main>
+      <AppFooter />
     </BrowserRouter>
   )
 }
