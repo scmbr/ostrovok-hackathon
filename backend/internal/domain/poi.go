@@ -215,3 +215,31 @@ func PoiOverlaps(reg Registry) []SynonymOverlap {
 	}
 	return out
 }
+
+// WithoutOverlaps убирает фразы типов, пересекающиеся с фразами характеристик reg, и возвращает убранные. Реестр в разборе
+// идёт первым и забрал бы такую фразу себе; у характеристик, добавленных текстом, это не повод останавливать запуск.
+func (d PoiDict) WithoutOverlaps(reg Registry) (PoiDict, []SynonymOverlap) {
+	regEntries := synonymEntries(reg)
+	out := PoiDict{items: make([]PoiKind, len(d.items)), index: d.index, Fillers: d.Fillers}
+	var dropped []SynonymOverlap
+	for i, k := range d.items {
+		kept := make([]string, 0, len(k.Synonyms))
+		for _, p := range k.Synonyms {
+			words := PhraseWords(p)
+			clash := false
+			for _, e := range regEntries {
+				if containsPhrase(words, e.words) || containsPhrase(e.words, words) {
+					dropped = append(dropped, SynonymOverlap{KeyA: NearPoiKey(k.ID), PhraseA: strings.Join(words, " "), KeyB: e.key, PhraseB: e.phrase})
+					clash = true
+					break
+				}
+			}
+			if !clash {
+				kept = append(kept, p)
+			}
+		}
+		k.Synonyms = kept
+		out.items[i] = k
+	}
+	return out, dropped
+}

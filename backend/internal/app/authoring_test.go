@@ -218,3 +218,27 @@ func TestLoadRegistryWithRejectsDuplicateKey(t *testing.T) {
 		t.Fatalf("ожидалась ошибка про sea_view: %v", err)
 	}
 }
+
+// Характеристика, добавленная текстом до появления словаря заведений и забравшая его фразы («клубами»), не роняет запуск:
+// фразы словаря уступают реестру, остальные типы работают.
+func TestLoadRegistryWithCustomOverlappingPoiDoesNotFail(t *testing.T) {
+	y := "key: near_nightclubs\ntitle: Рядом ночные клубы\ndescription: x\nlevel: hotel\nvalue_type: bool\nttl_days: 30\nask_hotelier: x\n" +
+		"origin: text\norigin_text: x\nadded_at: 2026-10-28\nsynonyms: [ночными клубами, клубами]\n"
+	reg, err := LoadRegistryWith([]usecaseregistry.CustomRow{{Key: "near_nightclubs", YAML: y, OriginText: "x", AddedAt: "2026-10-28"}})
+	if err != nil {
+		t.Fatalf("запуск упал: %v", err)
+	}
+	if _, ok := reg.Get("near_poi.bar"); !ok {
+		t.Error("остальные типы заведений должны работать")
+	}
+	k, _ := reg.Poi().Get("nightclub")
+	for _, p := range k.Synonyms {
+		if p == "клубами" {
+			t.Errorf("фраза %q должна уступить характеристике near_nightclubs", p)
+		}
+	}
+	lex := domain.NewLexicon(reg)
+	if r := lex.Parse("ночными клубами"); len(r.Wishes) != 1 || r.Wishes[0].Key != "near_nightclubs" {
+		t.Errorf("фразу забрала добавленная характеристика: %+v", r.Wishes)
+	}
+}
