@@ -5,6 +5,7 @@ import { Badge, Button, ErrorNote, Spinner } from '@/shared/ui'
 import { useSessionNotice } from '@/entities/session'
 import { ChatInput, ClarificationButtons, ExampleButtons, NextStepHint, resetChat, useChat } from '@/features/chat-search'
 import type { AgentTurn } from '@/features/chat-search'
+import { StayDatesPicker } from '@/features/stay-dates'
 
 interface Props {
   // Выдачу и сравнение рисуют виджеты выше по странице: виджеты друг друга не импортируют.
@@ -137,7 +138,7 @@ export function ChatPanel(props: Props) {
       )}
       <div className="sticky bottom-0 space-y-2 bg-surface-muted pb-2 pt-1">
         <NextStepHint />
-        <ChatInput />
+        <ChatInput footer={<StayDatesPicker />} />
         {chat.turns.length > 0 && (
           <Button small variant="ghost" onClick={() => resetChat()} title="Начнёт новую сессию: желания и шортлист сбросятся">
             Новый поиск
