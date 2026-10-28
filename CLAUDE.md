@@ -38,7 +38,7 @@ Frontend — Feature-Sliced Design:
 - LLM никогда не является источником факта. Каждый факт пишется в `facts` с source, method, confidence, observed_at, valid_until, evidence.
 - Тесты — на расчётную логику (geo, конфликты, разбор ответов). UI и обвязку тестами не покрываем: время важнее.
 - БД — Postgres 16 + PostGIS. Пространственные выборки делай в SQL с GiST-индексами, логику поверх них — в Go. Схема меняется только миграциями в `migrations/`.
-- Сырые выгрузки — в `data/raw/` в корне (gitignore). В git только `data/demo/` (seed.sql.gz) размером до нескольких МБ.
+- Сырые выгрузки — в `data/raw/` в корне (gitignore). В git только `data/demo/` (seed.sql.gz) размером около 12 МБ.
 - Секреты только в `.env`. Пример держим в `.env.example`: `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`.
 - Каждую выгрузку данных документируй в `docs/data.md`: откуда, какой запрос, когда, лицензия. Этого требуют организаторы.
 - В конце этапа обнови раздел «Статус и решения» в docs/PROJECT_CONTEXT.md и предложи сообщение коммита.
@@ -79,6 +79,7 @@ Frontend — Feature-Sliced Design:
 - Категории номеров: `go run ./cmd/collect mock-rooms [-hotel ID]` (мок категорий и размещения демо-отелей, «Sea View»), затем `go run ./cmd/collect rooms [-hotel ID]` (значения характеристик в категориях); описание — `docs/rooms.md`, API — `GET /api/hotels/{id}/rooms`
 - Диалог с агентом по ходам: `go run ./cmd/collect dialog [-record имя | -cache | -rules] "фраза" "@id_кнопки"` (ключ в `.env` — живая модель с записью в кеш; нет ключа или `-cache` — из кеша, на промахе правила); API — `POST /api/chat` (SSE); описание — `docs/dialog.md`
 - Метрики качества: `go run ./cmd/collect metrics [-labels ../data/labels] [-write ../docs/metrics.md]` (только чтение БД; разметка — `data/labels/*.yaml`, описание — `docs/metrics.md`)
+- Отельер и репутация: `mock-hotelier` (персоны, спрос, скрытая истина), `hotelier-round [-hotel ID] [-answer=false]` (раунд интервьюера), `hotelier-reset`, `reputation-recompute` (пересчёт `author_trust` по правилу судьи); пересчёт правды — `truth`; проверка поиска — `search-demo [-hotel ID]`; сводка и демо-набор — `stats`, `select-demo`. Порядок полной пересборки сида и кешей — запись 8.3 в `docs/PROJECT_CONTEXT.md`
 - Сервер: `cd backend && go run ./cmd/server`
 - Фронтенд: `cd frontend && npm run dev`
 - Тесты: `cd backend && go test ./...`
