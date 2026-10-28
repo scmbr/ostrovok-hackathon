@@ -5,6 +5,8 @@ package booking
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +33,8 @@ var (
 	ErrInvalid = errors.New("некорректный запрос")
 	// ErrNotFound — отеля, категории или брони нет.
 	ErrNotFound = errors.New("не найдено")
+	// ErrSessionNotFound — сессии нет в хранилище (истекла, сброс БД); всегда идёт вместе с ErrNotFound.
+	ErrSessionNotFound = errors.New("сессия не найдена")
 )
 
 func invalid(format string, a ...any) error {
@@ -63,7 +67,10 @@ func (s *Service) load(ctx context.Context, id string) (session, map[string]json
 	if err != nil {
 		return v, raw, fmt.Errorf("сессия: %w", err)
 	}
-	if ok {
+	if !ok {
+		return v, raw, fmt.Errorf("%w: %w: %q (истекла или не создана)", ErrNotFound, ErrSessionNotFound, id)
+	}
+	{
 		if err := json.Unmarshal(b, &raw); err != nil {
 			return v, raw, fmt.Errorf("состояние сессии: %w", err)
 		}
@@ -72,6 +79,30 @@ func (s *Service) load(ctx context.Context, id string) (session, map[string]json
 		}
 	}
 	return v, raw, nil
+}
+
+// NewSession создаёт пустую сессию и возвращает её идентификатор: клиент, чью сессию сервер не нашёл (истекла,
+// сброс БД), начинает новую. Сессии диалога рождаются и на первом ходе чата.
+func (s *Service) NewSession(ctx context.Context) (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	id := hex.EncodeToString(b[:])
+	if err := s.Sessions.SaveState(ctx, id, []byte("{}")); err != nil {
+		return "", fmt.Errorf("сессия: %w", err)
+	}
+	return id, nil
+}
+
+// requireSession отвечает ErrNotFound, если сессии нет в хранилище. Пустой идентификатор пропускается:
+// сравнение и контракт по явным желаниям обходятся без сессии.
+func (s *Service) requireSession(ctx context.Context, id string) error {
+	if id == "" {
+		return nil
+	}
+	_, _, err := s.load(ctx, id)
+	return err
 }
 
 func (s *Service) saveShortlist(ctx context.Context, id string, raw map[string]json.RawMessage, list []int64) error {
@@ -178,6 +209,9 @@ func (s *Service) RemoveFromShortlist(ctx context.Context, sessionID string, hot
 
 // query собирает запрос гостя: явные желания запроса или желания сессии.
 func (s *Service) query(ctx context.Context, sessionID string, wishes []domain.Desire) (domain.Query, error) {
+	if err := s.requireSession(ctx, sessionID); err != nil {
+		return domain.Query{}, err
+	}
 	if len(wishes) > 0 {
 		return domain.Query{Wishes: wishes, SessionID: sessionID}, nil
 	}
@@ -399,6 +433,9 @@ func (s *Service) AskHotel(ctx context.Context, req AskRequest) (AskResult, erro
 	if err := checkSession(req.SessionID); err != nil {
 		return AskResult{}, err
 	}
+	if err := s.requireSession(ctx, req.SessionID); err != nil {
+		return AskResult{}, err
+	}
 	c, ok := s.Registry.Get(req.Key)
 	if !ok {
 		return AskResult{}, invalid("характеристики %q нет в реестре", req.Key)
@@ -467,6 +504,9 @@ type Booked struct {
 // отель и вне недельного бюджета. Если отельер уже отвечал, статус пожелания известен сразу.
 func (s *Service) Book(ctx context.Context, req BookRequest) (Booked, error) {
 	if err := checkSession(req.SessionID); err != nil {
+		return Booked{}, err
+	}
+	if err := s.requireSession(ctx, req.SessionID); err != nil {
 		return Booked{}, err
 	}
 	withWish := req.FacadeID != 0

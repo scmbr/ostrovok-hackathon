@@ -311,3 +311,50 @@ func TestBookWithWishStatuses(t *testing.T) {
 		t.Errorf("отказ отеля: %+v", rb)
 	}
 }
+
+// Неизвестная сессия (истекла, сброс БД) — ErrNotFound (HTTP 404), а не пустой ответ или 500;
+// NewSession создаёт сессию, и с ней те же вызовы работают.
+func TestUnknownSessionIsNotFound(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	calls := map[string]func() error{
+		"шортлист": func() error { _, err := r.s.Shortlist(ctx, "gone"); return err },
+		"добавить": func() error { _, err := r.s.AddToShortlist(ctx, "gone", 1); return err },
+		"убрать":   func() error { _, err := r.s.RemoveFromShortlist(ctx, "gone", 1); return err },
+		"сравнение": func() error {
+			_, err := r.s.Compare(ctx, CompareRequest{SessionID: "gone", HotelIDs: []int64{1, 2}})
+			return err
+		},
+		"сравнение с желаниями": func() error {
+			_, err := r.s.Compare(ctx, CompareRequest{SessionID: "gone", HotelIDs: []int64{1, 2}, Wishes: []domain.Desire{{Key: "sea_view"}}})
+			return err
+		},
+		"контракт": func() error {
+			_, err := r.s.Contract(ctx, ContractRequest{SessionID: "gone", HotelID: 1, CategoryID: 10})
+			return err
+		},
+		"спросить отель": func() error {
+			_, err := r.s.AskHotel(ctx, AskRequest{SessionID: "gone", HotelID: 1, Key: "sea_view"})
+			return err
+		},
+		"бронь": func() error {
+			_, err := r.s.Book(ctx, BookRequest{SessionID: "gone", HotelID: 1, CategoryID: 10})
+			return err
+		},
+	}
+	for name, call := range calls {
+		if err := call(); !errors.Is(err, ErrNotFound) {
+			t.Errorf("%s: ожидали ErrNotFound, получили %v", name, err)
+		}
+	}
+	if _, ok := r.sessions["gone"]; ok {
+		t.Error("неизвестная сессия не должна создаваться как побочный эффект")
+	}
+	id, err := r.s.NewSession(ctx)
+	if err != nil || id == "" {
+		t.Fatalf("NewSession: %q %v", id, err)
+	}
+	if list, err := r.s.AddToShortlist(ctx, id, 1); err != nil || len(list) != 1 {
+		t.Errorf("новая сессия: %v %v", list, err)
+	}
+}
