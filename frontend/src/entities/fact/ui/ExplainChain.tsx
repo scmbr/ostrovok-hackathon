@@ -10,7 +10,7 @@ const n3 = (x: number) => x.toFixed(3).replace('.', ',')
 function Chain({ e }: { e: ExplainedEvidence }) {
   const c = e.chain
   return (
-    <div className="mt-1 font-mono text-[11px] leading-relaxed text-slate-700">
+    <div className="mt-1 font-mono text-[11px] leading-relaxed text-ink">
       <div>
         база {n2(c.base)}
         {e.author_type !== 'tool' ? <> × (0,5 + репутация {n2(c.trust ?? 0.5)} = {n2(c.trust_mult)})</> : <> × репутация —</>}
@@ -21,7 +21,7 @@ function Chain({ e }: { e: ExplainedEvidence }) {
         {' '}→ logit {n2(e.logit)}
         {e.logit === 0 && ' (надёжность не выше 0,5: информации не несёт)'}
         {' '}→ вклад{' '}
-        <b className={e.contribution > 0 ? 'text-emerald-700' : e.contribution < 0 ? 'text-rose-700' : 'text-amber-700'}>
+        <b className={e.contribution > 0 ? 'text-ok' : e.contribution < 0 ? 'text-bad' : 'text-warn'}>
           {e.contribution > 0 ? '+' : ''}
           {n2(e.contribution)}
         </b>
@@ -35,25 +35,25 @@ export function ExplainChain({ explain }: { explain: ExplainedFact }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="mt-2">
-      <button type="button" className="text-xs text-sky-800 hover:underline" onClick={() => setOpen(!open)}>
+      <button type="button" className="text-xs text-brand-link hover:underline" onClick={() => setOpen(!open)}>
         {open ? '▾' : '▸'} {explain.summary}
       </button>
       {open && (
-        <div className="mt-1 space-y-2 rounded-md bg-slate-50 p-2">
+        <div className="mt-1 space-y-2 rounded-inner bg-surface-muted p-2">
           {explain.evidence.map((e) => (
             <div key={e.id} className={`text-xs ${e.role === 'dependent' ? 'opacity-60' : ''}`}>
               <div className="flex flex-wrap items-center gap-1">
                 <Badge tone={e.role === 'for' ? 'green' : e.role === 'against' ? 'red' : 'gray'}>{evidenceRoleLabel(e.role)}</Badge>
                 <b>{sourceLabel(e.source)}</b> ({authorLabel(e.author_type)}
                 {e.author_type !== 'tool' ? ` ${e.author_id}` : ''}) утверждает «{mainValue(e.claimed, explain.value_field, explain.key)}»
-                {e.group && <span className="text-slate-500">· группа независимости {e.group}</span>}
+                {e.group && <span className="text-ink-muted">· группа независимости {e.group}</span>}
                 {e.zero_weight && <Badge tone="amber">вес ≈ 0</Badge>}
               </div>
-              {e.comment && <div className="italic text-slate-800">со слов отеля: «{e.comment}»</div>}
+              {e.comment && <div className="italic text-ink">со слов отеля: «{e.comment}»</div>}
               <Chain e={e} />
             </div>
           ))}
-          <div className="border-t border-slate-200 pt-1 text-xs text-slate-700">
+          <div className="border-t border-line pt-1 text-xs text-ink">
             S = Σ вкладов = <b>{n2(explain.s)}</b> → σ(S) = <b>{n3(explain.sigma)}</b>, уверенность факта {n2(explain.confidence)}
             {explain.conflict && (
               <>

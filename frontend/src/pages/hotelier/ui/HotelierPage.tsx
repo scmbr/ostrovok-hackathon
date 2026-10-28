@@ -26,7 +26,7 @@ export function HotelierPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-4">
       <div>
-        <Link to="/" className="text-xs text-sky-800 hover:underline">
+        <Link to="/" className="text-xs text-brand-link hover:underline">
           ← к поиску
         </Link>
         <div className="flex flex-wrap items-center gap-2">

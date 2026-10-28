@@ -17,18 +17,18 @@ interface Result {
 function ResultCard({ r }: { r: Result }) {
   const o = r.outcome
   return (
-    <Card className="border-sky-300">
+    <Card className="border-brand">
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="font-semibold">Ответ на «{r.title}»</h3>
         <Badge tone={o.status === 'answered' ? 'green' : 'amber'}>{questionStatusLabel(o.status)}</Badge>
-        {o.parsed_by && <span className="text-xs text-slate-500">{parsedByLabel(o.parsed_by)}</span>}
+        {o.parsed_by && <span className="text-xs text-ink-muted">{parsedByLabel(o.parsed_by)}</span>}
       </div>
       {o.claimed && (
         <p className="mt-1 text-sm">
           Из ответа разобрано: <b>{mainValue(o.claimed, o.change?.value_field, o.change?.key)}</b>
         </p>
       )}
-      {o.note && <p className="text-xs text-slate-500">{o.note}</p>}
+      {o.note && <p className="text-xs text-ink-muted">{o.note}</p>}
       {o.follow_up && (
         <div className="mt-2">
           <Notice>Значение в ответе не названо, система переспрашивает: {o.follow_up}</Notice>
@@ -89,7 +89,7 @@ export function HotelierInbox({ hotelId, hasPersona }: { hotelId: number; hasPer
     <section className="space-y-3">
       <div className="flex flex-wrap items-baseline gap-3">
         <h2 className="text-lg font-semibold">Вопросы от системы</h2>
-        <span className="text-sm text-slate-600">
+        <span className="text-sm text-ink">
           На этой неделе {budget.sent} из {budget.limit} вопросов
           {inbox.waiting > 0 && `, ещё ${inbox.waiting} ждут своей очереди`}
           {inbox.low_value > 0 && `, ${inbox.low_value} копятся: пока слишком малая ценность`}
@@ -108,7 +108,7 @@ export function HotelierInbox({ hotelId, hasPersona }: { hotelId: number; hasPer
       {inbox.wish_requests.length > 0 && (
         <div className="space-y-2">
           <h2 className="pt-2 text-lg font-semibold">Пожелания гостей к брони</h2>
-          <p className="text-xs text-slate-500">Подтверждения от гостей с заявкой на бронь; в недельный бюджет вопросов не входят.</p>
+          <p className="text-xs text-ink-muted">Подтверждения от гостей с заявкой на бронь; в недельный бюджет вопросов не входят.</p>
           {inbox.wish_requests.map((w) => {
             const q: InboxQuestion = {
               id: w.question_id,
@@ -125,7 +125,7 @@ export function HotelierInbox({ hotelId, hasPersona }: { hotelId: number; hasPer
             return (
               <div key={w.question_id} className="space-y-1">
                 <QuestionCard q={q} hasPersona={hasPersona} hideReason onAnswered={(_, o) => onWishAnswered(w, o)} />
-                <Link to={`/booking/${w.booking_id}`} className="text-xs text-sky-800 hover:underline">
+                <Link to={`/booking/${w.booking_id}`} className="text-xs text-brand-link hover:underline">
                   Заявка на бронь № {w.booking_id}
                 </Link>
               </div>
@@ -137,12 +137,12 @@ export function HotelierInbox({ hotelId, hasPersona }: { hotelId: number; hasPer
       {missed.length > 0 && (
         <div className="space-y-2">
           <h2 className="pt-2 text-lg font-semibold">Упущенный спрос</h2>
-          <p className="text-xs text-slate-500">Гости искали это, а у вашего отеля данных нет или уверенность низкая.</p>
+          <p className="text-xs text-ink-muted">Гости искали это, а у вашего отеля данных нет или уверенность низкая.</p>
           <ul className="space-y-1 text-sm">
             {missed.map((m) => (
-              <li key={m.key} className="rounded-md bg-amber-50 px-3 py-2 ring-1 ring-inset ring-amber-200">
+              <li key={m.key} className="rounded-inner bg-warn-bg px-3 py-2 ring-1 ring-inset ring-warn/30">
                 {m.text}
-                {m.question_id ? <span className="ml-1 text-xs text-slate-600">— вопрос уже в дайджесте выше</span> : null}
+                {m.question_id ? <span className="ml-1 text-xs text-ink">— вопрос уже в дайджесте выше</span> : null}
               </li>
             ))}
           </ul>

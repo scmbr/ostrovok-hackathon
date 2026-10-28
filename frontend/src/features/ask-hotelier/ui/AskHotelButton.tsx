@@ -26,7 +26,7 @@ export function AskHotelButton({ hotelId, charKey }: { hotelId: number; charKey:
       <Button small disabled={busy} onClick={click}>
         Уточнить у отеля
       </Button>
-      {error && <span className="text-xs text-rose-700">{error}</span>}
+      {error && <span className="text-xs text-bad">{error}</span>}
     </span>
   )
 }

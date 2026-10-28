@@ -15,7 +15,7 @@ export function LlmModeBadge() {
       LLM: живой{meta.llm_model ? ` (${meta.llm_model})` : ''}
     </Badge>
   ) : (
-    <Badge tone="amber" title="Ключ LLM не задан: примеры отвечают из сохранённых ответов, свободный текст разбирается правилами">
+    <Badge tone="blue" title="Ключ LLM не задан: примеры отвечают из сохранённых ответов, свободный текст разбирается правилами">
       LLM: кеш
     </Badge>
   )
@@ -29,7 +29,7 @@ export function LlmModeBanner() {
   }, [])
   if (meta?.llm_mode !== 'cache') return null
   return (
-    <div className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-center text-xs text-amber-900">
+    <div className="border-t border-surface-muted bg-brand-soft px-4 py-1.5 text-center text-caption text-brand-link">
       Режим без LLM: примеры отвечают из сохранённых ответов, свободный текст разбирается правилами.
     </div>
   )

@@ -11,6 +11,15 @@ export const STATUS_TONE: Record<WishStatus, Tone> = {
   unknown: 'gray',
 }
 
+export const STATUS_TEXT: Record<WishStatus, string> = {
+  match: 'text-ok',
+  chance: 'text-brand-link',
+  near: 'text-warn',
+  uncertain: 'text-warn',
+  mismatch: 'text-bad',
+  unknown: 'text-ink-muted',
+}
+
 export function statusLabel(e: Pick<WishEval, 'status' | 'probability' | 'guarantee'>): string {
   switch (e.status) {
     case 'match':

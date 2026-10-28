@@ -19,21 +19,21 @@ interface Props {
 function PreviewBox({ preview, onSend, busy }: { preview: PersonaPreview; onSend: () => void; busy: boolean }) {
   const resolved = preview.found || !!preview.follow_up
   return (
-    <div className="mt-2 rounded-md border border-violet-200 bg-violet-50 p-3 text-sm">
+    <div className="mt-2 rounded-inner border border-brand bg-brand-soft p-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="violet">имитация: {personaLabel(preview.persona)}</Badge>
-        <span className="text-xs text-slate-600">{parsedByLabel(preview.parsed_by)}</span>
+        <span className="text-xs text-ink">{parsedByLabel(preview.parsed_by)}</span>
       </div>
       <p className="mt-1 italic">«{preview.answer}»</p>
       {preview.found && preview.claimed && (
-        <p className="mt-1 text-xs text-slate-700">
+        <p className="mt-1 text-xs text-ink">
           Из ответа разобрано: <b>{mainValue(preview.claimed)}</b>
           {preview.note ? ` (${preview.note})` : ''}
         </p>
       )}
-      {preview.follow_up && <p className="mt-1 text-xs text-slate-700">Ответ не задаёт значения: система переспросит.</p>}
+      {preview.follow_up && <p className="mt-1 text-xs text-ink">Ответ не задаёт значения: система переспросит.</p>}
       {!resolved && (
-        <p className="mt-1 text-xs text-amber-900">
+        <p className="mt-1 text-xs text-warn">
           Ответ персоны не удалось разобрать{preview.note ? ` (${preview.note})` : ''}. Если отправить его как есть, вопрос получит статус «нужно
           уточнение»; можно ответить кнопками или текстом вручную.
         </p>
@@ -89,7 +89,7 @@ export function QuestionCard({ q, hasPersona, hideReason, onAnswered }: Props) {
         {q.status === 'needs_clarification' && <Badge tone="amber">нужно уточнение</Badge>}
       </div>
       <p className="mt-2 text-sm">{q.question}</p>
-      <p className="mt-1 text-xs text-slate-500">{q.reason}</p>
+      <p className="mt-1 text-xs text-ink-muted">{q.reason}</p>
 
       <div className="mt-3 space-y-2">
         {q.format === 'confirm' && (
@@ -98,7 +98,7 @@ export function QuestionCard({ q, hasPersona, hideReason, onAnswered }: Props) {
             maxLength={500}
             onChange={(e) => setComment(e.target.value)}
             placeholder="Пояснение к «да» / «нет» (необязательно): оно сохранится рядом с ответом и не влияет на значение"
-            className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+            className="w-full rounded-inner border border-line px-2 py-1 text-sm"
           />
         )}
         {q.format === 'confirm' && (
@@ -119,7 +119,7 @@ export function QuestionCard({ q, hasPersona, hideReason, onAnswered }: Props) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={q.format === 'confirm' ? 'Или ответьте текстом…' : 'Ответ своими словами…'}
-            className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm"
+            className="min-w-0 flex-1 rounded-inner border border-line px-2 py-1 text-sm"
             onKeyDown={(e) => e.key === 'Enter' && text.trim() && send({ text })}
           />
           <Button small variant={q.format === 'confirm' ? 'secondary' : 'primary'} disabled={busy || !text.trim()} onClick={() => send({ text })}>

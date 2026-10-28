@@ -47,16 +47,16 @@ export function HotelierFacts({ hotelId }: { hotelId: number }) {
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">Что система знает об отеле</h2>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-ink-muted">
         Подтверждение и исправление — это ваше свидетельство: итог пересчитывает движок правды и может не совпасть с вашим словом.
       </p>
 
       {done && (
-        <Card className="border-sky-300">
+        <Card className="border-brand">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{done.action === 'confirm' ? 'Подтверждение записано' : done.recheck ? 'Факт поставлен на пересчёт' : 'Исправление записано'}</h3>
           </div>
-          {done.note && <p className="text-sm text-slate-600">{done.note}</p>}
+          {done.note && <p className="text-sm text-ink">{done.note}</p>}
           {done.change && (
             <div className="mt-2">
               <FactChangeView change={done.change} trust={done.trust} />
@@ -86,7 +86,7 @@ export function HotelierFacts({ hotelId }: { hotelId: number }) {
           <div className="grid gap-2 md:grid-cols-2">
             {hotel.rooms.facades.flatMap((fa) =>
               fa.values.map((v) => (
-                <div key={`${fa.id}-${v.key}`} className="rounded-md border border-slate-200 p-3">
+                <div key={`${fa.id}-${v.key}`} className="rounded-inner border border-line p-3">
                   <div className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="font-medium">{char(v.key)?.title ?? v.key}</span>
                     <span>

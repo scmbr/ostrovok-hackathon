@@ -7,15 +7,15 @@ export function ClarificationButtons({ clarification, answered }: { clarificatio
   const chat = useChat()
   const expected = nextExampleStep(chat)
   return (
-    <div className="mt-2 rounded-md bg-sky-50 p-3 ring-1 ring-inset ring-sky-200">
-      <p className="text-sm font-medium text-sky-950">{clarification.question}</p>
+    <div className="mt-2 rounded-inner bg-brand-tint p-3 ring-1 ring-inset ring-brand">
+      <p className="text-sm font-medium text-brand-link">{clarification.question}</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {clarification.options.map((o) => (
           <Button
             key={o.id}
             variant={expected === `@${o.id}` && !answered ? 'primary' : 'secondary'}
             disabled={chat.busy || !!answered}
-            className={answered === o.id ? 'ring-2 ring-sky-600' : ''}
+            className={answered === o.id ? 'ring-2 ring-brand' : ''}
             onClick={() => void send({ choice: o.id, label: o.label })}
           >
             {o.label}

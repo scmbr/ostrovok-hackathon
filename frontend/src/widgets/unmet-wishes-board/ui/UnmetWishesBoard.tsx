@@ -36,15 +36,15 @@ export function UnmetWishesBoard({ onPropose }: Props) {
   return (
     <Card>
       <h3 className="font-semibold">Неизвестные пожелания</h3>
-      <p className="mb-2 text-xs text-slate-500">
+      <p className="mb-2 text-xs text-ink-muted">
         Желания гостей, которых нет в реестре. Само в реестр ничего не попадает: характеристику добавляет человек, кнопка только открывает форму с описанием.
       </p>
       {wishes.length === 0 ? (
-        <p className="text-sm text-slate-600">Пока пусто: гости не просили ничего, чего нет в реестре.</p>
+        <p className="text-sm text-ink">Пока пусто: гости не просили ничего, чего нет в реестре.</p>
       ) : (
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+            <tr className="border-b border-line text-left text-xs text-ink-muted">
               <th className="py-1 pr-2">Пожелание</th>
               <th className="py-1 pr-2 text-right">Раз</th>
               <th className="py-1 pr-2">Впервые / в последний раз</th>
@@ -53,16 +53,16 @@ export function UnmetWishesBoard({ onPropose }: Props) {
           </thead>
           <tbody>
             {wishes.map((w) => (
-              <tr key={w.normalized} className="border-b border-slate-100 align-top">
+              <tr key={w.normalized} className="border-b border-line align-top">
                 <td className="py-1.5 pr-2">
                   <div>{w.text}</div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-ink-muted">
                     {w.normalized}
                     {w.proposal?.key ? ` · предложено: ${w.proposal.key}` : ''}
                   </div>
                 </td>
                 <td className="py-1.5 pr-2 text-right font-semibold">{w.count}</td>
-                <td className="py-1.5 pr-2 text-xs text-slate-600">
+                <td className="py-1.5 pr-2 text-xs text-ink">
                   {formatDate(w.first_seen)} / {formatDate(w.last_seen)}
                 </td>
                 <td className="py-1.5 text-right">

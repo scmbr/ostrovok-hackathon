@@ -18,8 +18,8 @@ function CategoryBlock({ cat, selected, onToggle, onBook }: { cat: Category; sel
     <Card>
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="font-semibold">{cat.name}</h3>
-        <span className="text-xs text-slate-500">{cat.rooms_count} номеров</span>
-        <label className="ml-auto flex items-center gap-1 text-xs text-slate-700">
+        <span className="text-xs text-ink-muted">{cat.rooms_count} номеров</span>
+        <label className="ml-auto flex items-center gap-1 text-xs text-ink">
           <input type="checkbox" checked={selected} onChange={onToggle} /> в сравнение
         </label>
         <Button small variant="primary" onClick={onBook}>
@@ -28,7 +28,7 @@ function CategoryBlock({ cat, selected, onToggle, onBook }: { cat: Category; sel
       </div>
       <div className="mt-3 space-y-2">
         {cat.characteristics.map((c) => (
-          <div key={c.key} className="rounded-md bg-slate-50 p-2 text-sm">
+          <div key={c.key} className="rounded-inner bg-surface-muted p-2 text-sm">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{c.title}</span>
               <span>
@@ -38,7 +38,7 @@ function CategoryBlock({ cat, selected, onToggle, onBook }: { cat: Category; sel
               {c.unknown > 0 && <Badge tone="gray">данных нет у {pct(c.unknown)}</Badge>}
             </div>
             {c.wish && (
-              <p className="mt-0.5 text-xs text-slate-700">
+              <p className="mt-0.5 text-xs text-ink">
                 Пожелание к брони: <b>{c.wish.text}</b> ({c.wish.rooms.toFixed(1)} номеров, {pct(c.wish.share)})
               </p>
             )}
@@ -82,7 +82,7 @@ export function HotelFacts({ hotel, wishes, onBook }: Props) {
     <div className="space-y-6">
       <section>
         <h2 className="mb-2 text-lg font-semibold">Что система знает об отеле</h2>
-        <p className="mb-3 text-xs text-slate-500">
+        <p className="mb-3 text-xs text-ink-muted">
           Каждое значение посчитано по открытым данным или со слов отельера и гостей; ниже — источники, их вклад и срок годности.
         </p>
         <div className="grid gap-2 md:grid-cols-2">
@@ -99,12 +99,12 @@ export function HotelFacts({ hotel, wishes, onBook }: Props) {
             {picked.length >= 2 && (
               <Link
                 to={compareCategoriesHref(hotel.id, picked)}
-                className="rounded-md bg-sky-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-800"
+                className="rounded-inner bg-brand px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
               >
                 Сравнить выбранные ({picked.length})
               </Link>
             )}
-            {picked.length < 2 && <span className="text-xs text-slate-500">Отметьте две категории, чтобы сравнить</span>}
+            {picked.length < 2 && <span className="text-xs text-ink-muted">Отметьте две категории, чтобы сравнить</span>}
           </div>
           <div className="space-y-3">
             {hotel.rooms.categories.map((c) => (

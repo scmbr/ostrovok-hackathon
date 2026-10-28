@@ -16,19 +16,19 @@ function Row({ c }: { c: Characteristic }) {
         <Badge tone="gray">{c.key}</Badge>
         <Badge tone="blue">{LEVEL[c.level] ?? c.level}</Badge>
         <Badge tone="gray">{TYPE[c.value_type] ?? c.value_type}</Badge>
-        {c.ttl_days ? <span className="text-xs text-slate-500">срок годности {c.ttl_days} дн.</span> : null}
+        {c.ttl_days ? <span className="text-xs text-ink-muted">срок годности {c.ttl_days} дн.</span> : null}
         <Badge tone={c.origin === 'text' ? 'violet' : 'gray'}>{c.origin === 'text' ? 'добавлена текстом' : 'YAML'}</Badge>
         {c.origin === 'text' && !hasLabels(c.key) && <Badge tone="amber">подпись не задана</Badge>}
       </div>
-      <p className="mt-1 text-xs text-slate-600">{c.description}</p>
+      <p className="mt-1 text-xs text-ink">{c.description}</p>
       {c.origin === 'text' && (
-        <p className="mt-1 text-xs text-slate-700">
+        <p className="mt-1 text-xs text-ink">
           Исходный текст: «{c.origin_text}»{c.added_at ? `, ${formatDate(c.added_at)}` : ''}
           {c.synonyms_origin ? ` · синонимы: ${c.synonyms_origin === 'derived' ? 'предложены кодом' : 'отредактированы'}` : ''}
         </p>
       )}
       {c.strategies && c.strategies.length > 0 ? (
-        <ul className="mt-1 text-xs text-slate-700">
+        <ul className="mt-1 text-xs text-ink">
           {c.strategies.map((s, i) => (
             <li key={i}>
               {s.tool}
@@ -37,10 +37,10 @@ function Row({ c }: { c: Characteristic }) {
           ))}
         </ul>
       ) : (
-        <p className="mt-1 text-xs text-slate-500">Расчёта нет: значение только от отельера.</p>
+        <p className="mt-1 text-xs text-ink-muted">Расчёта нет: значение только от отельера.</p>
       )}
-      {c.ask_hotelier && <p className="mt-1 text-xs text-slate-600">Вопрос отельеру: {c.ask_hotelier}</p>}
-      {c.synonyms && c.synonyms.length > 0 && <p className="mt-1 text-xs text-slate-500">Синонимы: {c.synonyms.join(', ')}</p>}
+      {c.ask_hotelier && <p className="mt-1 text-xs text-ink">Вопрос отельеру: {c.ask_hotelier}</p>}
+      {c.synonyms && c.synonyms.length > 0 && <p className="mt-1 text-xs text-ink-muted">Синонимы: {c.synonyms.join(', ')}</p>}
     </Card>
   )
 }

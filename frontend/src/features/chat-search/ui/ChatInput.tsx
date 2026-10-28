@@ -19,7 +19,7 @@ export function ChatInput() {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Опишите своими словами, что важно: например, тихо ночью и недалеко от моря"
-        className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-sky-600 focus:outline-none"
+        className="min-w-0 flex-1 rounded-inner border border-line px-3 py-2 text-sm focus:border-brand focus:outline-none"
         maxLength={1000}
         aria-label="Сообщение"
       />

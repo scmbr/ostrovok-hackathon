@@ -60,7 +60,7 @@ export function FactActions({ hotelId, address, values, onDone }: Props) {
       )}
       {correcting && values.length === 0 && (
         <div className="mt-2 text-sm">
-          <p className="text-xs text-slate-600">Числа не голосуют: значение берёт расчёт. Оспаривание ставит факт на пересчёт.</p>
+          <p className="text-xs text-ink">Числа не голосуют: значение берёт расчёт. Оспаривание ставит факт на пересчёт.</p>
           <Button small className="mt-1" disabled={busy} onClick={() => run(() => correctFact(hotelId, address, 'recheck'))}>
             Поставить на пересчёт
           </Button>
