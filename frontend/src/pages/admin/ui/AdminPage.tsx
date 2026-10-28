@@ -30,13 +30,13 @@ export function AdminPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-4">
       <div>
-        <Link to="/" className="text-xs text-sky-800 hover:underline">
+        <Link to="/" className="text-xs text-brand-link hover:underline">
           ← к поиску
         </Link>
         <h1 className="text-2xl font-bold">Под капотом</h1>
-        <p className="text-sm text-slate-600">Что делали агенты, из каких свидетельств сложен каждый факт и где источники спорят.</p>
+        <p className="text-sm text-ink">Что делали агенты, из каких свидетельств сложен каждый факт и где источники спорят.</p>
       </div>
-      <div className="flex flex-wrap gap-1 border-b border-slate-200 pb-1" role="tablist">
+      <div className="flex flex-wrap gap-1 border-b border-line pb-1" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -44,7 +44,7 @@ export function AdminPage() {
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={`rounded-md px-3 py-1.5 text-sm ${tab === t.id ? 'bg-sky-700 text-white' : 'text-slate-700 hover:bg-slate-100'}`}
+            className={`rounded-inner px-3 py-1.5 text-sm ${tab === t.id ? 'bg-brand text-white' : 'text-ink hover:bg-surface-muted'}`}
           >
             {t.title}
           </button>

@@ -45,7 +45,7 @@ export function ComparePage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-4">
-      <Link to="/" className="text-xs text-sky-800 hover:underline">
+      <Link to="/" className="text-xs text-brand-link hover:underline">
         ← к поиску
       </Link>
       <h1 className="text-2xl font-bold">{hotel ? 'Сравнение номеров' : 'Сравнение отелей'}</h1>

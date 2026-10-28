@@ -57,9 +57,9 @@ export function FacadeMap({ hotel }: { hotel: HotelCardData }) {
         <Button small variant={mode === 'noise' ? 'primary' : 'secondary'} onClick={() => setMode('noise')}>
           Шум ночью
         </Button>
-        <span className="text-xs text-slate-500">Стрелка — куда смотрит фасад</span>
+        <span className="text-xs text-ink-muted">Стрелка — куда смотрит фасад</span>
       </div>
-      <MapContainer center={[hotel.lat, hotel.lon]} zoom={18} className="h-80 w-full rounded-lg" scrollWheelZoom>
+      <MapContainer center={[hotel.lat, hotel.lon]} zoom={18} className="h-80 w-full rounded-card" scrollWheelZoom>
         <TileLayer attribution={TILE_ATTRIBUTION} url={TILE_URL} maxZoom={19} />
         <CircleMarker center={[hotel.lat, hotel.lon]} radius={5} pathOptions={{ color: '#0f172a', fillColor: '#f59e0b', fillOpacity: 1 }} />
         {facades.map((f) => {
@@ -73,7 +73,7 @@ export function FacadeMap({ hotel }: { hotel: HotelCardData }) {
           )
         })}
       </MapContainer>
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+      <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink">
         {facades.map((f) => {
           const s = styleOf(f)
           return (

@@ -21,7 +21,7 @@ function Steps({ turn }: { turn: AgentTurn }) {
   if (!turn.steps.length) return turn.running ? <Spinner label="Разбираю запрос…" /> : null
   if (turn.running) {
     return (
-      <ol className="space-y-0.5 text-xs text-slate-600" aria-live="polite">
+      <ol className="space-y-0.5 text-xs text-ink" aria-live="polite">
         {turn.steps.map((s, i) => (
           <li key={i}>→ {stepLine(s)}</li>
         ))}
@@ -32,7 +32,7 @@ function Steps({ turn }: { turn: AgentTurn }) {
     )
   }
   return (
-    <details className="text-xs text-slate-500">
+    <details className="text-xs text-ink-muted">
       <summary className="cursor-pointer">Что делал агент: {turn.steps.length} шагов{turn.done ? `, режим ${turn.done.mode}` : ''}</summary>
       <ol className="mt-1 space-y-0.5">
         {turn.steps.map((s, i) => (
@@ -55,7 +55,7 @@ function MessageText({ text }: { text: string }) {
       <>
         <p>{text}</p>
         {open && (
-          <button type="button" className="mt-1 text-xs text-sky-800 hover:underline" onClick={() => setOpen(false)}>
+          <button type="button" className="mt-1 text-xs text-brand-link hover:underline" onClick={() => setOpen(false)}>
             свернуть
           </button>
         )}
@@ -66,7 +66,7 @@ function MessageText({ text }: { text: string }) {
   return (
     <>
       <p>{text.slice(0, cut > 0 ? cut : LONG_MESSAGE)}…</p>
-      <button type="button" className="mt-1 text-xs text-sky-800 hover:underline" onClick={() => setOpen(true)}>
+      <button type="button" className="mt-1 text-xs text-brand-link hover:underline" onClick={() => setOpen(true)}>
         показать полностью
       </button>
     </>
@@ -78,7 +78,7 @@ function AgentBubble({ turn, renderResults, renderCompare }: { turn: AgentTurn }
     <div className="space-y-2">
       <Steps turn={turn} />
       {turn.message && (
-        <div className="rounded-lg bg-white p-3 text-sm shadow-sm ring-1 ring-slate-200">
+        <div className="rounded-card bg-white p-3 text-sm  ring-1 ring-line">
           <MessageText text={turn.message.text} />
           <p className="mt-1">
             <Badge tone={turn.message.source === 'llm' ? 'violet' : 'gray'} title="Числа и названия в тексте проверены кодом; факты считает код, не модель">
@@ -109,7 +109,7 @@ export function ChatPanel(props: Props) {
   return (
     <div className="flex flex-col gap-4">
       {notice && (
-        <div className="flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-inset ring-amber-200">
+        <div className="flex items-center gap-2 rounded-inner bg-warn-bg px-3 py-2 text-sm text-warn ring-1 ring-inset ring-warn/30">
           <span>{notice}</span>
           <Button small variant="ghost" className="ml-auto" onClick={clearNotice}>
             Понятно
@@ -125,7 +125,7 @@ export function ChatPanel(props: Props) {
               <div
                 key={t.id}
                 ref={t.id === lastUserId ? lastUser : undefined}
-                className="ml-auto max-w-[85%] scroll-mt-28 rounded-lg bg-sky-700 px-3 py-2 text-sm text-white"
+                className="ml-auto max-w-[85%] scroll-mt-28 rounded-card bg-brand px-3 py-2 text-sm text-white"
               >
                 {t.text}
               </div>
@@ -135,7 +135,7 @@ export function ChatPanel(props: Props) {
           )}
         </div>
       )}
-      <div className="sticky bottom-0 space-y-2 bg-slate-50 pb-2 pt-1">
+      <div className="sticky bottom-0 space-y-2 bg-surface-muted pb-2 pt-1">
         <NextStepHint />
         <ChatInput />
         {chat.turns.length > 0 && (

@@ -2,8 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Шрифт Brand: файлов в репозитории нет, без них браузер берёт системный (стек в tailwind.config.js). */
+@font-face {
+  font-family: 'Brand';
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/brand-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Brand';
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/brand-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Brand';
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/brand-700.woff2') format('woff2');
+}
+
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-surface-muted text-ink antialiased;
+  font-size: 14px;
+  line-height: 19px;
 }
 
 .leaflet-container {

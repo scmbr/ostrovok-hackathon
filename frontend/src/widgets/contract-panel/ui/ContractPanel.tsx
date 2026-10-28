@@ -64,11 +64,11 @@ export function ContractPanel({ target: given, onClose }: { target: ContractTarg
       {!contract && !error && <Spinner label="Собираю контракт…" />}
       {contract && (
         <>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-ink">
             {contract.hotel_name} · {contract.category} ·{' '}
             <span title="Цена — мок: базовая карточка Островка заменена генератором">{contract.price_eur} € за ночь</span>
           </p>
-          <ul className="mt-2 divide-y divide-slate-200">
+          <ul className="mt-2 divide-y divide-line">
             {contract.lines.map((l) => (
               <ContractLineRow
                 key={l.key}
@@ -78,15 +78,15 @@ export function ContractPanel({ target: given, onClose }: { target: ContractTarg
             ))}
           </ul>
           {offer && (
-            <label className="mt-3 flex items-start gap-2 rounded-md bg-sky-50 p-3 text-sm ring-1 ring-inset ring-sky-200">
+            <label className="mt-3 flex items-start gap-2 rounded-inner bg-brand-tint p-3 text-sm ring-1 ring-inset ring-brand">
               <input type="checkbox" className="mt-1" checked={withWish} disabled={!!refused} onChange={(e) => setWithWish(e.target.checked)} />
               <span>
                 Добавить пожелание к брони: <b>{offer.text}</b>
                 {offer.probability !== undefined && <> (вероятность ~{pct(offer.probability)})</>}
-                <span className="block text-xs text-slate-600">
+                <span className="block text-xs text-ink">
                   Отель получит один вопрос и подтвердит или нет. Бронь не блокируется, статус виден на странице брони.
                 </span>
-                {refused && <span className="block text-xs text-rose-700">Отель уже сообщил, что не гарантирует такие пожелания.</span>}
+                {refused && <span className="block text-xs text-bad">Отель уже сообщил, что не гарантирует такие пожелания.</span>}
               </span>
             </label>
           )}

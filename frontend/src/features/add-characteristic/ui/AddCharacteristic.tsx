@@ -32,13 +32,13 @@ function JobBar({ job }: { job: Job }) {
         <span>
           {job.done} из {job.total}
         </span>
-        <span className="text-xs text-slate-500">{job.message}</span>
+        <span className="text-xs text-ink-muted">{job.message}</span>
       </div>
-      <div className="h-2 rounded bg-slate-100">
-        <div className="h-2 rounded bg-sky-600 transition-all" style={{ width: `${pct}%` }} />
+      <div className="h-2 rounded bg-surface-muted">
+        <div className="h-2 rounded bg-brand transition-all" style={{ width: `${pct}%` }} />
       </div>
       {job.errors.length > 0 && (
-        <ul className="list-disc pl-5 text-xs text-rose-800">
+        <ul className="list-disc pl-5 text-xs text-bad">
           {job.errors.map((e, i) => (
             <li key={i}>{e}</li>
           ))}
@@ -143,7 +143,7 @@ export function AddCharacteristic({ onSaved, initialText = '' }: Props) {
   return (
     <Card>
       <h3 className="font-semibold">Добавить характеристику текстом</h3>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-ink-muted">
         Модель только описывает, как получить характеристику из существующих инструментов; значения фактов она не пишет. Перезапуск сервера не нужен.
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
@@ -151,7 +151,7 @@ export function AddCharacteristic({ onSaved, initialText = '' }: Props) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="например: есть ли рядом круглосуточный магазин"
-          className="min-w-0 flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm"
+          className="min-w-0 flex-1 rounded-inner border border-line px-2 py-1 text-sm"
           onKeyDown={(e) => e.key === 'Enter' && text.trim() && !busy && makeDraft()}
         />
         <Button variant="primary" disabled={busy || !text.trim()} onClick={makeDraft}>
@@ -162,17 +162,17 @@ export function AddCharacteristic({ onSaved, initialText = '' }: Props) {
         available.length > 0 ? (
           <>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-slate-600">В режиме без LLM доступны:</span>
+              <span className="text-ink">В режиме без LLM доступны:</span>
               {available.map((x) => (
-                <button key={x.key} type="button" className="text-sky-800 hover:underline" onClick={() => setText(x.text)}>
+                <button key={x.key} type="button" className="text-brand-link hover:underline" onClick={() => setText(x.text)}>
                   {x.text}
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-xs text-slate-500">Без ключа LLM черновик есть только для этих формулировок; выбор подставляет точный текст заготовки.</p>
+            <p className="mt-1 text-xs text-ink-muted">Без ключа LLM черновик есть только для этих формулировок; выбор подставляет точный текст заготовки.</p>
           </>
         ) : (
-          <p className="mt-1 text-xs text-slate-500">Заготовки без LLM исчерпаны, для своих описаний нужен ключ.</p>
+          <p className="mt-1 text-xs text-ink-muted">Заготовки без LLM исчерпаны, для своих описаний нужен ключ.</p>
         )
       ) : null}
 
@@ -182,7 +182,7 @@ export function AddCharacteristic({ onSaved, initialText = '' }: Props) {
         </div>
       )}
       {errors.length > 0 && (
-        <ul className="mt-2 list-disc pl-5 text-sm text-rose-800">
+        <ul className="mt-2 list-disc pl-5 text-sm text-bad">
           {errors.map((e, i) => (
             <li key={i}>{e}</li>
           ))}
@@ -199,7 +199,7 @@ export function AddCharacteristic({ onSaved, initialText = '' }: Props) {
           {draft.notes.map((n, i) => (
             <Notice key={i}>{n}</Notice>
           ))}
-          <p className="text-xs text-slate-600">
+          <p className="text-xs text-ink">
             Синонимы (по ним гость найдёт характеристику текстом без модели) предложены кодом из названия и вашей фразы; правьте их в YAML (поле
             <code> synonyms</code>). Фразы не должны пересекаться с синонимами других характеристик.
           </p>
@@ -208,7 +208,7 @@ export function AddCharacteristic({ onSaved, initialText = '' }: Props) {
             onChange={(e) => setYaml(e.target.value)}
             spellCheck={false}
             rows={Math.min(24, yaml.split('\n').length + 1)}
-            className="w-full rounded-md border border-slate-300 p-2 font-mono text-xs"
+            className="w-full rounded-inner border border-line p-2 font-mono text-xs"
           />
           <Button variant="primary" disabled={busy || !yaml.trim()} onClick={save}>
             Сохранить
@@ -228,7 +228,7 @@ export function AddCharacteristic({ onSaved, initialText = '' }: Props) {
           )}
           {job && <JobBar job={job} />}
           {job?.status === 'done' && (
-            <p className="text-sm text-slate-700">Готово. Попробуйте в роли гостя фразу, подходящую к характеристике, например «ночной магазин рядом».</p>
+            <p className="text-sm text-ink">Готово. Попробуйте в роли гостя фразу, подходящую к характеристике, например «ночной магазин рядом».</p>
           )}
         </div>
       )}

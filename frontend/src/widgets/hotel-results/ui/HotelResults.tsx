@@ -49,14 +49,14 @@ export function HotelResults({ results, highlightId, onHover, onBook }: Props) {
     ? results.groups
     : [{ kind: 'ranked', hotels: results.hotels ?? [], explanations: results.explanations ?? [] }]
   if (!groups.some((g) => g.hotels.length)) {
-    return <p className="text-sm text-slate-600">Ничего не нашлось. Попробуйте смягчить пожелания.</p>
+    return <p className="text-sm text-ink">Ничего не нашлось. Попробуйте смягчить пожелания.</p>
   }
   return (
     <div className="space-y-4">
-      {results.groups_lead && <p className="text-sm text-slate-700">{results.groups_lead}</p>}
+      {results.groups_lead && <p className="text-sm text-ink">{results.groups_lead}</p>}
       {groups.map((g, gi) => (
         <section key={gi} className="space-y-2">
-          {groupHeading(g) && <h3 className="text-sm font-semibold text-slate-800">{groupHeading(g)}</h3>}
+          {groupHeading(g) && <h3 className="text-sm font-semibold text-ink">{groupHeading(g)}</h3>}
           {g.hotels.map((h) => (
             <HotelResultCard
               key={h.hotel_id}
@@ -70,7 +70,7 @@ export function HotelResults({ results, highlightId, onHover, onBook }: Props) {
                   <FindSimilarButton hotelId={h.hotel_id} hotelName={h.name} />
                   <Link
                     to={`/hotel/${h.hotel_id}`}
-                    className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-sky-800 ring-1 ring-inset ring-slate-300 hover:bg-sky-50"
+                    className="inline-flex items-center rounded-inner px-2 py-1 text-xs font-medium text-brand-link ring-1 ring-inset ring-line hover:bg-brand-tint"
                   >
                     Подробнее
                   </Link>
@@ -81,7 +81,7 @@ export function HotelResults({ results, highlightId, onHover, onBook }: Props) {
                   {v === h.best && h.alternative && (
                     <Link
                       to={compareCategoriesHref(h.hotel_id, [h.best.category_id, h.alternative.category_id])}
-                      className="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium text-sky-800 hover:bg-sky-50"
+                      className="inline-flex items-center rounded-inner px-2 py-1 text-xs font-medium text-brand-link hover:bg-brand-tint"
                     >
                       Сравнить с альтернативой
                     </Link>

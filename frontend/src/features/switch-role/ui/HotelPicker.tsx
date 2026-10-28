@@ -33,11 +33,11 @@ export function HotelPicker({ hotelId }: { hotelId: number }) {
   return (
     <div className="flex flex-wrap items-start gap-3 text-sm">
       <label className="flex items-center gap-2">
-        <span className="text-slate-600">Отель:</span>
+        <span className="text-ink">Отель:</span>
         <select
           value={SCENARIO_HOTELS.includes(hotelId) ? hotelId : ''}
           onChange={(e) => e.target.value && go(Number(e.target.value))}
-          className="rounded-md border border-slate-300 bg-white px-2 py-1"
+          className="rounded-inner border border-line bg-white px-2 py-1"
         >
           {!SCENARIO_HOTELS.includes(hotelId) && <option value="">{hotels.find((h) => h.id === hotelId)?.name ?? `отель ${hotelId}`}</option>}
           {scenarios.map((h) => (
@@ -52,15 +52,15 @@ export function HotelPicker({ hotelId }: { hotelId: number }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Другой демо-отель: название или номер"
-          className="w-72 rounded-md border border-slate-300 px-2 py-1"
+          className="w-72 rounded-inner border border-line px-2 py-1"
         />
         {found.length > 0 && (
-          <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+          <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-y-auto rounded-inner border border-line bg-white ">
             {found.map((h) => (
               <li key={h.id}>
                 <button
                   type="button"
-                  className="block w-full px-2 py-1 text-left hover:bg-sky-50"
+                  className="block w-full px-2 py-1 text-left hover:bg-brand-tint"
                   onClick={() => {
                     setQuery('')
                     go(h.id)

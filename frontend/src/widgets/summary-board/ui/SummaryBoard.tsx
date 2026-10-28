@@ -26,9 +26,9 @@ const STATUS: Record<string, string> = {
 
 function Tile({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-md bg-slate-50 p-3">
+    <div className="rounded-inner bg-surface-muted p-3">
       <div className="text-2xl font-semibold">{value}</div>
-      <div className="text-xs text-slate-600">{label}</div>
+      <div className="text-xs text-ink">{label}</div>
     </div>
   )
 }
@@ -45,7 +45,7 @@ export function SummaryBoard() {
   const total = Object.values(s.questions).reduce((a, b) => a + b, 0)
   return (
     <section className="space-y-3">
-      <div className="flex items-center gap-2 text-sm text-slate-700">
+      <div className="flex items-center gap-2 text-sm text-ink">
         Режим: <LlmModeBadge />
       </div>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -58,7 +58,7 @@ export function SummaryBoard() {
         <h3 className="mb-2 font-semibold">Покрытие характеристик уровня отеля</h3>
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs text-slate-500">
+            <tr className="text-left text-xs text-ink-muted">
               <th className="py-1">Характеристика</th>
               <th>Отелей с фактом</th>
               <th>Средняя уверенность</th>
@@ -67,7 +67,7 @@ export function SummaryBoard() {
           </thead>
           <tbody>
             {s.coverage.map((c) => (
-              <tr key={c.key} className="border-t border-slate-100">
+              <tr key={c.key} className="border-t border-line">
                 <td className="py-1">{c.key}</td>
                 <td>
                   {c.hotels} из {s.demo_hotels}
@@ -81,10 +81,10 @@ export function SummaryBoard() {
       </Card>
       <Card>
         <h3 className="mb-1 font-semibold">Вопросы отельерам</h3>
-        <p className="text-sm text-slate-700">
+        <p className="text-sm text-ink">
           Всего {total}; хотя бы раз спросили {s.hotels_asked} из {s.demo_hotels} демо-отелей ({pct(s.question_share)}).
         </p>
-        <ul className="mt-1 flex flex-wrap gap-3 text-xs text-slate-600">
+        <ul className="mt-1 flex flex-wrap gap-3 text-xs text-ink">
           {Object.entries(s.questions).map(([k, v]) => (
             <li key={k}>
               {STATUS[k] ?? k}: {v}

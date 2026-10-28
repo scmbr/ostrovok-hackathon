@@ -8,11 +8,11 @@ function snapValue(s: FactSnap, field: string, key: string): string {
 
 function Side({ title, snap, field, charKey }: { title: string; snap: FactSnap; field: string; charKey: string }) {
   return (
-    <div className="flex-1 rounded-md bg-slate-50 p-2">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{title}</div>
+    <div className="flex-1 rounded-inner bg-surface-muted p-2">
+      <div className="text-xs uppercase tracking-wide text-ink-muted">{title}</div>
       <div className="text-base font-semibold">{snapValue(snap, field, charKey)}</div>
-      <div className="text-xs text-slate-600">{snap.found ? `уверенность ${pct(snap.confidence)}` : '—'}</div>
-      {snap.conflict && <div className="mt-1 text-xs text-rose-800">{snap.conflict}</div>}
+      <div className="text-xs text-ink">{snap.found ? `уверенность ${pct(snap.confidence)}` : '—'}</div>
+      {snap.conflict && <div className="mt-1 text-xs text-bad">{snap.conflict}</div>}
     </div>
   )
 }
@@ -27,7 +27,7 @@ export function TrustChangeView({ trust }: { trust: TrustChange }) {
       <Badge tone={tone}>
         {trust.before.toFixed(2)} → {trust.after.toFixed(2)}
       </Badge>
-      <span className="text-xs text-slate-500">
+      <span className="text-xs text-ink-muted">
         подтверждено расчётом и гостями {trust.agree} из {trust.total}
       </span>
     </div>
@@ -41,7 +41,7 @@ export function FactChangeView({ change, trust }: { change: FactChange; trust?: 
   const agreed = change.resolution?.kind === 'agreed'
   const same = JSON.stringify(before.value) === JSON.stringify(after.value) && before.confidence === after.confidence
   return (
-    <div className="space-y-2 rounded-md border border-sky-200 bg-sky-50/50 p-3">
+    <div className="space-y-2 rounded-inner border border-brand bg-brand-tint p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">{change.title}</span>
         {change.conflict_change !== 'none' && (
@@ -52,28 +52,28 @@ export function FactChangeView({ change, trust }: { change: FactChange; trust?: 
         {same && <Badge tone="gray">значение и уверенность не изменились</Badge>}
       </div>
       {change.conflict_change === 'closed' && change.resolution && (
-        <p className={`rounded-md px-3 py-2 text-sm ${agreed ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'}`}>
+        <p className={`rounded-inner px-3 py-2 text-sm ${agreed ? 'bg-ok/10 text-ok' : 'bg-warn-bg text-warn'}`}>
           {change.resolution.text}
         </p>
       )}
       <div className="flex items-stretch gap-2">
         <Side title="До" snap={before} field={change.value_field} charKey={change.key} />
-        <div className="self-center text-xl text-slate-400">→</div>
+        <div className="self-center text-xl text-ink-muted">→</div>
         <Side title="После" snap={after} field={change.value_field} charKey={change.key} />
       </div>
       {after.evidence.length > 0 && (
-        <ul className="space-y-0.5 text-xs text-slate-700">
+        <ul className="space-y-0.5 text-xs text-ink">
           {after.evidence.map((e) => (
             <li key={e.id}>
-              <b className={e.contribution >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+              <b className={e.contribution >= 0 ? 'text-ok' : 'text-bad'}>
                 {e.contribution >= 0 ? '+' : ''}
                 {e.contribution.toFixed(2)}
               </b>{' '}
               {sourceLabel(e.source)} ({authorLabel(e.author_type)}
               {e.author_type !== 'tool' ? `, репутация ${e.author_trust.toFixed(2)}` : ''}) утверждает «
               {mainValue(e.claimed, change.value_field, change.key)}», база надёжности {pct(e.reliability)}
-              {zeroWeightNote(e) && <span className="ml-1 text-amber-800">— {zeroWeightNote(e)}</span>}
-              {e.comment && <span className="ml-1 italic text-slate-800">— со слов отеля: «{e.comment}»</span>}
+              {zeroWeightNote(e) && <span className="ml-1 text-warn">— {zeroWeightNote(e)}</span>}
+              {e.comment && <span className="ml-1 italic text-ink">— со слов отеля: «{e.comment}»</span>}
             </li>
           ))}
         </ul>

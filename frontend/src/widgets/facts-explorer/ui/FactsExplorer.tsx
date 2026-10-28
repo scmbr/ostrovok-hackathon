@@ -29,7 +29,7 @@ export function FactsExplorer() {
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <label className="flex items-center gap-2">
           Отель
-          <select value={hotelId} onChange={(e) => setHotelId(Number(e.target.value))} className="rounded-md border border-slate-300 bg-white px-2 py-1">
+          <select value={hotelId} onChange={(e) => setHotelId(Number(e.target.value))} className="rounded-inner border border-line bg-white px-2 py-1">
             {hotels.some((h) => h.id === hotelId) ? null : <option value={hotelId}>{hotelId}</option>}
             {hotels.map((h) => (
               <option key={h.id} value={h.id}>
@@ -38,7 +38,7 @@ export function FactsExplorer() {
             ))}
           </select>
         </label>
-        <Link to={`/hotel/${hotelId}`} className="text-xs text-sky-800 hover:underline">
+        <Link to={`/hotel/${hotelId}`} className="text-xs text-brand-link hover:underline">
           карточка гостя
         </Link>
       </div>
@@ -64,7 +64,7 @@ export function FactsExplorer() {
                 evidence: [],
               }}
             />
-            {!hasLabels(f.key) && <p className="text-[11px] text-amber-800">подпись не задана: значение показано как есть</p>}
+            {!hasLabels(f.key) && <p className="text-[11px] text-warn">подпись не задана: значение показано как есть</p>}
           </div>
         ))}
       </div>

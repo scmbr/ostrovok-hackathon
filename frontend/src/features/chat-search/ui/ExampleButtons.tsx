@@ -13,7 +13,7 @@ export function ExampleButtons() {
   if (!examples.length) return null
   return (
     <div className="space-y-2">
-      <p className="text-sm text-slate-600">Начните с примера или напишите своими словами:</p>
+      <p className="text-sm text-ink">Начните с примера или напишите своими словами:</p>
       <div className="flex flex-col gap-2">
         {examples.map((ex) => (
           <button
@@ -21,10 +21,10 @@ export function ExampleButtons() {
             type="button"
             disabled={busy}
             onClick={() => void startExample(ex)}
-            className="rounded-lg border border-slate-200 bg-white p-3 text-left text-sm shadow-sm hover:border-sky-400 disabled:opacity-50"
+            className="rounded-card border border-line bg-white p-3 text-left text-sm  hover:border-brand disabled:opacity-50"
           >
-            <span className="block font-medium text-slate-900">{ex.title}</span>
-            <span className="text-slate-600">«{ex.text}»</span>
+            <span className="block font-medium text-ink">{ex.title}</span>
+            <span className="text-ink">«{ex.text}»</span>
           </button>
         ))}
       </div>

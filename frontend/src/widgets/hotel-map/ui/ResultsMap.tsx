@@ -48,7 +48,7 @@ export function ResultsMap({ hotels, highlightId, onSelect }: { hotels: MapHotel
   const points = usePoints(hotels)
   const center = useMemo<[number, number]>(() => [41.3874, 2.1686], [])
   return (
-    <MapContainer center={center} zoom={13} className="h-full min-h-[300px] w-full rounded-lg" scrollWheelZoom>
+    <MapContainer center={center} zoom={13} className="h-full min-h-[300px] w-full rounded-card" scrollWheelZoom>
       <TileLayer attribution={TILE_ATTRIBUTION} url={TILE_URL} />
       <FitBounds points={points} />
       {points.map((p) => {

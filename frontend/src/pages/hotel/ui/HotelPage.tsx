@@ -44,11 +44,11 @@ export function HotelPage() {
     <div className="mx-auto max-w-5xl space-y-5 px-4 py-4">
       <div className="flex flex-wrap items-start gap-3">
         <div>
-          <Link to="/" className="text-xs text-sky-800 hover:underline">
+          <Link to="/" className="text-xs text-brand-link hover:underline">
             ← к поиску
           </Link>
           <h1 className="text-2xl font-bold">{hotel.name}</h1>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-ink">
             {hotel.district} · {'★'.repeat(hotel.card.stars)}
             {hotel.card.mock && ' · базовая карточка (звёзды, цена, завтрак) — мок'}
           </p>

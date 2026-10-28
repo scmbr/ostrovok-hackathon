@@ -21,17 +21,17 @@ export interface FactLike {
 export function EvidenceList({ evidence, field, charKey }: { evidence: Evidence[]; field?: string; charKey?: string }) {
   if (!evidence.length) return null
   return (
-    <ul className="mt-1 space-y-0.5 text-xs text-slate-700">
+    <ul className="mt-1 space-y-0.5 text-xs text-ink">
       {evidence.map((e) => (
         <li key={e.id}>
-          <b className={e.contribution >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+          <b className={e.contribution >= 0 ? 'text-ok' : 'text-bad'}>
             {e.contribution >= 0 ? '+' : ''}
             {e.contribution.toFixed(2)}
           </b>{' '}
           {sourceLabel(e.source)} ({authorLabel(e.author_type)}
           {e.author_trust !== undefined && e.author_type !== 'tool' ? `, репутация ${e.author_trust.toFixed(2)}` : ''}) утверждает «{mainValue(e.claimed, field, charKey)}», база надёжности {pct(e.reliability)}, {formatDate(e.observed_at)}
-          {zeroWeightNote(e) && <span className="ml-1 text-amber-800">— {zeroWeightNote(e)}</span>}
-          {e.comment && <span className="ml-1 italic text-slate-800">— со слов отеля: «{e.comment}»</span>}
+          {zeroWeightNote(e) && <span className="ml-1 text-warn">— {zeroWeightNote(e)}</span>}
+          {e.comment && <span className="ml-1 italic text-ink">— со слов отеля: «{e.comment}»</span>}
         </li>
       ))}
     </ul>
@@ -55,23 +55,23 @@ export function FactCard({
 }) {
   const v = mainValue(fact.value, valueField, charKey)
   return (
-    <div className="rounded-md border border-slate-200 p-3">
+    <div className="rounded-inner border border-line p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium">{fact.title}</span>
-        <span className="text-sm text-slate-800">{v}</span>
+        <span className="text-sm text-ink">{v}</span>
         <Badge tone={fact.confidence >= 0.75 ? 'green' : fact.confidence >= 0.5 ? 'amber' : 'red'}>уверенность {pct(fact.confidence)}</Badge>
         {fact.stale && <Badge tone="amber">устарел, ждёт пересчёта</Badge>}
         {fact.conflict && <Badge tone="red">источники спорят</Badge>}
         {fact.weak_disagreement && !fact.conflict && <Badge tone="amber">есть расхождение</Badge>}
         {extra}
       </div>
-      <div className="mt-1 text-xs text-slate-500">
+      <div className="mt-1 text-xs text-ink-muted">
         Источник: {sourceLabel(fact.source)}
         {fact.observed_at && <> · получено {formatDate(fact.observed_at)}</>}
         {fact.valid_until && <> · актуально до {formatDate(fact.valid_until)}</>}
       </div>
-      {fact.conflict && <p className="mt-1 text-xs text-rose-800">{fact.conflict}</p>}
-      {fact.trust_note && <p className="mt-1 text-xs text-amber-800">{fact.trust_note}</p>}
+      {fact.conflict && <p className="mt-1 text-xs text-bad">{fact.conflict}</p>}
+      {fact.trust_note && <p className="mt-1 text-xs text-warn">{fact.trust_note}</p>}
       {explain ? <ExplainChain explain={explain} /> : <EvidenceList evidence={fact.evidence} field={valueField} charKey={charKey} />}
     </div>
   )

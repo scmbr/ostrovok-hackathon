@@ -11,27 +11,27 @@ export function WishRow({ wish }: { wish: WishEval }) {
     <li className="py-1.5">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="font-medium">{wish.title}</span>
-        {wish.importance === 'must' && <span className="text-xs text-slate-500">обязательно</span>}
+        {wish.importance === 'must' && <span className="text-xs text-ink-muted">обязательно</span>}
         <WishBadge wish={wish} />
         {wish.value !== undefined && wish.value !== null && wish.status !== 'unknown' && (
-          <span className="text-slate-600">{typeof wish.value === 'object' ? '' : valueLabel(wish.key, wish.value)}</span>
+          <span className="text-ink">{typeof wish.value === 'object' ? '' : valueLabel(wish.key, wish.value)}</span>
         )}
         {hasDetails && (
-          <button type="button" className="ml-auto text-xs text-sky-800 hover:underline" onClick={() => setOpen(!open)}>
+          <button type="button" className="ml-auto text-xs text-brand-link hover:underline" onClick={() => setOpen(!open)}>
             {open ? 'скрыть' : 'откуда известно'}
           </button>
         )}
       </div>
       {wish.booking_wish && (
-        <div className="mt-1 text-xs text-slate-700">
+        <div className="mt-1 text-xs text-ink">
           Пожелание к брони: <b>{wish.booking_wish.text}</b>, ~{pct(wish.booking_wish.probability)}
           {wish.booking_wish.hotel_confirmed ? ' (отель подтвердил)' : ' (отель ещё не подтвердил)'}
         </div>
       )}
-      {wish.conflict && <div className="mt-1 text-xs text-amber-800">Источники спорят: {wish.conflict}</div>}
-      {wish.caveat && <div className="mt-1 text-xs text-slate-600">{wish.caveat}</div>}
+      {wish.conflict && <div className="mt-1 text-xs text-warn">Источники спорят: {wish.conflict}</div>}
+      {wish.caveat && <div className="mt-1 text-xs text-ink">{wish.caveat}</div>}
       {open && (
-        <div className="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-700">
+        <div className="mt-1 rounded bg-surface-muted p-2 text-xs text-ink">
           <div>
             Уверенность {pct(wish.confidence)}
             {wish.observed_at && <> · получено {formatDate(wish.observed_at)}</>}
