@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Button } from '@/shared/ui'
+import { districtLabel } from '@/shared/lib'
 import { HotelThumb } from '@/entities/hotel'
 import { continueToAgent, useChat } from '../model/store'
 import type { CityTurn, LookupTurn, UnknownHotelTurn } from '../model/store'
@@ -18,7 +19,7 @@ export function LookupBlock({ turn }: { turn: LookupTurn }) {
               <span className="min-w-0 text-sm">
                 <span className="block font-semibold text-brand-link">{h.name}</span>
                 <span className="text-ink-muted">
-                  {h.district} · {'★'.repeat(h.card.stars)} · {h.card.price_eur} € за ночь
+                  {districtLabel(h.district)} · {'★'.repeat(h.card.stars)} · {h.card.price_eur} € за ночь
                 </span>
               </span>
             </Link>
