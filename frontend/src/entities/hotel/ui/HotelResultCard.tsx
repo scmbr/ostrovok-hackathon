@@ -3,6 +3,7 @@ import type { Explanation, SearchHotel, Variant } from '@/shared/api'
 import { Card, Icon } from '@/shared/ui'
 import { pct } from '@/shared/lib'
 import { WishRow } from './WishRow'
+import { HotelThumb, RoomThumb } from './HotelPhoto'
 
 interface Props {
   hotel: SearchHotel
@@ -19,6 +20,7 @@ function VariantBlock({ v, title, actions }: { v: Variant; title: string; action
   return (
     <div className="mt-3 rounded-inner bg-surface-muted p-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
+        <RoomThumb category={v.name} />
         <span className="text-xs uppercase tracking-wide text-ink-muted">{title}</span>
         <b>{v.name}</b>
         <span className="text-price" title="Цена — мок: базовая карточка Островка заменена генератором">
@@ -45,7 +47,9 @@ export function HotelResultCard({ hotel, explanation, highlighted, onHover, acti
   return (
     <div onMouseEnter={() => onHover?.(hotel.hotel_id)} onMouseLeave={() => onHover?.(null)}>
       <Card className={`!p-1 ${highlighted ? 'ring-2 ring-brand' : ''}`}>
-        <div className="flex flex-wrap items-start gap-2">
+        <div className="flex items-start gap-2">
+          <HotelThumb hotelId={hotel.hotel_id} name={hotel.name} />
+          <div className="flex min-w-0 flex-1 flex-wrap items-start gap-2">
           <div>
             <h3 className="text-title">{hotel.name}</h3>
             <div className="text-caption text-ink-muted">
@@ -54,6 +58,7 @@ export function HotelResultCard({ hotel, explanation, highlighted, onHover, acti
             </div>
           </div>
           <div className="ml-auto flex flex-wrap gap-2">{actions}</div>
+          </div>
         </div>
 
         <VariantBlock v={hotel.best} title="лучший вариант" actions={variantActions?.(hotel.best)} />

@@ -5,7 +5,7 @@ import { Card, ErrorNote, Spinner } from '@/shared/ui'
 import { ContractPanel } from '@/widgets/contract-panel'
 import { HotelFacts } from '@/widgets/hotel-facts'
 import { FacadeMap } from '@/widgets/hotel-map'
-import { getHotel } from '@/entities/hotel'
+import { getHotel, HotelGallery } from '@/entities/hotel'
 import { lastSearch, useChat } from '@/features/chat-search'
 import { FindSimilarButton } from '@/features/find-similar'
 import { ShortlistButton } from '@/features/shortlist'
@@ -58,6 +58,7 @@ export function HotelPage() {
           <FindSimilarButton hotelId={hotel.id} hotelName={hotel.name} />
         </div>
       </div>
+      <HotelGallery hotelId={hotel.id} name={hotel.name} />
       {hotel.rooms && hotel.rooms.facades.length > 0 && (
         <Card>
           <h2 className="mb-2 text-lg font-semibold">Фасады</h2>
