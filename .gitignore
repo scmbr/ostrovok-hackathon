@@ -23,6 +23,7 @@ coverage.out
 # Фронтенд
 frontend/node_modules/
 frontend/dist/
+frontend/*.tsbuildinfo
 # сборка фронтенда, которую Docker копирует для go:embed
 backend/internal/adapter/http/dist/*
 !backend/internal/adapter/http/dist/.gitkeep
