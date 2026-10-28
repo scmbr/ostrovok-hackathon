@@ -408,7 +408,8 @@ func (r *run) flushUnmet() []string {
 }
 
 // finish завершает ход: записывает непонятое, собирает ответ, сохраняет сессию, отправляет события.
-// candidate — текст модели для проверки; пустой — шаблон.
+// Текст выдачи короткий и целиком из кода: запрос гостя и названия отелей с ценой, подробности — на карточках.
+// Вводную модели (candidate) для выдачи не берём, поэтому она не может сказать лишнего об отелях.
 func (r *run) finish(candidate string, emit func(Event)) error {
 	unmet := r.flushUnmet()
 	done := func() error {
@@ -427,22 +428,79 @@ func (r *run) finish(candidate string, emit func(Event)) error {
 	case r.sim != nil:
 		emit(Event{EventResults, ResultsEvent{Kind: "similar", Query: domain.Query{Wishes: r.st.Wishes, Filters: r.st.Filters},
 			Similar: &SimilarView{Base: r.sim.base, Hotels: r.sim.list}}})
-		in := r.introInputs(unmet)
-		text, src := r.e.finalText(r.ctx, r.tr, candidate, in.lead, in.rest, in.extra, in.shown, in.guaranteed)
-		msg(text, src)
+		msg(r.e.shortSimilar(r.sim.base, r.sim.list, r.notes, unmet), "template")
 	case r.srch != nil:
 		o := r.srch
 		emit(Event{EventResults, ResultsEvent{Kind: "search", Query: o.res.Query, Hotels: o.res.Hotels, Explanations: o.exps, Groups: o.res.Groups,
 			Considered: o.res.Considered, Dropped: o.res.Dropped}})
-		in := r.introInputs(unmet)
-		text, src := r.e.finalText(r.ctx, r.tr, candidate, in.lead, in.rest, in.extra, in.shown, in.guaranteed)
-		msg(text, src)
+		msg(r.e.shortResults(o.res, r.notes, unmet), "template")
 	case r.simRef != nil:
 		msg("Не поняла, на какой отель опереться. Назовите отель из выдачи по номеру или названию.", "template")
 	default:
 		msg(emptyMessage(r.removed, unmet), "template")
 	}
 	return done()
+}
+
+// shortResults — текст выдачи для гостя: что ищем, допущения разбора и список отелей с лучшим вариантом и ценой.
+// Статусы, проценты и источники в текст не входят: они на карточках.
+func (e *Engine) shortResults(res search.Result, notes, unmet []string) string {
+	var b strings.Builder
+	b.WriteString("Ищу: " + e.understood(res.Query) + ".")
+	for _, n := range notes {
+		if n != "" {
+			b.WriteString("\n" + n)
+		}
+	}
+	if len(unmet) > 0 {
+		fmt.Fprintf(&b, "\nПока не умею учитывать: %s — записала в журнал пожеланий.", quoted(unmet))
+	}
+	if len(res.Hotels) == 0 {
+		b.WriteString("\nПодходящих отелей не нашлось: попробуйте смягчить условия.")
+		return b.String()
+	}
+	hs := e.textHotels(res)
+	fmt.Fprintf(&b, "\nНашла %s:", countHotels(len(hs)))
+	for i, t := range hs {
+		fmt.Fprintf(&b, "\n%d. %s — %s, %d €", i+1, t.hotel.Name, t.hotel.Best.Name, t.hotel.Best.PriceEUR)
+	}
+	b.WriteString("\nПодробности по каждому — на карточках ниже.")
+	return b.String()
+}
+
+// shortSimilar — текст «похожих»: от какого отеля идём и список названий.
+func (e *Engine) shortSimilar(base Shown, list []search.SimilarHotel, notes, unmet []string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Похожие на %s — по профилю собранных характеристик, без учёта звёзд и цены:", base.Name)
+	for _, n := range notes {
+		if n != "" {
+			b.WriteString("\n" + n)
+		}
+	}
+	if len(list) == 0 {
+		b.WriteString("\nПохожих отелей не нашлось.")
+	}
+	for i, s := range list {
+		if i >= topN {
+			break
+		}
+		fmt.Fprintf(&b, "\n%d. %s", i+1, s.Name)
+	}
+	if len(unmet) > 0 {
+		fmt.Fprintf(&b, "\nПока не умею учитывать: %s — записала в журнал пожеланий.", quoted(unmet))
+	}
+	return b.String()
+}
+
+// countHotels — «1 отель», «2 отеля», «6 отелей».
+func countHotels(n int) string {
+	switch {
+	case n%100 >= 11 && n%100 <= 14, n%10 == 0, n%10 >= 5:
+		return fmt.Sprintf("%d отелей", n)
+	case n%10 == 1:
+		return fmt.Sprintf("%d отель", n)
+	}
+	return fmt.Sprintf("%d отеля", n)
 }
 
 // introData — части ответа и данные для проверки вводной модели.
@@ -466,19 +524,6 @@ func (r *run) introInputs(unmet []string) introData {
 		in.shown, in.guaranteed = shownAndGuaranteed(r.e.textHotels(r.srch.res))
 	}
 	return in
-}
-
-// checkIntro проверяет вводную модели до отправки (для одной просьбы переписать); nil — вводная годится.
-func (r *run) checkIntro(candidate string) error {
-	if r.sim == nil && r.srch == nil {
-		return nil
-	}
-	in := r.introInputs(dedupeUnmet(r.unmet))
-	_, all, err := r.e.hotelNames(r.ctx)
-	if err != nil {
-		return nil
-	}
-	return VerifyIntro(candidate, in.lead+in.rest+" "+in.extra, in.shown, all, in.guaranteed)
 }
 
 // Turn обрабатывает сообщение гостя. С Chat выбор шагов делает модель; при её недоступности или промахе кеша

@@ -59,42 +59,37 @@ func rejection(r *rig) (string, bool) {
 
 func same(domain.Query) []int64 { return []int64{1, 2, 3} }
 
-// Пересказ модели с выдуманным числом или отелем не из выдачи отклоняется кодом; допустимый проходит.
-func TestAgentTextCheck(t *testing.T) {
-	cases := []struct {
-		name, text string
-		reject     bool
-		reason     string
-	}{
-		{"выдуманное число", "Hotel Arts в 47 минутах от пляжа.", true, "47"},
-		{"отель не из выдачи", "Hotel Arts хорош, но лучше Hotel Santa Marta.", true, "hotel santa marta"},
-		{"текст мимо выдачи", "К сожалению, я не нашла подходящих отелей.", true, "ни одного отеля"},
-		{"чужой отель из базы", "Hotel Arts рядом с Hotel Catedral.", true, "hotel catedral"},
-		{"допустимый", "Нашла Hotel Arts, Hotel Omm и Casa Fuster.", false, ""},
-		{"список в вводной", "Вот варианты:\n1. Hotel Arts", true, "абзацем"},
-		{"слишком много предложений", "Hotel Arts хорош. Hotel Omm тоже. Casa Fuster тихий.", true, "предложений"},
-		{"слово уверенности без гарантии", "Hotel Arts — тишина там обеспечена.", true, "обеспеч"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			r, _ := llmRig(t, same, call("parse_baseline", `{"text":"тихий номер"}`), call("search", `{}`), say(c.text), say(c.text))
-			ev := turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
-			msg, _ := find[MessageEvent](ev, EventMessage)
-			reason, rejected := rejection(r)
-			if rejected != c.reject || (c.reject && !strings.Contains(strings.ToLower(reason), c.reason)) {
-				t.Fatalf("отклонение=%v (%s), ждали %v: %s", rejected, reason, c.reject, msg.Text)
+// Текст выдачи строит код: запрос и список отелей с ценой. Что бы ни сказала модель (выдуманное число, чужой отель,
+// «гарантировано»), в ответ её слова не попадают и переписывать их не просят.
+func TestAgentResultsMessageIsShortTemplate(t *testing.T) {
+	for _, say1 := range []string{
+		"Hotel Arts в 47 минутах от пляжа.",
+		"Hotel Arts хорош, но лучше Hotel Santa Marta.",
+		"Hotel Arts — тишина там обеспечена, питомцы разрешены.",
+		"Нашла Hotel Arts, Hotel Omm и Casa Fuster.",
+	} {
+		r, c := llmRig(t, same, call("parse_baseline", `{"text":"тихий номер"}`), call("search", `{}`), say(say1))
+		ev := turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
+		msg, _ := find[MessageEvent](ev, EventMessage)
+		if msg.Source != "template" || strings.Contains(msg.Text, say1) {
+			t.Errorf("слова модели не должны идти гостю: %+v", msg)
+		}
+		for _, want := range []string{"Ищу: тишина ночью (желательно).", "Нашла 3 отеля:", "1. Hotel Arts — Стандарт, 100 €", "на карточках"} {
+			if !strings.Contains(msg.Text, want) {
+				t.Errorf("в ответе нет %q: %s", want, msg.Text)
 			}
-			if c.reject && msg.Source != "template" {
-				t.Errorf("при отклонении ответ — шаблон: %+v", msg)
+		}
+		for _, banned := range []string{"Лучшие варианты", "уверенность", "за ночь", "гарантир"} {
+			if strings.Contains(msg.Text, banned) {
+				t.Errorf("в коротком тексте не должно быть %q: %s", banned, msg.Text)
 			}
-			if !c.reject && (msg.Source != "llm" || !strings.HasPrefix(msg.Text, c.text+"\n")) {
-				t.Errorf("проверенная вводная идёт гостю: %+v", msg)
-			}
-			// Строки по отелям — всегда из шаблона, чем бы ни была вводная.
-			if !strings.Contains(msg.Text, "Лучшие варианты:\n1. Hotel Arts — Стандарт, 100 € за ночь") {
-				t.Errorf("в ответе нет шаблонных строк по отелям: %s", msg.Text)
-			}
-		})
+		}
+		if c.calls != 3 {
+			t.Errorf("вызовов модели %d: просьбы переписать быть не должно", c.calls)
+		}
+		if _, rejected := rejection(r); rejected {
+			t.Error("вводная модели для выдачи не проверяется")
+		}
 	}
 }
 
@@ -248,27 +243,5 @@ func TestAgentSimilarWithoutRequestRejected(t *testing.T) {
 	res, ok := find[ResultsEvent](ev, EventResults)
 	if !ok || res.Kind != "search" {
 		t.Fatalf("ждали обычную выдачу: %+v", res)
-	}
-}
-
-// Отклонённую вводную модель переписывает один раз; исправленная проходит, вторая неудача — шаблонная вводная.
-func TestAgentRewritesRejectedIntroOnce(t *testing.T) {
-	r, c := llmRig(t, same, call("parse_baseline", `{"text":"тихий номер"}`), call("search", `{}`),
-		say("Hotel Arts соответствует требованиям."), say("Нашла Hotel Arts."))
-	ev := turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
-	msg, _ := find[MessageEvent](ev, EventMessage)
-	if msg.Source != "llm" || !strings.HasPrefix(msg.Text, "Нашла Hotel Arts.\n") || c.calls != 4 {
-		t.Fatalf("после переписывания вводная идёт гостю: %+v, вызовов %d", msg, c.calls)
-	}
-	retried := slices.ContainsFunc(*r.trace, func(s agent.TraceStep) bool { return s.Tool == "retry_text" })
-	if !retried {
-		t.Error("просьба переписать не записана в журнал")
-	}
-
-	r, c = llmRig(t, same, call("search", `{}`), say("Hotel Arts соответствует."), say("Hotel Arts точно подойдёт."))
-	ev = turn(t, r, Request{SessionID: "s", Message: "тихий номер"})
-	msg, _ = find[MessageEvent](ev, EventMessage)
-	if msg.Source != "template" || c.calls != 3 {
-		t.Errorf("вторая неудача: шаблон, а не третья попытка: %+v, вызовов %d", msg, c.calls)
 	}
 }
