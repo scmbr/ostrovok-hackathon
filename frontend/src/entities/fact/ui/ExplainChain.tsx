@@ -10,7 +10,7 @@ const n3 = (x: number) => x.toFixed(3).replace('.', ',')
 function Chain({ e }: { e: ExplainedEvidence }) {
   const c = e.chain
   return (
-    <div className="mt-1 font-mono text-[11px] leading-relaxed text-ink">
+    <div className="mt-1 font-mono text-[0.6875rem] leading-relaxed text-ink">
       <div>
         база {n2(c.base)}
         {e.author_type !== 'tool' ? <> × (0,5 + репутация {n2(c.trust ?? 0.5)} = {n2(c.trust_mult)})</> : <> × репутация —</>}

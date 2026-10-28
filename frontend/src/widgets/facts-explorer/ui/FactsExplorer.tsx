@@ -64,7 +64,7 @@ export function FactsExplorer() {
                 evidence: [],
               }}
             />
-            {!hasLabels(f.key) && <p className="text-[11px] text-warn">подпись не задана: значение показано как есть</p>}
+            {!hasLabels(f.key) && <p className="text-[0.6875rem] text-warn">подпись не задана: значение показано как есть</p>}
           </div>
         ))}
       </div>

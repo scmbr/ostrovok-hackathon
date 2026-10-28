@@ -30,8 +30,8 @@
 
 body {
   @apply bg-surface-muted text-ink antialiased;
-  font-size: 14px;
-  line-height: 19px;
+  font-size: 0.875rem;
+  line-height: 1.1875rem;
   font-weight: 400;
 }
 
