@@ -38,8 +38,8 @@ export function getSessionId(): string {
 }
 
 // Сессия на сервере живёт 1 час. Если сервер её не нашёл, начинаем новую и сообщаем об этом.
-export function startNewSession(reason?: string): string {
-  memory = randomId()
+export function startNewSession(reason?: string, id?: string): string {
+  memory = id ?? randomId()
   try {
     localStorage.setItem(KEY, memory)
   } catch {
@@ -68,7 +68,7 @@ export function useSessionNotice(): [string | null, () => void] {
   ]
 }
 
-const ACTIVE_KEY = 'tima.session_active_at'
+export const ACTIVE_KEY = 'tima.session_active_at'
 // TTL сессии на сервере — 1 час (dialog_sessions); с запасом считаем её истёкшей раньше.
 const TTL_MS = 55 * 60 * 1000
 

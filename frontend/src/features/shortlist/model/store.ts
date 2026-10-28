@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { Shown } from '@/shared/api'
-import { ApiError } from '@/shared/api'
-import { getSessionId, onSessionReset, startNewSession, touchSession } from '@/entities/session'
+import { onSessionReset, touchSession, withSession } from '@/entities/session'
 import { addToShortlist, fetchShortlist, removeFromShortlist } from '../api/shortlistApi'
 
 // Шортлист лежит в серверной сессии диалога (TTL 1 час); здесь только его копия для интерфейса.
@@ -19,11 +18,6 @@ function set(next: Partial<State>) {
   listeners.forEach((l) => l())
 }
 
-// Сервер не нашёл сессию или вернул пустой список там, где он был непустым: сессия истекла.
-function expired() {
-  startNewSession('Сессия истекла, шортлист очищен.')
-}
-
 async function run(op: () => Promise<{ hotels: Shown[] }>) {
   try {
     const was = state.hotels.length
@@ -32,24 +26,18 @@ async function run(op: () => Promise<{ hotels: Shown[] }>) {
     set({ hotels: r.hotels, error: null })
     return was
   } catch (e) {
-    if (e instanceof ApiError && e.status === 404) {
-      expired()
-      return 0
-    }
     set({ error: e instanceof Error ? e.message : 'не удалось обновить шортлист' })
     return 0
   }
 }
 
 export async function refreshShortlist() {
-  const was = state.hotels.length
-  await run(() => fetchShortlist(getSessionId()))
-  if (was > 0 && state.hotels.length === 0) expired()
+  await run(() => withSession(fetchShortlist))
   loaded = true
 }
 
-export const addHotel = (id: number) => run(() => addToShortlist(getSessionId(), id))
-export const removeHotel = (id: number) => run(() => removeFromShortlist(getSessionId(), id))
+export const addHotel = (id: number) => run(() => withSession((sid) => addToShortlist(sid, id)))
+export const removeHotel = (id: number) => run(() => withSession((sid) => removeFromShortlist(sid, id)))
 onSessionReset(() => set({ hotels: [] }))
 
 export function useShortlist(): State {

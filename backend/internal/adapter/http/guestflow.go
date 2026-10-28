@@ -14,6 +14,7 @@ import (
 
 // GuestFlow — порт гостевого пути: шортлист, сравнение, контракт ожиданий, «спросить отель», бронь (booking.Service).
 type GuestFlow interface {
+	NewSession(ctx context.Context) (string, error)
 	Shortlist(ctx context.Context, sessionID string) ([]booking.Shown, error)
 	AddToShortlist(ctx context.Context, sessionID string, hotelID int64) ([]booking.Shown, error)
 	RemoveFromShortlist(ctx context.Context, sessionID string, hotelID int64) ([]booking.Shown, error)
@@ -34,6 +35,9 @@ func failGuest(w http.ResponseWriter, err error, what string) {
 	switch {
 	case errors.Is(err, booking.ErrInvalid):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	case errors.Is(err, booking.ErrSessionNotFound):
+		// code отличает потерянную сессию от «нет отеля»: только в первом случае клиент заводит новую сессию.
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error(), "code": "session_not_found"})
 	case errors.Is(err, booking.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 	default:
@@ -50,6 +54,18 @@ func decodeGuest(w http.ResponseWriter, r *http.Request, v any) bool {
 		return false
 	}
 	return true
+}
+
+// handleNewSession создаёт пустую сессию: клиент вызывает её, когда сервер ответил 404 на его session_id.
+func handleNewSession(g GuestFlow) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := g.NewSession(r.Context())
+		if err != nil {
+			failGuest(w, err, "сессия")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]string{"session_id": id})
+	}
 }
 
 // Шортлист.
