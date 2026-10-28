@@ -21,7 +21,7 @@ function Json({ label, value }: { label: string; value: Record<string, unknown> 
   return (
     <details className="text-xs">
       <summary className="cursor-pointer text-ink-muted">{label}</summary>
-      <pre className="mt-1 max-h-60 overflow-auto rounded bg-surface-muted p-2 text-[11px]">{JSON.stringify(value, null, 1)}</pre>
+      <pre className="mt-1 max-h-60 overflow-auto rounded bg-surface-muted p-2 text-[0.6875rem]">{JSON.stringify(value, null, 1)}</pre>
     </details>
   )
 }
