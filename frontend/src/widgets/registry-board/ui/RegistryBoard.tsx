@@ -46,7 +46,7 @@ function Row({ c }: { c: Characteristic }) {
 }
 
 // Реестр характеристик: уровень, тип, стратегии с базами и группами, срок годности, вопрос отельеру, происхождение; добавление текстом.
-export function RegistryBoard() {
+export function RegistryBoard({ initialText }: { initialText?: string }) {
   const [list, setList] = useState<Characteristic[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const load = useCallback(() => {
@@ -57,7 +57,7 @@ export function RegistryBoard() {
 
   return (
     <section className="space-y-3">
-      <AddCharacteristic onSaved={load} />
+      <AddCharacteristic onSaved={load} initialText={initialText} />
       {error && <ErrorNote>{error}</ErrorNote>}
       {!list && !error && <Spinner label="Загружаю реестр…" />}
       <div className="space-y-2">{list?.map((c) => <Row key={c.key} c={c} />)}</div>

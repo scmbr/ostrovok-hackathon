@@ -37,6 +37,11 @@ func (f *fakeAdmin) Conflicts(context.Context, admin.ConflictFilter) ([]admin.Co
 		Title: "Вид на море", Theta: 0.3, ThetaLowered: true, ThetaReason: "θ = 0.3 понижен",
 		Sides: []admin.Side{{Value: "none", Weight: 4.5}, {Value: "full", Weight: 2.8}}, Question: &admin.QuestionRef{ID: 744, Status: "open", Format: "confirm"}}}, nil
 }
+func (f *fakeAdmin) UnmetWishes(context.Context, int) ([]admin.UnmetWish, error) {
+	return []admin.UnmetWish{{Text: "нужен круглосуточный магазин", Normalized: "кругл магаз", Count: 3, Proposal: []byte(`{"key":"night_shop","title":"Ночной магазин","how":"магазин ночью"}`)},
+		{Text: "морской воздух", Normalized: "возду морск", Count: 1}}, nil
+}
+
 func (f *fakeAdmin) Tasks(context.Context, int64, int) ([]admin.Task, error) {
 	return []admin.Task{{ID: 1, HotelID: 156, Key: "sea_view", Reason: "3 гостя", Status: "done", Outcome: "confirmed"}}, nil
 }
@@ -196,4 +201,27 @@ func TestAdminSummary(t *testing.T) {
 func (f *fakeAdmin) Summary(context.Context) (admin.Summary, error) {
 	return admin.Summary{DemoHotels: 60, Coverage: []admin.Coverage{{Key: "pets_allowed", Hotels: 30, AvgConfidence: 0.7}}, OpenConflicts: 3,
 		Questions: map[string]int{"open": 5}, HotelsAsked: 15}, nil
+}
+
+func TestAdminUnmetWishes(t *testing.T) {
+	h := newRouter(fstest.MapFS{}, domain.Registry{}, nil, nil, nil, WithAdmin(&fakeAdmin{}, fakeExplain{}))
+	rec := do(h, "GET", "/api/admin/unmet-wishes", "")
+	if rec.Code != 200 {
+		t.Fatalf("код %d", rec.Code)
+	}
+	var out struct {
+		Wishes []struct {
+			Count    int             `json:"count"`
+			Proposal json.RawMessage `json:"proposal"`
+		} `json:"wishes"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || len(out.Wishes) != 2 {
+		t.Fatalf("ответ: %v %s", err, rec.Body.String())
+	}
+	if out.Wishes[0].Count != 3 || !strings.Contains(string(out.Wishes[0].Proposal), "night_shop") || string(out.Wishes[1].Proposal) != "null" {
+		t.Errorf("поля: %s", rec.Body.String())
+	}
+	if rec := do(h, "GET", "/api/admin/unmet-wishes?limit=x", ""); rec.Code != 400 {
+		t.Errorf("limit=x: код %d", rec.Code)
+	}
 }

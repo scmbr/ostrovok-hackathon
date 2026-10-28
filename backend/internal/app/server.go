@@ -111,7 +111,7 @@ func (rt *runtime) buildHandler(reg domain.Registry) (http.Handler, error) {
 		Demand: searchStore, Bookings: postgres.NewBookingStore(pool), Trace: postgres.NewAgentStore(pool, reg.Rules()), RegionID: region.ID}
 	chat.Compare = guest
 	explainSvc := &explain.Service{Registry: reg, Store: postgres.NewExplainStore(pool)}
-	adminSvc := &admin.Service{Registry: reg, Store: postgres.NewAdminStore(pool), Explain: explainSvc}
+	adminSvc := &admin.Service{Registry: reg, Store: postgres.NewAdminStore(pool), Explain: explainSvc, RegionID: region.ID}
 	return apphttp.NewRouter(reg, postgres.NewAgentStore(pool, reg.Rules()), roomSvc, cabinet,
 		apphttp.WithSearch(searchSvc), apphttp.WithChat(chat), apphttp.WithGuestFlow(guest), apphttp.WithDialogExamples(examples),
 		apphttp.WithLLMMode(llmMode(cfg), cfg.LLMModel), apphttp.WithAdmin(adminSvc, explainSvc),

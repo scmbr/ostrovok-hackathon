@@ -2,14 +2,23 @@ import { useEffect, useRef, useState } from 'react'
 import type { CharacteristicDraft, Job } from '@/shared/api'
 import { ApiError } from '@/shared/api'
 import { Badge, Button, Card, ErrorNote, Notice } from '@/shared/ui'
-import { resetCharacteristics } from '@/entities/fact'
-import { computeCharacteristic, draftCharacteristic, getJob, saveCharacteristic } from '../api/addApi'
+import { getCharacteristics, resetCharacteristics } from '@/entities/fact'
+import { computeCharacteristic, draftCharacteristic, getJob, getLlmMode, saveCharacteristic } from '../api/addApi'
 
-const EXAMPLES = ['есть ли рядом круглосуточный магазин', 'есть ли рядом круглосуточная аптека', 'можно ли с собакой']
+// Первые формулировки встроенных заготовок кеша (backend/internal/adapter/llm/cache/*.yaml) и ключи их характеристик:
+// без LLM ответ есть только на них.
+const EXAMPLES = [
+  { text: 'есть ли рядом круглосуточный магазин', key: 'night_shop' },
+  { text: 'есть ли рядом круглосуточная аптека', key: 'night_pharmacy' },
+  { text: 'можно ли с собакой', key: 'pets_allowed' },
+  { text: 'затемняющие шторы', key: 'blackout_curtains' },
+]
 
 interface Props {
   // Реестр на сервере изменился: список нужно перечитать.
   onSaved: () => void
+  // Предзаполненное описание (например, из журнала неизвестных пожеланий); ничего не создаёт само.
+  initialText?: string
 }
 
 function JobBar({ job }: { job: Job }) {
@@ -41,8 +50,8 @@ function JobBar({ job }: { job: Job }) {
 
 // Добавление характеристики текстом без пересборки: текст → предпросмотр YAML с проверкой → сохранить → посчитать для
 // демо-отелей. Синонимы для разбора запроса гостя без модели предлагает код, их можно править.
-export function AddCharacteristic({ onSaved }: Props) {
-  const [text, setText] = useState('')
+export function AddCharacteristic({ onSaved, initialText = '' }: Props) {
+  const [text, setText] = useState(initialText)
   const [draft, setDraft] = useState<CharacteristicDraft | null>(null)
   const [yaml, setYaml] = useState('')
   const [errors, setErrors] = useState<string[]>([])
@@ -50,7 +59,17 @@ export function AddCharacteristic({ onSaved }: Props) {
   const [busy, setBusy] = useState(false)
   const [savedKey, setSavedKey] = useState<string | null>(null)
   const [job, setJob] = useState<Job | null>(null)
+  const [cacheMode, setCacheMode] = useState(false)
+  // Ключи характеристик, которые уже есть в реестре: их заготовки не предлагаем.
+  const [existing, setExisting] = useState<Set<string>>(new Set())
   const timer = useRef<number | null>(null)
+
+  useEffect(() => {
+    getLlmMode().then((m) => setCacheMode(m === 'cache'), () => {})
+    getCharacteristics().then((cs) => setExisting(new Set(cs.map((c) => c.key))), () => {})
+  }, [])
+
+  const available = EXAMPLES.filter((x) => !existing.has(x.key))
 
   useEffect(() => () => void (timer.current && window.clearTimeout(timer.current)), [])
 
@@ -90,6 +109,7 @@ export function AddCharacteristic({ onSaved }: Props) {
     try {
       const r = await saveCharacteristic(yaml)
       resetCharacteristics()
+      setExisting((prev) => new Set(prev).add(r.key))
       setSavedKey(r.key)
       onSaved()
     } catch (e) {
@@ -138,13 +158,23 @@ export function AddCharacteristic({ onSaved }: Props) {
           Предпросмотр
         </Button>
       </div>
-      <div className="mt-1 flex flex-wrap gap-2 text-xs">
-        {EXAMPLES.map((x) => (
-          <button key={x} type="button" className="text-sky-800 hover:underline" onClick={() => setText(x)}>
-            {x}
-          </button>
-        ))}
-      </div>
+      {cacheMode ? (
+        available.length > 0 ? (
+          <>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-slate-600">В режиме без LLM доступны:</span>
+              {available.map((x) => (
+                <button key={x.key} type="button" className="text-sky-800 hover:underline" onClick={() => setText(x.text)}>
+                  {x.text}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Без ключа LLM черновик есть только для этих формулировок; выбор подставляет точный текст заготовки.</p>
+          </>
+        ) : (
+          <p className="mt-1 text-xs text-slate-500">Заготовки без LLM исчерпаны, для своих описаний нужен ключ.</p>
+        )
+      ) : null}
 
       {error && (
         <div className="mt-2">

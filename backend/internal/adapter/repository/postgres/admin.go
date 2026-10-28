@@ -225,3 +225,24 @@ SELECT (SELECT count(*) FROM conflicts WHERE status = 'open'),
 	err = s.pool.QueryRow(ctx, `SELECT count(DISTINCT hotel_id) FROM hotelier_questions WHERE hotel_id IN (SELECT id FROM hotels WHERE demo)`).Scan(&sm.HotelsAsked)
 	return sm, err
 }
+
+// UnmetWishes — желания гостей, которых нет в реестре: частые первыми, затем свежие.
+func (s *AdminStore) UnmetWishes(ctx context.Context, regionID int64, limit int) ([]admin.UnmetWish, error) {
+	rows, err := s.pool.Query(ctx, `
+SELECT text, normalized, count, first_seen, last_seen, proposal
+FROM unmet_wishes WHERE region_id = $1
+ORDER BY count DESC, last_seen DESC, id LIMIT $2`, regionID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []admin.UnmetWish
+	for rows.Next() {
+		var w admin.UnmetWish
+		if err := rows.Scan(&w.Text, &w.Normalized, &w.Count, &w.FirstSeen, &w.LastSeen, &w.Proposal); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
