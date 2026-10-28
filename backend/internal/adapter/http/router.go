@@ -62,6 +62,7 @@ func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms Room
 		mux.Handle("GET /api/admin/runs/{session}", handleAdminRun(deps.admin))
 		mux.Handle("GET /api/admin/conflicts", handleAdminConflicts(deps.admin))
 		mux.Handle("GET /api/admin/summary", handleAdminSummary(deps.admin, reg))
+		mux.Handle("GET /api/admin/unmet-wishes", handleAdminUnmetWishes(deps.admin))
 	}
 	if deps.registryAdmin != nil {
 		mux.Handle("POST /api/admin/characteristics/draft", handleCharacteristicDraft(deps.registryAdmin, deps.llmMode))

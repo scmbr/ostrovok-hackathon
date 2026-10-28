@@ -80,6 +80,15 @@ type Store interface {
 	Tasks(ctx context.Context, hotelID int64, limit int) ([]Task, error)
 	StaleFacts(ctx context.Context, hotelID int64, limit int) ([]StaleFact, error)
 	Summary(ctx context.Context) (Summary, error)
+	UnmetWishes(ctx context.Context, regionID int64, limit int) ([]UnmetWish, error)
+}
+
+// UnmetWish — строка журнала желаний, которых нет в реестре. Proposal — сырой JSON предложения новой характеристики.
+type UnmetWish struct {
+	Text, Normalized    string
+	Count               int
+	FirstSeen, LastSeen time.Time
+	Proposal            []byte
 }
 
 // Coverage — покрытие характеристики: у скольких демо-отелей есть активный факт уровня отеля и какая у них уверенность.
@@ -107,6 +116,8 @@ type Service struct {
 	Registry domain.Registry
 	Store    Store
 	Explain  *explain.Service
+	// RegionID — регион журнала неизвестных пожеланий.
+	RegionID int64
 }
 
 // SideEvidence — свидетельство на стороне спора.
@@ -230,3 +241,8 @@ func (s *Service) StaleFacts(ctx context.Context, hotelID int64, limit int) ([]S
 
 // Summary — счётчики для сводки «под капотом».
 func (s *Service) Summary(ctx context.Context) (Summary, error) { return s.Store.Summary(ctx) }
+
+// UnmetWishes — журнал неизвестных пожеланий региона, частые первыми.
+func (s *Service) UnmetWishes(ctx context.Context, limit int) ([]UnmetWish, error) {
+	return s.Store.UnmetWishes(ctx, s.RegionID, limit)
+}

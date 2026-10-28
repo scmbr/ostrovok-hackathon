@@ -10,6 +10,8 @@ const EXAMPLES = ['есть ли рядом круглосуточный маг�
 interface Props {
   // Реестр на сервере изменился: список нужно перечитать.
   onSaved: () => void
+  // Предзаполненное описание (например, из журнала неизвестных пожеланий); ничего не создаёт само.
+  initialText?: string
 }
 
 function JobBar({ job }: { job: Job }) {
@@ -41,8 +43,8 @@ function JobBar({ job }: { job: Job }) {
 
 // Добавление характеристики текстом без пересборки: текст → предпросмотр YAML с проверкой → сохранить → посчитать для
 // демо-отелей. Синонимы для разбора запроса гостя без модели предлагает код, их можно править.
-export function AddCharacteristic({ onSaved }: Props) {
-  const [text, setText] = useState('')
+export function AddCharacteristic({ onSaved, initialText = '' }: Props) {
+  const [text, setText] = useState(initialText)
   const [draft, setDraft] = useState<CharacteristicDraft | null>(null)
   const [yaml, setYaml] = useState('')
   const [errors, setErrors] = useState<string[]>([])

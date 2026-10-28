@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -22,6 +23,7 @@ type AdminSource interface {
 	Tasks(ctx context.Context, hotelID int64, limit int) ([]admin.Task, error)
 	StaleFacts(ctx context.Context, hotelID int64, limit int) ([]admin.StaleFact, error)
 	Summary(ctx context.Context) (admin.Summary, error)
+	UnmetWishes(ctx context.Context, limit int) ([]admin.UnmetWish, error)
 }
 
 // ExplainSource — порт разбора фактов на свидетельства (usecase/explain.Service).
@@ -355,6 +357,43 @@ func handleAdminSummary(src AdminSource, reg domain.Registry) http.HandlerFunc {
 		}
 		for _, c := range sm.Coverage {
 			out.Coverage = append(out.Coverage, coverageDTO{Key: titleOf(reg, c.Key), Hotels: c.Hotels, AvgConfidence: round3(c.AvgConfidence), LowConfidence: c.LowConfidence})
+		}
+		writeJSON(w, http.StatusOK, out)
+	}
+}
+
+type unmetWishDTO struct {
+	Text       string          `json:"text"`
+	Normalized string          `json:"normalized"`
+	Count      int             `json:"count"`
+	FirstSeen  time.Time       `json:"first_seen"`
+	LastSeen   time.Time       `json:"last_seen"`
+	Proposal   json.RawMessage `json:"proposal"`
+}
+
+func handleAdminUnmetWishes(src AdminSource) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit, ok := optInt(w, r, "limit")
+		if !ok {
+			return
+		}
+		if limit == 0 || limit > 200 {
+			limit = 100
+		}
+		ws, err := src.UnmetWishes(r.Context(), int(limit))
+		if err != nil {
+			adminError(w, "неизвестные пожелания", err)
+			return
+		}
+		out := struct {
+			Wishes []unmetWishDTO `json:"wishes"`
+		}{Wishes: []unmetWishDTO{}}
+		for _, x := range ws {
+			d := unmetWishDTO{Text: x.Text, Normalized: x.Normalized, Count: x.Count, FirstSeen: x.FirstSeen, LastSeen: x.LastSeen, Proposal: json.RawMessage("null")}
+			if len(x.Proposal) > 0 {
+				d.Proposal = x.Proposal
+			}
+			out.Wishes = append(out.Wishes, d)
 		}
 		writeJSON(w, http.StatusOK, out)
 	}
