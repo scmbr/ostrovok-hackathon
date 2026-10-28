@@ -66,6 +66,35 @@ export interface WishEval {
   observed_at?: string
   valid_until?: string
   sources: Source[]
+  /** Ближайшее заведение для желаний «рядом с …» (near_poi.*); у остальных желаний поля нет. */
+  nearby?: Nearby
+}
+
+/** Ближайшее заведение по OSM: расстояние по прямой, точка; name бывает пустым. */
+export interface Nearby {
+  kind: string
+  label: string
+  name?: string
+  lat: number
+  lon: number
+  distance_m: number
+}
+
+/** Тип заведения для карты: подпись, значок и цвет из словаря бэкенда; found=false — в радиусе поиска не нашли. */
+export interface NearbyItem {
+  id: string
+  title: string
+  label: string
+  icon: string
+  color: string
+  found: boolean
+  nearby?: Nearby
+}
+
+export interface NearbyResponse {
+  hotel_id: number
+  radius_m: number
+  items: NearbyItem[]
 }
 
 export interface Variant {

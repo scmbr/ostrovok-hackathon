@@ -13,8 +13,14 @@ export function WishRow({ wish }: { wish: WishEval }) {
         <span className="font-medium">{wish.title}</span>
         {wish.importance === 'must' && <span className="text-xs text-ink-muted">обязательно</span>}
         <WishBadge wish={wish} />
-        {wish.value !== undefined && wish.value !== null && wish.status !== 'unknown' && (
-          <span className="text-ink">{typeof wish.value === 'object' ? '' : valueLabel(wish.key, wish.value)}</span>
+        {wish.nearby ? (
+          <span className="text-ink">
+            {wish.nearby.label} в {wish.nearby.distance_m} м
+          </span>
+        ) : (
+          wish.value !== undefined &&
+          wish.value !== null &&
+          wish.status !== 'unknown' && <span className="text-ink">{typeof wish.value === 'object' ? '' : valueLabel(wish.key, wish.value)}</span>
         )}
         {hasDetails && (
           <button type="button" className="ml-auto text-xs text-brand-link hover:underline" onClick={() => setOpen(!open)}>

@@ -1,4 +1,5 @@
-export { getHotel, getSimilar, listDemoHotels, lookupHotels } from './api/hotelApi'
+export { getHotel, getNearby, getSimilar, listDemoHotels, lookupHotels } from './api/hotelApi'
+export { nearbyTypes } from './lib/nearby'
 export { WishBadge } from './ui/WishBadge'
 export { WishRow } from './ui/WishRow'
 export { HotelResultCard } from './ui/HotelResultCard'
