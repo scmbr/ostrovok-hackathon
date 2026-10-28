@@ -78,12 +78,15 @@ type lexEntry struct {
 	hasValue bool
 	amb      []Interpretation // не пусто — фраза неоднозначна
 	phrase   string
+	poi      bool // тип заведения из словаря registry/poi_kinds.yaml, а не характеристика реестра
 }
 
 // Lexicon — словарь фраз, построенный по реестру.
 type Lexicon struct {
 	reg     Registry
 	entries []lexEntry
+	// poiEntries — фразы типов заведений: разбираются после реестра, только по словам, которые реестр не взял.
+	poiEntries []lexEntry
 }
 
 // NewLexicon строит словарь по synonyms, value_synonyms и ambiguous_synonyms реестра. Длинные фразы идут первыми.
@@ -132,13 +135,24 @@ func NewLexicon(reg Registry) Lexicon {
 	for _, p := range ambOrder {
 		l.entries = append(l.entries, *amb[p])
 	}
-	sort.SliceStable(l.entries, func(i, j int) bool {
-		a, b := l.entries[i], l.entries[j]
-		if len(a.words) != len(b.words) {
-			return len(a.words) > len(b.words)
+	for _, k := range reg.poi.items {
+		for _, p := range k.Synonyms {
+			if w := PhraseWords(p); len(w) > 0 {
+				l.poiEntries = append(l.poiEntries, lexEntry{words: w, key: NearPoiKey(k.ID), phrase: strings.Join(w, " "), poi: true})
+			}
 		}
-		return len(strings.Join(a.words, "")) > len(strings.Join(b.words, ""))
-	})
+	}
+	byLength := func(es []lexEntry) {
+		sort.SliceStable(es, func(i, j int) bool {
+			a, b := es[i], es[j]
+			if len(a.words) != len(b.words) {
+				return len(a.words) > len(b.words)
+			}
+			return len(strings.Join(a.words, "")) > len(strings.Join(b.words, ""))
+		})
+	}
+	byLength(l.entries)
+	byLength(l.poiEntries)
 	return l
 }
 
@@ -369,6 +383,23 @@ func (l Lexicon) Parse(text string) ParseResult {
 			case negVerbs[p.prev(from, 1)] && p.prev(from, 2) == "не" && from > 1:
 				neg, from = true, from-2
 			}
+			if e.poi {
+				if poiNearHours(p, i, n) {
+					continue // «круглосуточное кафе», «бар, открытый ночью»: часы работы — не тип заведения
+				}
+				// Границы фразы считаются заново: общий разбор отрицания выше не знал о прилагательных типа.
+				// «ночных клубов»: прилагательное входит во фразу и не попадает в неразобранное.
+				from, neg = i, false
+				for from > 0 && !p.consumed[from-1] && anyMatches(l.reg.poi.Fillers, p.tokens[from-1]) {
+					from--
+				}
+				switch {
+				case from > 0 && negators[p.prev(from, 1)]:
+					neg, from = true, from-1
+				case negVerbs[p.prev(from, 1)] && p.prev(from, 2) == "не" && from > 1:
+					neg, from = true, from-2
+				}
+			}
 			phrase := strings.Join(p.tokens[i:i+n], " ")
 			p.mark(from, i+n)
 			if e.amb != nil {
@@ -442,6 +473,9 @@ func (l Lexicon) Parse(text string) ParseResult {
 			if _, taken := numberOf[f.key]; taken {
 				continue
 			}
+			if IsNearPoiKey(f.key) && n.kind != "meters" {
+				continue // «клуб в 10 минутах» не переводим: радиус заведения задаётся в метрах
+			}
 			d := abs(f.at - n.at)
 			if f.part != numPart[ni] {
 				d += 1000
@@ -457,7 +491,12 @@ func (l Lexicon) Parse(text string) ParseResult {
 		f := ordered[best]
 		c, _ := l.reg.Get(f.key)
 		v := n.value
-		if n.kind == "meters" {
+		if IsNearPoiKey(f.key) {
+			if v > PoiRadiusM {
+				res.Notes = append(res.Notes, fmt.Sprintf("заведения известны только в радиусе %s м, беру %s м", formatNumber(PoiRadiusM), formatNumber(PoiRadiusM)))
+				v = PoiRadiusM
+			}
+		} else if n.kind == "meters" {
 			speed := strategyParam(c, "speed_m_per_min")
 			if speed <= 0 {
 				res.Notes = append(res.Notes, fmt.Sprintf("расстояние %s м не переведено в минуты для «%s» — не учтено", formatNumber(n.value), c.Title))
@@ -556,8 +595,15 @@ func strategyParam(c Characteristic, name string) float64 {
 
 // matchAt ищет фразу словаря, которая начинается с токена i и целиком лежит на неиспользованных токенах.
 func (l Lexicon) matchAt(p *part, i int) (*lexEntry, int) {
-	for ei := range l.entries {
-		e := &l.entries[ei]
+	if e, n := matchEntries(l.entries, p, i); e != nil {
+		return e, n
+	}
+	return matchEntries(l.poiEntries, p, i)
+}
+
+func matchEntries(entries []lexEntry, p *part, i int) (*lexEntry, int) {
+	for ei := range entries {
+		e := &entries[ei]
 		if i+len(e.words) > len(p.tokens) {
 			continue
 		}
@@ -573,6 +619,19 @@ func (l Lexicon) matchAt(p *part, i int) (*lexEntry, int) {
 		}
 	}
 	return nil, 0
+}
+
+// hoursWords — слова о часах работы: фраза с ними не про тип заведения, а про «открыто ночью» (характеристики реестра).
+var hoursWords = []string{"круглосуточный", "открытый", "работающий"}
+
+// poiNearHours сообщает, что слева или справа от фразы типа заведения стоит слово о часах работы.
+func poiNearHours(p *part, i, n int) bool {
+	for _, j := range []int{i - 1, i + n} {
+		if j >= 0 && j < len(p.tokens) && anyMatches(hoursWords, p.tokens[j]) {
+			return true
+		}
+	}
+	return false
 }
 
 // parseNumerics находит числа с единицами («до 150 €», «с 4-го этажа», «10 минут», «500 метров», «4 звезды») и помечает их.

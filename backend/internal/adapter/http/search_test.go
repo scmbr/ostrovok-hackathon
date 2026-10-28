@@ -131,3 +131,7 @@ func TestSearchRoutesAbsentWithoutService(t *testing.T) {
 		t.Error("без сервиса поиска маршрута нет")
 	}
 }
+
+func (f *fakeSearch) Nearby(context.Context, int64, []string) ([]search.NearbyType, error) {
+	return nil, f.err
+}

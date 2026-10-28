@@ -11,6 +11,9 @@ import (
 
 // ExplainWish — одна строка объяснения по желанию: что совпало, что под вопросом и откуда известно.
 func ExplainWish(c Characteristic, e WishEval) string {
+	if IsNearPoiKey(c.Key) {
+		return explainNearPoi(c, e)
+	}
 	title := c.Title
 	if title == "" {
 		title = c.Key

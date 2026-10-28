@@ -17,6 +17,11 @@ func LoadRegistry() (domain.Registry, error) {
 	if err != nil {
 		return domain.Registry{}, fmt.Errorf("реестр характеристик: %w", err)
 	}
+	poi, err := adapterregistry.LoadPoi(registry.FS)
+	if err != nil {
+		return domain.Registry{}, fmt.Errorf("словарь заведений: %w", err)
+	}
+	reg = reg.WithPoi(poi)
 	if err := usecaseregistry.Validate(reg, compute.Specs); err != nil {
 		return domain.Registry{}, fmt.Errorf("реестр характеристик: %w", err)
 	}
@@ -48,6 +53,7 @@ func LoadRegistryWith(rows []usecaseregistry.CustomRow) (domain.Registry, error)
 	if err != nil {
 		return domain.Registry{}, fmt.Errorf("реестр характеристик: %w", err)
 	}
+	reg = reg.WithPoi(base.Poi())
 	if err := usecaseregistry.Validate(reg, compute.Specs); err != nil {
 		return domain.Registry{}, fmt.Errorf("реестр характеристик: %w", err)
 	}

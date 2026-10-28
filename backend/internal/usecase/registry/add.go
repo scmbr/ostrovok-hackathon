@@ -86,6 +86,7 @@ func (a *Adder) accept(answer string) (domain.Characteristic, []string, error) {
 	if err != nil {
 		return domain.Characteristic{}, nil, err
 	}
+	merged = merged.WithPoi(a.Registry.Poi())
 	if err := Validate(merged, a.Tools); err != nil {
 		return domain.Characteristic{}, nil, err
 	}

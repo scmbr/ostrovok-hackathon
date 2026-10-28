@@ -186,6 +186,8 @@ func (c Characteristic) TruthParams() TruthParams {
 type Registry struct {
 	items []Characteristic
 	index map[string]int
+	// poi — словарь типов заведений: Get отдаёт по нему виртуальные характеристики near_poi.*, All их не включает.
+	poi PoiDict
 }
 
 // NewRegistry собирает реестр; ключи должны быть уникальны. Содержательная проверка — в usecase/registry.
@@ -207,6 +209,9 @@ func (r Registry) All() []Characteristic { return append([]Characteristic(nil), 
 func (r Registry) Get(key string) (Characteristic, bool) {
 	i, ok := r.index[key]
 	if !ok {
+		if k, found := r.poi.ByKey(key); found {
+			return k.Characteristic(), true
+		}
 		return Characteristic{}, false
 	}
 	return r.items[i], true

@@ -131,6 +131,7 @@ func (a *Authoring) check(reg domain.Registry, c domain.Characteristic) []string
 	// Действующий реестр уже прошёл Validate, поэтому любая ошибка общей проверки — следствие новой характеристики
 	// (например, пересечение её синонимов с чужими).
 	if merged, err := domain.NewRegistry(append(reg.All(), c)); err == nil {
+		merged = merged.WithPoi(reg.Poi())
 		if err := Validate(merged, a.Tools); err != nil {
 			for _, m := range splitErrors(err) {
 				if !contains(out, m) {
