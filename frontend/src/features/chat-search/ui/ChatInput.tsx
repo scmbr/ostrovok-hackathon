@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { Button } from '@/shared/ui'
-import { send, useChat } from '../model/store'
+import { submit as submitMessage, useChat } from '../model/store'
 
 // footer — нижняя строка контейнера поиска (даты проживания); фича не знает, что в ней: слайсы друг друга не импортируют.
 export function ChatInput({ footer }: { footer?: ReactNode }) {
@@ -12,11 +12,14 @@ export function ChatInput({ footer }: { footer?: ReactNode }) {
     const message = text.trim()
     if (!message || busy) return
     setText('')
-    void send({ message })
+    void submitMessage(message)
   }
   return (
     <form onSubmit={submit} className="rounded-card bg-surface p-1.5 ring-1 ring-line focus-within:ring-brand">
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
+        <span className="shrink-0 rounded-inner bg-brand-tint px-2 py-1 text-caption font-medium text-brand-link" title="Данные собраны только по Барселоне">
+          Барселона
+        </span>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
