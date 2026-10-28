@@ -302,6 +302,8 @@ export interface Category {
   id: number
   name: string
   rooms_count: number
+  /** Мок: цена карточки × множитель по названию; есть только в карточке отеля. */
+  price_eur?: number
   placements: Placement[]
   characteristics: CategoryChar[]
 }
@@ -319,6 +321,8 @@ export interface HotelCardData {
   lat: number
   lon: number
   card: Card
+  /** Ближайшая именованная улица по OSM; точного адреса в данных нет, approx всегда true. */
+  address: { street?: string; approx: boolean }
   facts: Fact[]
   rooms: Rooms | null
 }

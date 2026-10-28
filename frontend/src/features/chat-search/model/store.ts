@@ -9,6 +9,7 @@ import type {
   Query,
   LookupHotel,
   ResultsEvent,
+  SearchHotel,
   SseEvent,
   StepEvent,
 } from '@/shared/api'
@@ -249,14 +250,15 @@ export function nextExampleStep(s: State): string | null {
   return s.example && s.cursor < s.example.next.length ? s.example.next[s.cursor] : null
 }
 
-// Последняя выдача поиска и её запрос: из неё берутся желания для сравнения, контракта и брони.
-export function lastSearch(s: State): { query: Query; hotelIds: number[] } | null {
+// Последняя выдача поиска и её запрос: из неё берутся желания для сравнения, контракта и брони, статусы желаний на карточке отеля.
+export function lastSearch(s: State): { query: Query; hotelIds: number[]; hotels: SearchHotel[] } | null {
   for (let i = s.turns.length - 1; i >= 0; i--) {
     const t = s.turns[i]
     if (t.kind === 'agent' && t.results) {
       const r = t.results
       const ids = r.kind === 'similar' ? (r.similar ?? []).map((h) => h.id) : (r.hotels ?? []).map((h) => h.hotel_id)
-      return { query: r.query, hotelIds: ids }
+      const hotels = r.kind === 'similar' ? [] : [...(r.hotels ?? []), ...(r.groups ?? []).flatMap((g) => g.hotels)]
+      return { query: r.query, hotelIds: ids, hotels }
     }
   }
   return null

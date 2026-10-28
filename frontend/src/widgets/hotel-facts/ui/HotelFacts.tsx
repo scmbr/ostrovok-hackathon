@@ -1,126 +1,73 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { Category, Characteristic, Desire, HotelCardData } from '@/shared/api'
-import { Badge, Button, Card } from '@/shared/ui'
-import { pct } from '@/shared/lib'
-import { FactCard, getCharacteristics } from '@/entities/fact'
-import { compareCategoriesHref } from '@/features/compare-hotels'
+import type { Characteristic, Desire, Fact, HotelCardData, WishEval, WishStatus } from '@/shared/api'
+import { FactRow, getCharacteristics } from '@/entities/fact'
+import type { RowTone } from '@/entities/fact'
 import { useStayDates } from '@/features/stay-dates'
 import type { ContractTarget } from '@/features/book-with-wish'
+import { RoomsTable } from './RoomsTable'
 
 interface Props {
   hotel: HotelCardData
   wishes?: Desire[]
+  // Оценка желаний для этого отеля из последней выдачи поиска; без неё точки нейтральные.
+  evals?: WishEval[]
   onBook: (t: ContractTarget) => void
 }
 
-function CategoryBlock({ cat, selected, onToggle, onBook }: { cat: Category; selected: boolean; onToggle: () => void; onBook: () => void }) {
-  return (
-    <Card>
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-semibold">{cat.name}</h3>
-        <span className="text-xs text-ink-muted">{cat.rooms_count} номеров</span>
-        <label className="ml-auto flex items-center gap-1 text-xs text-ink">
-          <input type="checkbox" checked={selected} onChange={onToggle} /> в сравнение
-        </label>
-        <Button small variant="primary" onClick={onBook}>
-          Контракт и бронь
-        </Button>
-      </div>
-      <div className="mt-3 space-y-2">
-        {cat.characteristics.map((c) => (
-          <div key={c.key} className="rounded-inner bg-surface-muted p-2 text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{c.title}</span>
-              <span>
-                {c.target}: {pct(c.probability)} номеров
-              </span>
-              {c.guarantee ? <Badge tone="green">гарантия</Badge> : <Badge tone="blue">шанс {pct(c.probability)}</Badge>}
-              {c.unknown > 0 && <Badge tone="gray">данных нет у {pct(c.unknown)}</Badge>}
-            </div>
-            {c.wish && (
-              <p className="mt-0.5 text-xs text-ink">
-                Пожелание к брони: <b>{c.wish.text}</b> ({c.wish.rooms.toFixed(1)} номеров, {pct(c.wish.share)})
-              </p>
-            )}
-            {c.fact && (
-              <div className="mt-2">
-                <FactCard
-                  charKey={c.key}
-                  fact={{ ...c.fact, title: `Итог по категории: ${c.title}`, observed_at: c.fact.evidence[0]?.observed_at }}
-                />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </Card>
-  )
+const STATUS_TONE: Record<WishStatus, RowTone> = {
+  match: 'ok',
+  chance: 'warn',
+  near: 'warn',
+  uncertain: 'warn',
+  unknown: 'warn',
+  mismatch: 'bad',
 }
 
-// Страница отеля: факты с «откуда известно» и категории номеров с вероятностью и гарантией.
-export function HotelFacts({ hotel, wishes, onBook }: Props) {
+// Страница отеля: «Главное для вас» (по желаниям сессии), остальные характеристики и номера.
+export function HotelFacts({ hotel, wishes, evals, onBook }: Props) {
   const [registry, setRegistry] = useState<Characteristic[]>([])
-  const [picked, setPicked] = useState<number[]>([])
   const { stay } = useStayDates()
   useEffect(() => {
     getCharacteristics().then(setRegistry, () => setRegistry([]))
   }, [])
   const field = (key: string) => registry.find((c) => c.key === key)?.value_field
 
-  const toggle = (id: number) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))
-  const bookTarget = (cat: Category): ContractTarget => {
-    const w = cat.characteristics.find((c) => c.wish)?.wish
-    return {
-      hotelId: hotel.id,
-      categoryId: cat.id,
-      categoryName: cat.name,
-      wishes,
-      offer: w ? { facadeId: w.facade_id, floorFrom: w.min_floor, text: w.text } : undefined,
-    }
+  const wishKeys = (wishes ?? []).map((w) => w.key)
+  const main = wishKeys.flatMap((k) => hotel.facts.filter((f) => f.key === k))
+  const rest = hotel.facts.filter((f) => !wishKeys.includes(f.key))
+
+  // В «Главном» цвет — совпало ли с желанием; спор источников красит точку всегда.
+  const toneOf = (f: Fact): RowTone => {
+    if (f.conflict) return 'bad'
+    const ev = evals?.find((e) => e.key === f.key)
+    return ev ? STATUS_TONE[ev.status] : 'neutral'
   }
+  const row = (f: Fact, tone: RowTone) => <FactRow key={f.id} fact={f} charKey={f.key} valueField={field(f.key)} tone={tone} stay={stay} />
 
   return (
-    <div className="space-y-6">
-      <section>
-        <h2 className="mb-2 text-lg font-semibold">Что система знает об отеле</h2>
-        <p className="mb-3 text-xs text-ink-muted">
-          Каждое значение посчитано по открытым данным или со слов отельера и гостей; ниже — источники, их вклад и срок годности.
-        </p>
-        <div className="grid gap-2 md:grid-cols-2">
-          {hotel.facts.map((f) => (
-            <FactCard key={f.id} fact={f} valueField={field(f.key)} charKey={f.key} stay={stay} />
-          ))}
-        </div>
-      </section>
-
-      {hotel.rooms && (
-        <section>
-          <div className="mb-2 flex flex-wrap items-center gap-3">
-            <h2 className="text-lg font-semibold">Категории номеров</h2>
-            {picked.length >= 2 && (
-              <Link
-                to={compareCategoriesHref(hotel.id, picked)}
-                className="rounded-inner bg-brand px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
-              >
-                Сравнить выбранные ({picked.length})
-              </Link>
-            )}
-            {picked.length < 2 && <span className="text-xs text-ink-muted">Отметьте две категории, чтобы сравнить</span>}
-          </div>
-          <div className="space-y-3">
-            {hotel.rooms.categories.map((c) => (
-              <CategoryBlock
-                key={c.id}
-                cat={c}
-                selected={picked.includes(c.id)}
-                onToggle={() => toggle(c.id)}
-                onBook={() => onBook(bookTarget(c))}
-              />
-            ))}
-          </div>
+    <div className="space-y-5">
+      {main.length > 0 && (
+        <section className="rounded-card bg-surface p-4">
+          <h2 className="text-lg font-semibold">Главное для вас</h2>
+          <ul className="mt-1 divide-y divide-line">{main.map((f) => row(f, toneOf(f)))}</ul>
         </section>
       )}
+
+      <details className="rounded-card bg-surface p-4" open={main.length === 0}>
+        <summary className="cursor-pointer text-lg font-semibold">Остальные характеристики ({rest.length})</summary>
+        <ul className="mt-1 divide-y divide-line">{rest.map((f) => row(f, f.conflict ? 'bad' : 'neutral'))}</ul>
+      </details>
+
+      <RoomsTable hotel={hotel} wishes={wishes} onBook={onBook} />
+
+      <p className="text-xs text-ink-muted">
+        Методы и идентификаторы свидетельств —{' '}
+        <Link to="/admin?role=admin" className="text-brand-link hover:underline">
+          под капотом
+        </Link>
+        .
+      </p>
     </div>
   )
 }
