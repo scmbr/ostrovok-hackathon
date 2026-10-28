@@ -5,6 +5,7 @@ import { Badge, Button, Card } from '@/shared/ui'
 import { pct } from '@/shared/lib'
 import { FactCard, getCharacteristics } from '@/entities/fact'
 import { compareCategoriesHref } from '@/features/compare-hotels'
+import { useStayDates } from '@/features/stay-dates'
 import type { ContractTarget } from '@/features/book-with-wish'
 
 interface Props {
@@ -61,6 +62,7 @@ function CategoryBlock({ cat, selected, onToggle, onBook }: { cat: Category; sel
 export function HotelFacts({ hotel, wishes, onBook }: Props) {
   const [registry, setRegistry] = useState<Characteristic[]>([])
   const [picked, setPicked] = useState<number[]>([])
+  const { stay } = useStayDates()
   useEffect(() => {
     getCharacteristics().then(setRegistry, () => setRegistry([]))
   }, [])
@@ -87,7 +89,7 @@ export function HotelFacts({ hotel, wishes, onBook }: Props) {
         </p>
         <div className="grid gap-2 md:grid-cols-2">
           {hotel.facts.map((f) => (
-            <FactCard key={f.id} fact={f} valueField={field(f.key)} charKey={f.key} />
+            <FactCard key={f.id} fact={f} valueField={field(f.key)} charKey={f.key} stay={stay} />
           ))}
         </div>
       </section>

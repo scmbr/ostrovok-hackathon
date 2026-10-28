@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { Explanation, SearchHotel, Variant } from '@/shared/api'
 import { Card, Icon } from '@/shared/ui'
-import { pct } from '@/shared/lib'
+import { nightsWord, pct } from '@/shared/lib'
 import { WishRow } from './WishRow'
 import { HotelThumb, RoomThumb } from './HotelPhoto'
 
@@ -14,9 +14,11 @@ interface Props {
   actions?: ReactNode
   // Кнопки варианта номера (контракт, бронь).
   variantActions?: (v: Variant) => ReactNode
+  // Число ночей выбранных дат: цена показывается за весь срок.
+  nights?: number
 }
 
-function VariantBlock({ v, title, actions }: { v: Variant; title: string; actions?: ReactNode }) {
+function VariantBlock({ v, title, actions, nights }: { v: Variant; title: string; actions?: ReactNode; nights?: number }) {
   return (
     <div className="mt-3 rounded-inner bg-surface-muted p-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -24,7 +26,18 @@ function VariantBlock({ v, title, actions }: { v: Variant; title: string; action
         <span className="text-xs uppercase tracking-wide text-ink-muted">{title}</span>
         <b>{v.name}</b>
         <span className="text-price" title="Цена — мок: базовая карточка Островка заменена генератором">
-          {v.price_eur} €<span className="ml-1 text-caption font-normal text-ink-muted">за ночь</span>
+          {nights && nights > 0 ? (
+            <>
+              {v.price_eur * nights} €
+              <span className="ml-1 text-caption font-normal text-ink-muted">
+                за {nights} {nightsWord(nights)} · {v.price_eur} € за ночь
+              </span>
+            </>
+          ) : (
+            <>
+              {v.price_eur} €<span className="ml-1 text-caption font-normal text-ink-muted">за ночь</span>
+            </>
+          )}
         </span>
         {v.guaranteed && (
           <span className="inline-flex items-center gap-1 rounded-sm bg-grad-promo px-2 py-0.5 text-caption font-medium text-ink">
@@ -43,7 +56,7 @@ function VariantBlock({ v, title, actions }: { v: Variant; title: string; action
   )
 }
 
-export function HotelResultCard({ hotel, explanation, highlighted, onHover, actions, variantActions }: Props) {
+export function HotelResultCard({ hotel, explanation, highlighted, onHover, actions, variantActions, nights }: Props) {
   return (
     <div onMouseEnter={() => onHover?.(hotel.hotel_id)} onMouseLeave={() => onHover?.(null)}>
       <Card className={`!p-1 ${highlighted ? 'ring-2 ring-brand' : ''}`}>
@@ -61,9 +74,9 @@ export function HotelResultCard({ hotel, explanation, highlighted, onHover, acti
           </div>
         </div>
 
-        <VariantBlock v={hotel.best} title="лучший вариант" actions={variantActions?.(hotel.best)} />
+        <VariantBlock v={hotel.best} title="лучший вариант" actions={variantActions?.(hotel.best)} nights={nights} />
         {hotel.alternative && (
-          <VariantBlock v={hotel.alternative} title="альтернатива" actions={variantActions?.(hotel.alternative)} />
+          <VariantBlock v={hotel.alternative} title="альтернатива" actions={variantActions?.(hotel.alternative)} nights={nights} />
         )}
 
         {hotel.other_conflicts.map((c) => (

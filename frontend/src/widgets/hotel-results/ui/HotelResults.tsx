@@ -5,6 +5,7 @@ import { HotelResultCard, SimilarList } from '@/entities/hotel'
 import { ShortlistButton } from '@/features/shortlist'
 import { FindSimilarButton } from '@/features/find-similar'
 import { compareCategoriesHref } from '@/features/compare-hotels'
+import { useStayDates } from '@/features/stay-dates'
 import type { ContractTarget } from '@/features/book-with-wish'
 
 interface Props {
@@ -37,6 +38,7 @@ function targetOf(hotel: SearchHotel, v: Variant, results: ResultsEvent): Contra
 
 // Выдача по группам: «полностью», «под вопросом», блоки «всё, кроме X». Тексты объяснений приходят с сервера готовыми.
 export function HotelResults({ results, highlightId, onHover, onBook }: Props) {
+  const { stay } = useStayDates()
   if (results.kind === 'similar') {
     return (
       <div className="space-y-2">
@@ -63,6 +65,7 @@ export function HotelResults({ results, highlightId, onHover, onBook }: Props) {
               hotel={h}
               explanation={g.explanations.find((x) => x.hotel_id === h.hotel_id)}
               highlighted={highlightId === h.hotel_id}
+              nights={stay.nights}
               onHover={onHover}
               actions={
                 <>

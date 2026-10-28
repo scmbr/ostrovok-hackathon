@@ -46,6 +46,7 @@ export function FactCard({
   charKey,
   extra,
   explain,
+  stay,
 }: {
   fact: FactLike
   valueField?: string
@@ -53,6 +54,8 @@ export function FactCard({
   extra?: ReactNode
   // «Под капотом»: разбор факта по свидетельствам (цепочка надёжности и вклады) вместо короткого списка источников.
   explain?: ExplainedFact
+  // Даты проживания: климат подсвечивает их месяцы.
+  stay?: { checkin: string; checkout: string }
 }) {
   const v = mainValue(fact.value, valueField, charKey)
   return (
@@ -66,7 +69,7 @@ export function FactCard({
         {fact.weak_disagreement && !fact.conflict && <Badge tone="amber">есть расхождение</Badge>}
         {extra}
       </div>
-      <ClimateTable value={fact.value} />
+      <ClimateTable value={fact.value} stay={stay} />
       <div className="mt-1 text-xs text-ink-muted">
         Источник: {sourceLabel(fact.source)}
         {fact.observed_at && <> · получено {formatDate(fact.observed_at)}</>}
