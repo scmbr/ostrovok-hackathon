@@ -1,5 +1,5 @@
 // Фото: свой файл, иначе запасной блок (как у иконок). Список файлов берём из attribution.json,
-// который лежит рядом с ними в public/hotels: если файла нет, glob возвращает {} и сборка не падает.
+// который лежит в src (из public JSON импортировать нельзя): если файла нет, glob возвращает {} и сборка не падает.
 // Сами картинки через glob не импортируем: из public их нельзя бандлить, они отдаются как есть.
 interface Credit {
   author: string
@@ -12,7 +12,7 @@ interface Manifest {
   rooms: Record<string, Credit>
 }
 
-const FILES = import.meta.glob('/public/hotels/attribution.json', { eager: true, import: 'default' }) as Record<
+const FILES = import.meta.glob('./attribution.json', { eager: true, import: 'default' }) as Record<
   string,
   Manifest
 >

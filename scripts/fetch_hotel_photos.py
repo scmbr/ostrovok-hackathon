@@ -6,7 +6,7 @@
 Только свободные лицензии: CC0, CC BY, CC BY-SA, Public domain. Сайты отелей не скрейпим.
 
 Результат: frontend/public/hotels/<hotel_id>/<n>.webp (<= 200 КБ) и
-frontend/public/hotels/attribution.json.
+frontend/src/entities/hotel/lib/attribution.json.
 
 Использование (из корня репозитория):
   docker exec <db> psql -U tima -At -F '|' -c \
@@ -30,6 +30,7 @@ OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.sy
 COMMONS = "https://commons.wikimedia.org/w/api.php"
 WIKIDATA = "https://www.wikidata.org/w/api.php"
 OUT = Path("frontend/public/hotels")
+MANIFEST = Path("frontend/src/entities/hotel/lib/attribution.json")  # из public JSON импортировать нельзя
 MAX_PHOTOS = 2
 MAX_SIDE = 1200
 MAX_BYTES = 200 * 1024
@@ -193,7 +194,7 @@ def main():
             attribution[str(hid)] = saved
         print(hid, name, "tags:", bool(qid), bool(com), "фото:", len(saved))
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "attribution.json").write_text(
+    MANIFEST.write_text(
         json.dumps({"hotels": attribution, "rooms": {}}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     print(f"итого: отелей с тегами {with_tag}, с фото {len(attribution)} из {len(hotels)}")
