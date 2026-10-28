@@ -21,7 +21,7 @@ export default {
         'bad-bg': '#fdecec',
       },
       fontFamily: {
-        sans: ['Brand', '"Helvetica Neue"', 'Helvetica', 'Arial', 'system-ui', 'sans-serif'],
+        sans: ['"PT Root UI"', '"Helvetica Neue"', 'Helvetica', 'Arial', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         card: '16px',
@@ -37,8 +37,8 @@ export default {
         price: ['20px', { lineHeight: '24px', fontWeight: '700' }],
         title: ['16px', { lineHeight: '22px', fontWeight: '700' }],
         button: ['16px', { lineHeight: '20px', fontWeight: '500' }],
-        body: ['14px', { lineHeight: '19px' }],
-        caption: ['12px', { lineHeight: '16px' }],
+        body: ['14px', { lineHeight: '19px', fontWeight: '400' }],
+        caption: ['12px', { lineHeight: '16px', fontWeight: '400' }],
       },
     },
   },
