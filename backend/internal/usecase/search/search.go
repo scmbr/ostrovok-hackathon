@@ -61,6 +61,15 @@ type PoiSource interface {
 	NearestPoi(ctx context.Context, hotelID int64, kinds []string, radiusM float64) (map[string]domain.NearbyPoi, error)
 }
 
+// StreetSource — ближайшая именованная улица для приблизительного адреса. Реализация — adapter/repository/postgres.
+type StreetSource interface {
+	// NearestStreet — название ближайшей именованной улицы не дальше radiusM от отеля; пустая строка — улицы нет.
+	NearestStreet(ctx context.Context, hotelID int64, radiusM float64) (string, error)
+}
+
+// StreetRadiusM — радиус поиска улицы для приблизительного адреса: дальше улица уже не «у отеля».
+const StreetRadiusM = 100
+
 // Service — поиск. Demand == nil — спрос не пишется (демо-прогоны и тесты). Poi == nil — желания near_poi.* без данных.
 type Service struct {
 	Registry domain.Registry
@@ -68,6 +77,7 @@ type Service struct {
 	Rooms    RoomsSource
 	Demand   DemandRecorder
 	Poi      PoiSource
+	Streets  StreetSource // nil — адрес без улицы
 	RegionID int64
 }
 
@@ -329,6 +339,8 @@ type HotelCard struct {
 	Candidate
 	Facts []FactView
 	Rooms *rooms.HotelRooms // nil — у отеля нет категорий
+	// Street — ближайшая именованная улица по OSM; пусто, если улицы рядом нет. Точного адреса в данных нет.
+	Street string
 }
 
 // Hotels — отели, в которых можно искать (для разбора ссылок «похожий на …» и проверки названий в тексте).
@@ -343,6 +355,11 @@ func (s *Service) Hotel(ctx context.Context, id int64) (HotelCard, error) {
 		return HotelCard{}, err
 	}
 	out := HotelCard{Candidate: c}
+	if s.Streets != nil {
+		if out.Street, err = s.Streets.NearestStreet(ctx, id, StreetRadiusM); err != nil {
+			return out, fmt.Errorf("улица отеля: %w", err)
+		}
+	}
 	if out.Facts, err = s.Store.HotelFacts(ctx, id); err != nil {
 		return out, fmt.Errorf("факты отеля: %w", err)
 	}

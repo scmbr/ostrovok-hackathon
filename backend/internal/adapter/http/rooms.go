@@ -47,6 +47,7 @@ type categoryDTO struct {
 	ID              int64             `json:"id"`
 	Name            string            `json:"name"`
 	RoomsCount      int               `json:"rooms_count"`
+	PriceEUR        int               `json:"price_eur,omitempty"` // мок: цена карточки × множитель по названию (только в карточке отеля)
 	Placements      []placementDTO    `json:"placements"`
 	Characteristics []categoryCharDTO `json:"characteristics"`
 }

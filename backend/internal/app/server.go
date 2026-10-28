@@ -99,7 +99,7 @@ func (rt *runtime) buildHandler(reg domain.Registry) (http.Handler, error) {
 	}
 	roomSvc := &rooms.Service{Registry: reg, Store: postgres.NewRoomStore(pool, reg.Rules())}
 	searchStore := postgres.NewSearchStore(pool)
-	searchSvc := &search.Service{Registry: reg, Store: searchStore, Rooms: roomSvc, Demand: searchStore, Poi: searchStore, RegionID: region.ID}
+	searchSvc := &search.Service{Registry: reg, Store: searchStore, Rooms: roomSvc, Demand: searchStore, Poi: searchStore, Streets: searchStore, RegionID: region.ID}
 	chat, _, mode, err := newDialogEngineFrom(cfg, reg, pool, region, searchSvc, dialogAuto, false)
 	if err != nil {
 		return nil, fmt.Errorf("агент диалога: %w", err)

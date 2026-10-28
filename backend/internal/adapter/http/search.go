@@ -300,14 +300,21 @@ type factDTO struct {
 }
 
 type hotelCardDTO struct {
-	ID       int64     `json:"id"`
-	Name     string    `json:"name"`
-	District string    `json:"district"`
-	Lat      float64   `json:"lat"`
-	Lon      float64   `json:"lon"`
-	Card     cardDTO   `json:"card"`
-	Facts    []factDTO `json:"facts"`
-	Rooms    *roomsDTO `json:"rooms"`
+	ID       int64      `json:"id"`
+	Name     string     `json:"name"`
+	District string     `json:"district"`
+	Lat      float64    `json:"lat"`
+	Lon      float64    `json:"lon"`
+	Card     cardDTO    `json:"card"`
+	Address  addressDTO `json:"address"`
+	Facts    []factDTO  `json:"facts"`
+	Rooms    *roomsDTO  `json:"rooms"`
+}
+
+// addressDTO — адрес отеля. Точного адреса в данных нет: это ближайшая именованная улица по OSM (approx всегда true).
+type addressDTO struct {
+	Street string `json:"street,omitempty"`
+	Approx bool   `json:"approx"`
 }
 
 func handleHotelCard(svc SearchService, reg domain.Registry) http.HandlerFunc {
@@ -321,7 +328,7 @@ func handleHotelCard(svc SearchService, reg domain.Registry) http.HandlerFunc {
 			writeSearchError(w, err, "чтение карточки отеля")
 			return
 		}
-		out := hotelCardDTO{ID: h.ID, Name: h.Name, District: h.District, Lat: h.Lat, Lon: h.Lon, Card: newCardDTO(h.Card), Facts: []factDTO{}}
+		out := hotelCardDTO{ID: h.ID, Name: h.Name, District: h.District, Lat: h.Lat, Lon: h.Lon, Card: newCardDTO(h.Card), Address: addressDTO{Street: h.Street, Approx: true}, Facts: []factDTO{}}
 		for _, fv := range h.Facts {
 			f := fv.Fact
 			d := factDTO{ID: f.ID, Key: f.Key, Title: titleOf(reg, f.Key), EntityType: f.EntityType, EntityID: f.EntityID, Value: f.Value, Confidence: round2(f.Confidence),
@@ -338,6 +345,9 @@ func handleHotelCard(svc SearchService, reg domain.Registry) http.HandlerFunc {
 		}
 		if h.Rooms != nil {
 			rd := newRoomsDTO(*h.Rooms)
+			for i := range rd.Categories {
+				rd.Categories[i].PriceEUR = domain.CategoryPriceEUR(h.Card, rd.Categories[i].Name)
+			}
 			out.Rooms = &rd
 		}
 		writeJSON(w, http.StatusOK, out)
