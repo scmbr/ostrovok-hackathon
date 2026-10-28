@@ -30,6 +30,7 @@ type routerDeps struct {
 	admin         AdminSource
 	explain       ExplainSource
 	search        SearchService
+	lookup        HotelLookup
 	chat          ChatService
 	guest         GuestFlow
 	examples      []dialog.Example

@@ -709,3 +709,19 @@ export interface StaleFactRow {
   hotel_id?: number
   valid_until?: string
 }
+
+// GET /api/hotels/lookup: отель, которого гость мог назвать по id или названию.
+export interface LookupHotel {
+  id: number
+  name: string
+  district: string
+  card: Card
+  score: number
+  match: 'id' | 'text'
+}
+
+export interface LookupResult {
+  results: LookupHotel[]
+  // Названный гостем отель, которого нет в базе (рядом со словом «отель» слово латиницей, не найденное в названиях).
+  unknown?: string
+}

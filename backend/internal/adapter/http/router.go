@@ -41,6 +41,9 @@ func newRouter(static fs.FS, reg domain.Registry, traces TraceSource, rooms Room
 		mux.Handle("GET /api/hotels/{id}", handleHotelCard(deps.search, reg))
 		mux.Handle("GET /api/hotels/{id}/similar", handleSimilar(deps.search, reg))
 	}
+	if deps.lookup != nil {
+		mux.Handle("GET /api/hotels/lookup", handleHotelLookup(deps.lookup))
+	}
 	if deps.chat != nil {
 		mux.Handle("POST /api/chat", handleChat(deps.chat, reg))
 	}
