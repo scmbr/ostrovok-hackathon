@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { Explanation, SearchHotel, Variant } from '@/shared/api'
 import { Card, Icon } from '@/shared/ui'
-import { nightsWord, pct } from '@/shared/lib'
+import { districtLabel, nightsWord, pct } from '@/shared/lib'
 import { WishRow } from './WishRow'
 import { HotelThumb, RoomThumb } from './HotelPhoto'
 
@@ -66,7 +66,7 @@ export function HotelResultCard({ hotel, explanation, highlighted, onHover, acti
           <div>
             <h3 className="text-title">{hotel.name}</h3>
             <div className="text-caption text-ink-muted">
-              {hotel.district} · {'★'.repeat(hotel.card.stars)} · {hotel.score > 0 ? `оценка ${pct(hotel.score)}` : 'нет оценки'}
+              {districtLabel(hotel.district)} · {'★'.repeat(hotel.card.stars)} · {hotel.score > 0 ? `оценка ${pct(hotel.score)}` : 'нет оценки'}
               {hotel.card.mock && ' · карточка — мок'}
             </div>
           </div>

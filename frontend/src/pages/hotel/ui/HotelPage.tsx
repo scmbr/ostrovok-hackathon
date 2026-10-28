@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import type { HotelCardData } from '@/shared/api'
 import { Card, ErrorNote, Spinner } from '@/shared/ui'
 import { ContractPanel } from '@/widgets/contract-panel'
 import { HotelFacts } from '@/widgets/hotel-facts'
+import { HotelHeader } from '@/widgets/hotel-header'
 import { FacadeMap } from '@/widgets/hotel-map'
 import { getHotel, HotelGallery } from '@/entities/hotel'
 import { lastSearch, useChat } from '@/features/chat-search'
-import { FindSimilarButton } from '@/features/find-similar'
-import { ShortlistButton } from '@/features/shortlist'
 import type { ContractTarget } from '@/features/book-with-wish'
 
 export function HotelPage() {
@@ -40,24 +39,12 @@ export function HotelPage() {
     )
   }
 
+  const search = lastSearch(chat)
+  const best = search?.hotels.find((h) => h.hotel_id === hotel.id)?.best
+
   return (
     <div className="mx-auto max-w-5xl space-y-5 px-4 py-4">
-      <div className="flex flex-wrap items-start gap-3">
-        <div>
-          <Link to="/search" className="text-xs text-brand-link hover:underline">
-            ← к поиску
-          </Link>
-          <h1 className="text-2xl font-bold">{hotel.name}</h1>
-          <p className="text-sm text-ink">
-            {hotel.district} · {'★'.repeat(hotel.card.stars)}
-            {hotel.card.mock && ' · базовая карточка (звёзды, цена, завтрак) — мок'}
-          </p>
-        </div>
-        <div className="ml-auto flex gap-2">
-          <ShortlistButton hotelId={hotel.id} />
-          <FindSimilarButton hotelId={hotel.id} hotelName={hotel.name} />
-        </div>
-      </div>
+      <HotelHeader hotel={hotel} wishes={wishes} bestCategoryId={best?.category_id} onBook={setTarget} />
       <HotelGallery hotelId={hotel.id} name={hotel.name} />
       {hotel.rooms && hotel.rooms.facades.length > 0 && (
         <Card>
@@ -65,7 +52,7 @@ export function HotelPage() {
           <FacadeMap hotel={hotel} />
         </Card>
       )}
-      <HotelFacts hotel={hotel} wishes={wishes} onBook={setTarget} />
+      <HotelFacts hotel={hotel} wishes={wishes} evals={best?.wishes} onBook={setTarget} />
       {target && <ContractPanel target={target} onClose={() => setTarget(null)} />}
     </div>
   )

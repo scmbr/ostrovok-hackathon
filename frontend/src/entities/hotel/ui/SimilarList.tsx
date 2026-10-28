@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { SimilarHotel } from '@/shared/api'
 import { Card } from '@/shared/ui'
+import { districtLabel } from '@/shared/lib'
 
 // Похожие отели: по профилю собранных характеристик, не по звёздам и цене. Главные отличия — готовые названия характеристик.
 export function SimilarList({ hotels, actions }: { hotels: SimilarHotel[]; actions?: (h: SimilarHotel) => ReactNode }) {
@@ -16,7 +17,7 @@ export function SimilarList({ hotels, actions }: { hotels: SimilarHotel[]; actio
                 {h.name}
               </Link>
               <span className="text-xs text-ink-muted">
-                {h.district} · {'★'.repeat(h.card.stars)}
+                {districtLabel(h.district)} · {'★'.repeat(h.card.stars)}
               </span>
               <span className="ml-auto flex gap-2">{actions?.(h)}</span>
             </div>

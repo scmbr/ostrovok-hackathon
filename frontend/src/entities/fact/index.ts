@@ -1,4 +1,6 @@
 export { FactCard, EvidenceList } from './ui/FactCard'
+export { FactRow, iconFor } from './ui/FactRow'
+export type { RowTone } from './ui/FactRow'
 export type { FactLike } from './ui/FactCard'
 export { FactChangeView, TrustChangeView } from './ui/FactChangeView'
 export { getCharacteristics, getExplainedFacts, resetCharacteristics } from './api/factApi'
