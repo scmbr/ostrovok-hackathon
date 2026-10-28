@@ -10,6 +10,8 @@ import type { ContractTarget } from '@/features/book-with-wish'
 
 interface Props {
   results: ResultsEvent
+  // Желания, которые система не умеет проверять: выдача считается только по остальным.
+  unmet?: string[]
   highlightId?: number | null
   onHover?: (id: number | null) => void
   onBook: (t: ContractTarget) => void
@@ -20,9 +22,15 @@ const KIND_HINT: Record<string, string> = {
   open: 'Ничего не нарушено, но часть данных под вопросом',
 }
 
-function groupHeading(g: Group): string | null {
-  if (g.title) return g.title
-  return KIND_HINT[g.kind] ?? null
+const CHECKABLE = 'желаниям, которые мы умеем проверять'
+
+// Если часть пожеланий не проверяется, заголовок «по всем желаниям» был бы неправдой: оговариваем, по чему именно.
+function groupHeading(g: Group, hasUnmet: boolean): string | null {
+  if (!hasUnmet) return g.title || KIND_HINT[g.kind] || null
+  if (g.kind === 'full') return 'Подходят по желаниям, которые мы умеем проверять'
+  if (g.kind === 'open') return `По ${CHECKABLE} ничего не нарушено, но часть данных под вопросом`
+  if (g.title) return `${g.title} (среди проверяемых желаний)`
+  return null
 }
 
 function targetOf(hotel: SearchHotel, v: Variant, results: ResultsEvent): ContractTarget {
@@ -37,7 +45,7 @@ function targetOf(hotel: SearchHotel, v: Variant, results: ResultsEvent): Contra
 }
 
 // Выдача по группам: «полностью», «под вопросом», блоки «всё, кроме X». Тексты объяснений приходят с сервера готовыми.
-export function HotelResults({ results, highlightId, onHover, onBook }: Props) {
+export function HotelResults({ results, unmet = [], highlightId, onHover, onBook }: Props) {
   const { stay } = useStayDates()
   if (results.kind === 'similar') {
     return (
@@ -55,10 +63,17 @@ export function HotelResults({ results, highlightId, onHover, onBook }: Props) {
   }
   return (
     <div className="space-y-4">
-      {results.groups_lead && <p className="text-sm text-ink">{results.groups_lead}</p>}
+      {results.groups_lead && (
+        <p className="text-sm text-ink">{unmet.length ? results.groups_lead.replace('по всем желаниям', `по ${CHECKABLE}`) : results.groups_lead}</p>
+      )}
+      {unmet.length > 0 && (
+        <p className="rounded-inner bg-warn-bg px-3 py-2 text-xs text-warn">Не проверяем: {unmet.map((u) => `«${u}»`).join(', ')}</p>
+      )}
       {groups.map((g, gi) => (
         <section key={gi} className="space-y-2">
-          {groupHeading(g) && <h3 className="text-sm font-semibold text-ink">{groupHeading(g)}</h3>}
+          {groupHeading(g, unmet.length > 0) && (
+            <h3 className="text-sm font-semibold text-ink">{groupHeading(g, unmet.length > 0)}</h3>
+          )}
           {g.hotels.map((h) => (
             <HotelResultCard
               key={h.hotel_id}

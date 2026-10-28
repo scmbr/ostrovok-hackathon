@@ -3,13 +3,13 @@ import type { ReactNode } from 'react'
 import type { Compare, ResultsEvent, StepEvent } from '@/shared/api'
 import { Badge, Button, ErrorNote, Spinner } from '@/shared/ui'
 import { useSessionNotice } from '@/entities/session'
-import { ChatInput, CityBlock, ClarificationButtons, ExampleButtons, LookupBlock, NextStepHint, UnknownHotelBlock, resetChat, useChat } from '@/features/chat-search'
+import { ChatInput, CityBlock, ClarificationButtons, ExampleButtons, LookupBlock, NextStepHint, UnknownHotelBlock, resetChat, unmetFromMessage, useChat } from '@/features/chat-search'
 import type { AgentTurn } from '@/features/chat-search'
 import { StayDatesPicker } from '@/features/stay-dates'
 
 interface Props {
   // Выдачу и сравнение рисуют виджеты выше по странице: виджеты друг друга не импортируют.
-  renderResults: (r: ResultsEvent) => ReactNode
+  renderResults: (r: ResultsEvent, unmet: string[]) => ReactNode
   renderCompare: (c: Compare) => ReactNode
 }
 
@@ -89,7 +89,7 @@ function AgentBubble({ turn, renderResults, renderCompare }: { turn: AgentTurn }
         </div>
       )}
       {turn.clarification && <ClarificationButtons clarification={turn.clarification} answered={turn.answered} />}
-      {turn.results && renderResults(turn.results)}
+      {turn.results && renderResults(turn.results, unmetFromMessage(turn.message?.text))}
       {turn.compare && renderCompare(turn.compare)}
       {turn.error && <ErrorNote>{turn.error}</ErrorNote>}
     </div>
