@@ -35,7 +35,7 @@
 
 ## Типографика
 
-Шрифт: `font-sans` = `"Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`. Системный, ничего не скачиваем и не подключаем с CDN. Начертания: 400, 500, 700.
+Шрифт: `font-sans` = `"PT Root UI", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`. PT Root UI подключён локально (`public/fonts`, без CDN); если файлов нет, берётся системный шрифт. Начертания: 300, 400, 500, 700.
 
 Исключение — заголовок главной «Брооонь без сюрпризов»: Unbounded 700 (`font-display`, пакет `@fontsource/unbounded`, только latin и cyrillic 700, файлы идут из npm, не с CDN). Больше нигде не используется.
 
@@ -67,9 +67,10 @@ frontend/
     brand/
       logo.svg            логотип в шапке
     fonts/
-      brand-400.woff2     шрифт, обычный
-      brand-500.woff2     шрифт, средний
-      brand-700.woff2     шрифт, жирный
+      PT-Root-UI_Light.ttf      шрифт, 300
+      PT-Root-UI_Regular.ttf    шрифт, 400
+      PT-Root-UI_Medium.ttf     шрифт, 500
+      PT-Root-UI_Bold.ttf       шрифт, 700
   src/shared/ui/icon/
     Icon.tsx              единственный компонент иконок: <Icon name="heart" size={16} />
     map.ts                имя → компонент lucide (запасной вариант)
@@ -112,7 +113,7 @@ frontend/
 
 ### Шрифт
 
-В `index.css` три `@font-face` с семейством `Brand` (400, 500, 700) на `/fonts/brand-*.woff2`, `font-display: swap`. Стек: `Brand, "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`. Если файлов нет, браузер получает 404 и берёт системный шрифт. Формат — только `woff2`.
+В `index.css` четыре `@font-face` с семейством `PT Root UI` (300, 400, 500, 700) на `/fonts/PT-Root-UI_*.ttf`, `font-display: swap`; 600 браузер берёт из Bold. Стек: `"PT Root UI", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif`. Если файла нет, браузер получает 404 и берёт системный шрифт. Заголовок главной — Unbounded 700 (`font-display`), пакет `@fontsource/unbounded` 5.3.0 (latin и cyrillic 700, из npm), лицензия SIL OFL 1.1. Логотип и PT Root UI взяты с официального сайта Островка с разрешения организаторов хакатона (только для прототипа).
 
 ### Проверка
 

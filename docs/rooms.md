@@ -1,6 +1,6 @@
 # Категории номеров: от фасадов к вероятности
 
-Черновик раздела для README. Реализация — `backend/internal/domain/rooms.go` (чистая функция `AssessCategory`, тесты в `rooms_test.go`), расчёт свидетельств категорий — `backend/internal/usecase/rooms`, мок — `backend/internal/usecase/collect/mock_rooms.go`.
+Реализация — `backend/internal/domain/rooms.go` (чистая функция `AssessCategory`, тесты в `rooms_test.go`), расчёт свидетельств категорий — `backend/internal/usecase/rooms`, мок — `backend/internal/usecase/collect/mock_rooms.go`.
 
 ## Зачем
 
@@ -42,7 +42,7 @@
 
 ## Мок
 
-`collect mock-rooms` (после `mock-cards` и `sea-view`), детерминированно от `hotels.id`, только для демо-отелей с фасадами:
+`collect mock-rooms` (после `mock-cards` и `sea-view`; затем `collect rooms` строит расчётные свидетельства категорий), детерминированно от `hotels.id`, только для демо-отелей с фасадами:
 
 - обычные категории берутся из мок-карточки, номеров 24–60 в «Standard», 14–30 в «Superior», 8–20 в «Deluxe», 6–16 в «Family», 4–10 в «Suite»; размещение — по 1–3 случайным фасадам, диапазон этажей в пределах этажности фасада, не больше 8 номеров на этаж, пока хватает этажей;
 - у берегового отеля (до 400 м от берега), у которого расчёт даёт вид хотя бы с одного фасада, добавляется честная «Sea View» или «Vista mar» (по чётности id): 6–15 номеров на фасадах с видом, начиная с этажа начала вида — гарантия;
