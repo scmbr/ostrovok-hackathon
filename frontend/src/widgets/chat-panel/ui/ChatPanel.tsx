@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import type { Compare, ResultsEvent, StepEvent } from '@/shared/api'
 import { Badge, Button, ErrorNote, Spinner } from '@/shared/ui'
 import { useSessionNotice } from '@/entities/session'
-import { ChatInput, ClarificationButtons, ExampleButtons, NextStepHint, resetChat, unmetFromMessage, useChat } from '@/features/chat-search'
+import { ChatInput, CityBlock, ClarificationButtons, ExampleButtons, LookupBlock, NextStepHint, UnknownHotelBlock, resetChat, unmetFromMessage, useChat } from '@/features/chat-search'
 import type { AgentTurn } from '@/features/chat-search'
 import { StayDatesPicker } from '@/features/stay-dates'
 
@@ -130,6 +130,12 @@ export function ChatPanel(props: Props) {
               >
                 {t.text}
               </div>
+            ) : t.kind === 'lookup' ? (
+              <LookupBlock key={t.id} turn={t} />
+            ) : t.kind === 'city' ? (
+              <CityBlock key={t.id} turn={t} />
+            ) : t.kind === 'unknown' ? (
+              <UnknownHotelBlock key={t.id} turn={t} />
             ) : (
               <AgentBubble key={t.id} turn={t} {...props} />
             ),

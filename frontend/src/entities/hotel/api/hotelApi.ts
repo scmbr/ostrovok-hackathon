@@ -1,5 +1,5 @@
 import { apiGet } from '@/shared/api'
-import type { HotelCardData, SimilarHotel } from '@/shared/api'
+import type { HotelCardData, LookupResult, SimilarHotel } from '@/shared/api'
 
 const cards = new Map<number, Promise<HotelCardData>>()
 
@@ -18,4 +18,9 @@ export function getHotel(id: number, fresh = false): Promise<HotelCardData> {
 export async function getSimilar(id: number, limit = 5): Promise<SimilarHotel[]> {
   const r = await apiGet<{ similar: SimilarHotel[] }>(`/hotels/${id}/similar?limit=${limit}`)
   return r.similar
+}
+
+// Отели, которых гость мог назвать по id или названию (до 5, с оценкой совпадения).
+export function lookupHotels(q: string): Promise<LookupResult> {
+  return apiGet<LookupResult>(`/hotels/lookup?q=${encodeURIComponent(q)}`)
 }

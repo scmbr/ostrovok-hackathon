@@ -1,4 +1,4 @@
-export { getHotel, getSimilar } from './api/hotelApi'
+export { getHotel, getSimilar, lookupHotels } from './api/hotelApi'
 export { WishBadge } from './ui/WishBadge'
 export { WishRow } from './ui/WishRow'
 export { HotelResultCard } from './ui/HotelResultCard'
