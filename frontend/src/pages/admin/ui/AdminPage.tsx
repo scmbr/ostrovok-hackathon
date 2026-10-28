@@ -30,7 +30,7 @@ export function AdminPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-4">
       <div>
-        <Link to="/" className="text-xs text-brand-link hover:underline">
+        <Link to="/search" className="text-xs text-brand-link hover:underline">
           ← к поиску
         </Link>
         <h1 className="text-2xl font-bold">Под капотом</h1>

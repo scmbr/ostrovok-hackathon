@@ -1,3 +1,7 @@
+/* Unbounded 700 — только заголовок главной (latin + cyrillic), см. docs/design.md. */
+@import '@fontsource/unbounded/latin-700.css';
+@import '@fontsource/unbounded/cyrillic-700.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

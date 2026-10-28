@@ -212,6 +212,20 @@ export function startExample(ex: DialogExample): Promise<void> {
   return send({ message: ex.text, initial: true })
 }
 
+// Новый поиск с главной: всегда новая сессия диалога (желания прошлого поиска не сливаются с новыми,
+// ход примера попадает в кеш диалога), затем либо демо-пример, либо фраза гостя. Шортлист при этом сбрасывается.
+export type HomeIntent = { example: DialogExample } | { message: string }
+
+// Вход на /search с главной: первое сообщение едет в state навигации, даты проживания — в адресе.
+export interface SearchEntryState {
+  intent?: HomeIntent
+}
+
+export function beginSearch(intent: HomeIntent): Promise<void> {
+  resetChat(true)
+  return 'example' in intent ? startExample(intent.example) : submit(intent.message)
+}
+
 export function resetChat(newSession = true) {
   controller?.abort()
   if (newSession) {
