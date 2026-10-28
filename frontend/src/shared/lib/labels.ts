@@ -30,6 +30,8 @@ export function valueLabel(key: string | undefined, v: unknown): string {
   const c = key ? chars[key] : undefined
   if (typeof v === 'number') return c?.unit ? c.unit.replace('{n}', String(v)) : String(v)
   if (typeof v === 'string') return c?.values?.[v] ?? unknownValue(key, v)
+  // Массив или объект (составное значение, например по месяцам): String() даёт [object Object].
+  if (typeof v === 'object') return summaryLabel(key)
   return String(v)
 }
 
