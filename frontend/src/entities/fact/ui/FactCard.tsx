@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { Evidence, ExplainedFact } from '@/shared/api'
 import { Badge } from '@/shared/ui'
 import { ExplainChain } from './ExplainChain'
+import { ClimateTable } from './ClimateTable'
 import { authorLabel, formatDate, mainValue, pct, sourceLabel, zeroWeightNote } from '@/shared/lib'
 
 export interface FactLike {
@@ -65,6 +66,7 @@ export function FactCard({
         {fact.weak_disagreement && !fact.conflict && <Badge tone="amber">есть расхождение</Badge>}
         {extra}
       </div>
+      <ClimateTable value={fact.value} />
       <div className="mt-1 text-xs text-ink-muted">
         Источник: {sourceLabel(fact.source)}
         {fact.observed_at && <> · получено {formatDate(fact.observed_at)}</>}
