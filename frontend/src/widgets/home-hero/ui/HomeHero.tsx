@@ -10,12 +10,12 @@ interface Props {
 
 export function HomeHero({ onSearch, onExample }: Props) {
   return (
-    <section className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 pb-8 pt-16 text-center md:pt-24">
-      <h1 className="font-display text-3xl font-bold leading-tight text-ink md:text-5xl">Брооонь без сюрпризов</h1>
-      <div className="w-full text-left">
+    <section className="bg-hero">
+      <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 pb-12 pt-16 md:pt-24">
+        <h1 className="text-left font-display text-3xl font-bold leading-tight text-ink md:text-5xl">Брооонь без сюрпризов</h1>
         <ChatInput onSubmit={onSearch} submitLabel="Найти" footer={<StayDatesPicker />} />
+        <ExampleChips onPick={onExample} />
       </div>
-      <ExampleChips onPick={onExample} />
     </section>
   )
 }
