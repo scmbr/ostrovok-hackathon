@@ -19,14 +19,8 @@ interface UnmetWish {
 }
 
 interface Props {
-  // Передать описание в форму добавления характеристики текстом; сама ничего не создаёт.
+  // Передать описание в форму добавления характеристики текстом (слова гостя); сама ничего не создаёт.
   onPropose: (description: string) => void
-}
-
-// Описание для формы: предложение модели, если оно есть, иначе формулировка гостя.
-function description(w: UnmetWish): string {
-  const p = w.proposal
-  return (p?.how || p?.title || '').trim() || w.text
 }
 
 // Журнал неизвестных пожеланий: чего гости ищут, а в реестре этого нет. Частые — кандидаты в новые характеристики.
@@ -72,7 +66,7 @@ export function UnmetWishesBoard({ onPropose }: Props) {
                   {formatDate(w.first_seen)} / {formatDate(w.last_seen)}
                 </td>
                 <td className="py-1.5 text-right">
-                  <Button onClick={() => onPropose(description(w))}>Предложить характеристику</Button>
+                  <Button onClick={() => onPropose(w.text)}>Предложить характеристику</Button>
                 </td>
               </tr>
             ))}

@@ -3,9 +3,10 @@ import type { CharacteristicDraft, Job } from '@/shared/api'
 import { ApiError } from '@/shared/api'
 import { Badge, Button, Card, ErrorNote, Notice } from '@/shared/ui'
 import { resetCharacteristics } from '@/entities/fact'
-import { computeCharacteristic, draftCharacteristic, getJob, saveCharacteristic } from '../api/addApi'
+import { computeCharacteristic, draftCharacteristic, getJob, getLlmMode, saveCharacteristic } from '../api/addApi'
 
-const EXAMPLES = ['есть ли рядом круглосуточный магазин', 'есть ли рядом круглосуточная аптека', 'можно ли с собакой']
+// Первые формулировки встроенных заготовок кеша (backend/internal/adapter/llm/cache/*.yaml): без LLM ответ есть только на них.
+const EXAMPLES = ['есть ли рядом круглосуточный магазин', 'есть ли рядом круглосуточная аптека', 'можно ли с собакой', 'затемняющие шторы']
 
 interface Props {
   // Реестр на сервере изменился: список нужно перечитать.
@@ -52,7 +53,12 @@ export function AddCharacteristic({ onSaved, initialText = '' }: Props) {
   const [busy, setBusy] = useState(false)
   const [savedKey, setSavedKey] = useState<string | null>(null)
   const [job, setJob] = useState<Job | null>(null)
+  const [cacheMode, setCacheMode] = useState(false)
   const timer = useRef<number | null>(null)
+
+  useEffect(() => {
+    getLlmMode().then((m) => setCacheMode(m === 'cache'), () => {})
+  }, [])
 
   useEffect(() => () => void (timer.current && window.clearTimeout(timer.current)), [])
 
@@ -140,13 +146,17 @@ export function AddCharacteristic({ onSaved, initialText = '' }: Props) {
           Предпросмотр
         </Button>
       </div>
-      <div className="mt-1 flex flex-wrap gap-2 text-xs">
+      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+        {cacheMode && <span className="text-slate-600">В режиме без LLM доступны:</span>}
         {EXAMPLES.map((x) => (
           <button key={x} type="button" className="text-sky-800 hover:underline" onClick={() => setText(x)}>
             {x}
           </button>
         ))}
       </div>
+      {cacheMode && (
+        <p className="mt-1 text-xs text-slate-500">Без ключа LLM черновик есть только для этих формулировок; выбор подставляет точный текст заготовки.</p>
+      )}
 
       {error && (
         <div className="mt-2">

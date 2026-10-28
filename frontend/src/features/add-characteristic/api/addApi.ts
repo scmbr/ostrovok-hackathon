@@ -5,3 +5,4 @@ export const draftCharacteristic = (text: string) => apiPost<CharacteristicDraft
 export const saveCharacteristic = (yaml: string) => apiPost<{ key: string; title: string }>('/admin/characteristics', { yaml })
 export const computeCharacteristic = (key: string) => apiPost<{ job_id: string }>(`/admin/characteristics/${encodeURIComponent(key)}/compute`, {})
 export const getJob = (id: string) => apiGet<Job>(`/admin/jobs/${encodeURIComponent(id)}`)
+export const getLlmMode = () => apiGet<{ llm_mode: 'llm' | 'cache' }>('/meta').then((m) => m.llm_mode)
