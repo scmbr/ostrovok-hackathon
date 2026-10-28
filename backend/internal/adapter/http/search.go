@@ -31,6 +31,7 @@ type routerDeps struct {
 	explain       ExplainSource
 	search        SearchService
 	lookup        HotelLookup
+	showcase      HotelShowcase
 	chat          ChatService
 	guest         GuestFlow
 	examples      []dialog.Example
