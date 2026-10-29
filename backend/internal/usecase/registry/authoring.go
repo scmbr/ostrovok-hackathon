@@ -141,7 +141,7 @@ func (a *Authoring) check(reg domain.Registry, c domain.Characteristic) []string
 		}
 	}
 	if len(nonEmpty(c.Synonyms)) == 0 {
-		out = append(out, c.Key+": нет synonyms — без них гость не найдёт характеристику текстом без LLM")
+		out = append(out, c.Key+": нет synonyms — без них гость не найдёт характеристику текстом без LLM; предложенные фразы пересекаются с уже существующими, добавьте в YAML свои фразы гостя (например, «круглосуточное кафе»)")
 	}
 	return out
 }

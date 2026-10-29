@@ -48,6 +48,7 @@ function PreviewBox({ preview, onSend, busy }: { preview: PersonaPreview; onSend
 export function QuestionCard({ q, hasPersona, hideReason, onAnswered }: Props) {
   const [text, setText] = useState('')
   const [comment, setComment] = useState('')
+  const [clarify, setClarify] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<PersonaPreview | null>(null)
@@ -102,30 +103,32 @@ export function QuestionCard({ q, hasPersona, hideReason, onAnswered }: Props) {
           />
         )}
         {q.format === 'confirm' && (
-          <div className="flex flex-wrap gap-2">
-            <Button small variant="primary" disabled={busy} onClick={() => send({ answer: 'yes', comment: comment.trim() || undefined })}>
+          <div className="flex flex-wrap gap-3">
+            <Button variant="primary" className="h-12 min-w-28 px-8" disabled={busy} onClick={() => send({ answer: 'yes', comment: comment.trim() || undefined })}>
               Да
             </Button>
-            <Button small disabled={busy} onClick={() => send({ answer: 'no', comment: comment.trim() || undefined })}>
+            <Button className="h-12 min-w-28 px-8" disabled={busy} onClick={() => send({ answer: 'no', comment: comment.trim() || undefined })}>
               Нет
             </Button>
-            <Button small variant="ghost" disabled={busy} onClick={() => send({ text: 'уточнить' })}>
+            <Button variant="ghost" className="h-12 min-w-28 px-8" disabled={busy} onClick={() => setClarify((v) => !v)}>
               Уточнить
             </Button>
           </div>
         )}
-        <div className="flex gap-2">
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={q.format === 'confirm' ? 'Или ответьте текстом…' : 'Ответ своими словами…'}
-            className="min-w-0 flex-1 rounded-inner border border-line px-2 py-1 text-sm"
-            onKeyDown={(e) => e.key === 'Enter' && text.trim() && send({ text })}
-          />
-          <Button small variant={q.format === 'confirm' ? 'secondary' : 'primary'} disabled={busy || !text.trim()} onClick={() => send({ text })}>
-            Отправить
-          </Button>
-        </div>
+        {(q.format !== 'confirm' || clarify) && (
+          <div className="flex gap-2">
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={q.format === 'confirm' ? 'Назовите категорию, сторону и этаж' : 'Ответ своими словами…'}
+              className="min-w-0 flex-1 rounded-inner border border-line px-2 py-1 text-sm"
+              onKeyDown={(e) => e.key === 'Enter' && text.trim() && send({ text })}
+            />
+            <Button small variant="primary" disabled={busy || !text.trim()} onClick={() => send({ text })}>
+              Отправить
+            </Button>
+          </div>
+        )}
         {hasPersona && (
           <Button small variant="ghost" disabled={busy} onClick={askPersona}>
             Ответить как персона (имитация)

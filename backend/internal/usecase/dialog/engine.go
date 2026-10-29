@@ -195,9 +195,10 @@ type run struct {
 	applied string
 
 	// Непонятое: тексты в порядке появления; нормализация и предложение модели, если она их дала.
-	unmet     []string
-	unmetNorm map[string]string
-	proposals map[string][]byte
+	unmet      []string
+	unmetNorm  map[string]string
+	proposals  map[string][]byte
+	recognized map[string]bool
 
 	clar clarifier
 	ask  *Clarification
@@ -258,6 +259,9 @@ func (r *run) parse(text string) domain.ParseResult {
 func (r *run) queueUnmet(text, normalized string, proposal []byte) {
 	text = strings.TrimSpace(text)
 	if text == "" {
+		return
+	}
+	if !domain.ShouldLogUnmet(text, r.recognizedStems()) {
 		return
 	}
 	key := domain.NormalizeUnmet(text)
@@ -428,7 +432,7 @@ func (r *run) finish(candidate string, emit func(Event)) error {
 	case r.sim != nil:
 		emit(Event{EventResults, ResultsEvent{Kind: "similar", Query: domain.Query{Wishes: r.st.Wishes, Filters: r.st.Filters},
 			Similar: &SimilarView{Base: r.sim.base, Hotels: r.sim.list}}})
-		msg(r.e.shortSimilar(r.sim.base, r.sim.list, r.notes, unmet), "template")
+		msg(r.e.shortSimilar(r.sim.base, r.sim.list, r.notes, unmet, r.skippedInSimilar()), "template")
 	case r.srch != nil:
 		o := r.srch
 		emit(Event{EventResults, ResultsEvent{Kind: "search", Query: o.res.Query, Hotels: o.res.Hotels, Explanations: o.exps, Groups: o.res.Groups,
@@ -453,7 +457,7 @@ func (e *Engine) shortResults(res search.Result, notes, unmet []string) string {
 		}
 	}
 	if len(unmet) > 0 {
-		fmt.Fprintf(&b, "\nПока не умею учитывать: %s — записала в журнал пожеланий.", quoted(unmet))
+		b.WriteString("\n" + unmetLine(unmet))
 	}
 	if len(res.Hotels) == 0 {
 		b.WriteString("\nПодходящих отелей не нашлось: попробуйте смягчить условия.")
@@ -469,7 +473,7 @@ func (e *Engine) shortResults(res search.Result, notes, unmet []string) string {
 }
 
 // shortSimilar — текст «похожих»: от какого отеля идём и список названий.
-func (e *Engine) shortSimilar(base Shown, list []search.SimilarHotel, notes, unmet []string) string {
+func (e *Engine) shortSimilar(base Shown, list []search.SimilarHotel, notes, unmet, skipped []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Похожие на %s — по профилю собранных характеристик, без учёта звёзд и цены:", base.Name)
 	for _, n := range notes {
@@ -486,10 +490,33 @@ func (e *Engine) shortSimilar(base Shown, list []search.SimilarHotel, notes, unm
 		}
 		fmt.Fprintf(&b, "\n%d. %s", i+1, s.Name)
 	}
+	if len(skipped) > 0 {
+		fmt.Fprintf(&b, "\nНе учёл: %s — «похожие» подбираются по профилю целиком, исключить из него одно свойство нельзя.", quoted(skipped))
+	}
 	if len(unmet) > 0 {
-		fmt.Fprintf(&b, "\nПока не умею учитывать: %s — записала в журнал пожеланий.", quoted(unmet))
+		fmt.Fprintf(&b, "\n%s", unmetLine(unmet))
 	}
 	return b.String()
+}
+
+// unmetLine — строка «Не учёл» про желания вне реестра. Текст для гостя собирает код после модели и в неё не возвращается;
+// строка для модели (resultsParts, similarParts) остаётся прежней, чтобы не менять запросы к ней и кеш диалога.
+func unmetLine(unmet []string) string {
+	return fmt.Sprintf("Не учёл: %s — записала в журнал пожеланий.", quoted(unmet))
+}
+
+// skippedInSimilar — части запроса, которые «похожие» не применяют: «без вида на море» убирает желание из профиля, но
+// не исключает вид из выдачи.
+func (r *run) skippedInSimilar() []string {
+	var out []string
+	for _, k := range r.removed {
+		title := k
+		if c, ok := r.e.Registry.Get(k); ok {
+			title = c.Title
+		}
+		out = append(out, "без "+strings.ToLower(title))
+	}
+	return out
 }
 
 // countHotels — «1 отель», «2 отеля», «6 отелей».
@@ -624,7 +651,7 @@ func (e *Engine) finalText(ctx context.Context, tr *tracer, candidate, lead, res
 
 func emptyMessage(removed, unmet []string) string {
 	if len(unmet) > 0 {
-		return fmt.Sprintf("Пока не умею учитывать: %s. Записала это в журнал пожеланий — такие запросы подскажут, какие характеристики добавить. "+
+		return fmt.Sprintf("Не учёл: %s. Записала это в журнал пожеланий — такие запросы подскажут, какие характеристики добавить. "+
 			"Расскажите, что ещё важно: тишина, вид на море, пляж, метро, питомцы, бюджет.", quoted(unmet))
 	}
 	if len(removed) > 0 {
@@ -854,4 +881,19 @@ func (e *Engine) mainDifferences(s search.SimilarHotel) string {
 		}
 	}
 	return strings.Join(titles, ", ")
+}
+
+// recognizedStems — основы слов фраз, которые парсер разобрал как желания в сообщении гостя: непонятое, целиком
+// состоящее из них, в журнал не пишется. Разбор чистый (состояние не меняет), результат запоминается на ход.
+func (r *run) recognizedStems() map[string]bool {
+	if r.recognized != nil {
+		return r.recognized
+	}
+	r.recognized = map[string]bool{}
+	for _, m := range r.e.Lexicon.Parse(r.req.Message).Matches {
+		for _, w := range domain.PhraseWords(m.Phrase) {
+			r.recognized[domain.UnmetStem(w)] = true
+		}
+	}
+	return r.recognized
 }
