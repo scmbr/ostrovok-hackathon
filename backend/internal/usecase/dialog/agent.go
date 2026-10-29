@@ -322,10 +322,19 @@ func (r *run) toolSearch(args string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("желание отклонено: %w; допустимые ключи: %s", err, strings.Join(r.searchableKeys(), ", "))
 		}
+		if g, changed := domain.GuardModelWish(r.req.Message, nd, r.st.Wishes); changed {
+			nd = g
+			r.tr.step("модель назвала желание обязательным, но слов-маркеров у гостя нет — ставлю «желательно»", "guard_importance",
+				map[string]any{"key": nd.Key}, map[string]any{"importance": nd.Importance})
+		}
 		r.st.Wishes = upsert(r.st.Wishes, r.st.withFloor(r.e.Registry, nd))
 	}
 	if a.PriceMax > 0 {
-		r.st.Filters.PriceMax = a.PriceMax
+		if domain.PriceInText(r.req.Message, a.PriceMax) {
+			r.st.Filters.PriceMax = a.PriceMax
+		} else {
+			r.tr.step("модель назвала бюджет, которого гость не называл — игнорирую", "guard_price", map[string]any{"price_max": a.PriceMax}, nil)
+		}
 	}
 	if a.StarsMin > 0 {
 		r.st.Filters.StarsMin = a.StarsMin
