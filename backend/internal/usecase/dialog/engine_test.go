@@ -318,7 +318,7 @@ func TestUnmetWishLoggedAndCounted(t *testing.T) {
 	r := newRig(t, func(domain.Query) []int64 { return []int64{1, 2, 3} })
 	ev := turn(t, r, Request{SessionID: "s", Message: "морской воздух"})
 	msg, _ := find[MessageEvent](ev, EventMessage)
-	if !strings.Contains(msg.Text, "Пока не умею учитывать") {
+	if !strings.Contains(msg.Text, "Не учёл") {
 		t.Errorf("ответ должен признать, что не учтено: %s", msg.Text)
 	}
 	turn(t, r, Request{SessionID: "t", Message: "воздух морской"})
