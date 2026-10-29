@@ -611,7 +611,8 @@ type Variant struct {
 	// Violations и Unknown — ключи нарушенных must и желаний без данных.
 	Violations []string
 	Unknown    []string
-	// Guaranteed — все желания по категории имеют гарантию (есть хотя бы одно такое желание).
+	// Guaranteed — все желания варианта выполнены: у категорийных есть гарантия, остальные совпали.
+	// «Под вопросом», «шанс» и «данных нет» по любому желанию снимают признак.
 	Guaranteed bool
 }
 
@@ -619,7 +620,7 @@ type Variant struct {
 func NewVariant(categoryID int64, name string, rooms, price int, evals []WishEval, categoryKeys map[string]bool) Variant {
 	v := Variant{CategoryID: categoryID, Name: name, Rooms: rooms, PriceEUR: price, Evals: evals}
 	sum, weight := 0.0, 0.0
-	cat, guaranteed := 0, 0
+	allSure := len(evals) > 0
 	for _, e := range evals {
 		w := e.Importance.Weight()
 		sum += w * e.Score
@@ -630,17 +631,14 @@ func NewVariant(categoryID int64, name string, rooms, price int, evals []WishEva
 		if e.Status == StatusUnknown {
 			v.Unknown = append(v.Unknown, e.Key)
 		}
-		if categoryKeys[e.Key] {
-			cat++
-			if e.Status == StatusMatch && e.Guarantee {
-				guaranteed++
-			}
+		if e.Status != StatusMatch || (categoryKeys[e.Key] && !e.Guarantee) {
+			allSure = false
 		}
 	}
 	if weight > 0 {
 		v.Score = sum / weight
 	}
-	v.Guaranteed = cat > 0 && cat == guaranteed
+	v.Guaranteed = allSure
 	return v
 }
 
