@@ -253,6 +253,31 @@ func TestChooseVariants(t *testing.T) {
 	}
 }
 
+// «Всё гарантировано» только если нет ни одного желания «под вопросом» или без данных.
+func TestNewVariantGuaranteedIsStrict(t *testing.T) {
+	keys := map[string]bool{"sea_view": true}
+	sea := WishEval{Key: "sea_view", Importance: Must, Status: StatusMatch, Guarantee: true, Score: 0.9}
+	beach := WishEval{Key: "walk_to_beach", Importance: Prefer, Status: StatusMatch, Score: 0.9}
+	pets := WishEval{Key: "pets_allowed", Importance: Prefer, Status: StatusUnknown, Score: 0.4}
+	doubt := WishEval{Key: "noise_night", Importance: Prefer, Status: StatusUncertain, Score: 0.6}
+	cases := []struct {
+		name  string
+		evals []WishEval
+		want  bool
+	}{
+		{"категория и отель совпали", []WishEval{sea, beach}, true},
+		{"нет желаний", nil, false},
+		{"другое желание без данных", []WishEval{sea, pets}, false},
+		{"другое желание под вопросом", []WishEval{sea, doubt}, false},
+		{"категорийное без гарантии", []WishEval{{Key: "sea_view", Status: StatusMatch}, beach}, false},
+	}
+	for _, c := range cases {
+		if got := NewVariant(1, "X", 10, 100, c.evals, keys).Guaranteed; got != c.want {
+			t.Errorf("%s: Guaranteed = %v, ожидали %v", c.name, got, c.want)
+		}
+	}
+}
+
 func TestRankHotelsViolatorsLast(t *testing.T) {
 	hs := []HotelResult{
 		{HotelID: 1, Best: Variant{Score: 0.95, Violations: []string{"sea_view"}}},
