@@ -243,3 +243,16 @@ func (d PoiDict) WithoutOverlaps(reg Registry) (PoiDict, []SynonymOverlap) {
 	}
 	return out, dropped
 }
+
+// poiEntries — фразы словаря типов заведений в виде записей для проверки пересечений.
+func poiEntries(reg Registry) []phraseEntry {
+	var out []phraseEntry
+	for _, k := range reg.poi.items {
+		for _, p := range k.Synonyms {
+			if w := PhraseWords(p); len(w) > 0 {
+				out = append(out, phraseEntry{key: NearPoiKey(k.ID), phrase: strings.Join(w, " "), words: w})
+			}
+		}
+	}
+	return out
+}

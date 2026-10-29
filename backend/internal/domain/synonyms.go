@@ -130,11 +130,12 @@ func DeriveSynonyms(title, originText string) []string {
 }
 
 // OverlapsWith возвращает пересечения фразы с synonyms и value_synonyms других характеристик реестра reg
+// и с фразами словаря типов заведений (poi_kinds.yaml)
 // (по правилу SynonymOverlaps); ключ key исключается, чтобы характеристика не спорила сама с собой.
 func OverlapsWith(reg Registry, key, phrase string) []SynonymOverlap {
 	words := PhraseWords(phrase)
 	var out []SynonymOverlap
-	for _, e := range synonymEntries(reg) {
+	for _, e := range append(synonymEntries(reg), poiEntries(reg)...) {
 		if e.key == key {
 			continue
 		}
