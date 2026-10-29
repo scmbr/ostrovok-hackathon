@@ -195,9 +195,10 @@ type run struct {
 	applied string
 
 	// Непонятое: тексты в порядке появления; нормализация и предложение модели, если она их дала.
-	unmet     []string
-	unmetNorm map[string]string
-	proposals map[string][]byte
+	unmet      []string
+	unmetNorm  map[string]string
+	proposals  map[string][]byte
+	recognized map[string]bool
 
 	clar clarifier
 	ask  *Clarification
@@ -258,6 +259,9 @@ func (r *run) parse(text string) domain.ParseResult {
 func (r *run) queueUnmet(text, normalized string, proposal []byte) {
 	text = strings.TrimSpace(text)
 	if text == "" {
+		return
+	}
+	if !domain.ShouldLogUnmet(text, r.recognizedStems()) {
 		return
 	}
 	key := domain.NormalizeUnmet(text)
@@ -854,4 +858,19 @@ func (e *Engine) mainDifferences(s search.SimilarHotel) string {
 		}
 	}
 	return strings.Join(titles, ", ")
+}
+
+// recognizedStems — основы слов фраз, которые парсер разобрал как желания в сообщении гостя: непонятое, целиком
+// состоящее из них, в журнал не пишется. Разбор чистый (состояние не меняет), результат запоминается на ход.
+func (r *run) recognizedStems() map[string]bool {
+	if r.recognized != nil {
+		return r.recognized
+	}
+	r.recognized = map[string]bool{}
+	for _, m := range r.e.Lexicon.Parse(r.req.Message).Matches {
+		for _, w := range domain.PhraseWords(m.Phrase) {
+			r.recognized[domain.UnmetStem(w)] = true
+		}
+	}
+	return r.recognized
 }
